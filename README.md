@@ -43,9 +43,18 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 
 <br><br>
 
-<img src="assets/readme/launcher.jpg" alt="Game launcher showing Warframe's page with Play, news, ProtonDB rating and hours played" width="100%">
-
-<sub><b>Game launcher</b> · Steam and Lutris games with art, news, captures and playtime</sub>
+<table>
+<tr>
+<td width="50%" align="center">
+<img src="assets/readme/launcher-grid.jpg" alt="Game launcher grid with cover art for the installed games"><br>
+<sub><b>Game launcher</b> · Steam and Lutris games with cover art</sub>
+</td>
+<td width="50%" align="center">
+<img src="assets/readme/launcher.jpg" alt="Warframe's page in the launcher with Play, news, ProtonDB rating and hours played"><br>
+<sub><b>Game page</b> · news, captures, ProtonDB and playtime</sub>
+</td>
+</tr>
+</table>
 
 <br><br>
 
