@@ -37,21 +37,27 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 
 <div align="center">
 
-<img src="assets/readme/overview.jpg" alt="The overview: app search with a preview of the selected app" width="100%">
+<img src="assets/readme/desktop.jpg" alt="The desktop with fastfetch, btop and cava tiled over the wallpaper" width="100%">
 
-<sub><b>Overview</b> · launch apps, search the clipboard, emoji, the web and more</sub>
+<sub><b>Desktop</b> · the terminal, borders and bar all take their colours from the wallpaper</sub>
+
+<br><br>
+
+<img src="assets/readme/launcher.jpg" alt="Game launcher showing Warframe's page with Play, news, ProtonDB rating and hours played" width="100%">
+
+<sub><b>Game launcher</b> · Steam and Lutris games with art, news, captures and playtime</sub>
 
 <br><br>
 
 <table>
 <tr>
 <td width="50%" align="center">
-<img src="assets/readme/sidebar.jpg" alt="Sidebar with quick toggles, notifications and system stats"><br>
-<sub><b>Sidebar</b> · toggles, notifications, system stats</sub>
+<img src="assets/readme/overview.jpg" alt="The overview: app search with a preview of the selected app"><br>
+<sub><b>Overview</b> · apps, clipboard, emoji, web search</sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/readme/launcher.jpg" alt="Game launcher with cover art"><br>
-<sub><b>Game launcher</b> · Steam and Lutris with cover art</sub>
+<img src="assets/readme/sidebar.jpg" alt="Sidebar with quick toggles, grouped notifications and system stats"><br>
+<sub><b>Sidebar</b> · toggles, notifications, system stats</sub>
 </td>
 </tr>
 <tr>
