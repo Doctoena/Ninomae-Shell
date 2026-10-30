@@ -17,7 +17,7 @@ import qs.modules.common.functions
 
 // First-run setup, opened once after install (services/FirstRunExperience.qml). A step list on the left
 // (as Settings' navigation), the step on the right: welcome → look (light/dark, wallpaper) → layout
-// (tiling, bar; with a live preview) → gaming (launcher, clips, crosshair) → shortcuts → done.
+// (tiling, bar; with a live preview) → weather (where the forecast is for) → gaming (launcher, clips, crosshair) → shortcuts → done.
 // Every choice applies straight away and can be changed later in Settings (Super+I).
 ApplicationWindow {
     id: root
@@ -28,6 +28,7 @@ ApplicationWindow {
         { icon: "waving_hand", name: Translation.tr("Welcome") },
         { icon: "palette", name: Translation.tr("Look") },
         { icon: "dashboard", name: Translation.tr("Layout") },
+        { icon: "partly_cloudy_day", name: Translation.tr("Weather") },
         { icon: "sports_esports", name: Translation.tr("Gaming") },
         { icon: "keyboard", name: Translation.tr("Shortcuts") },
         { icon: "check_circle", name: Translation.tr("Done") }
@@ -410,7 +411,72 @@ ApplicationWindow {
                     }
                 }
 
-                // 4 · Gaming
+                // 4 · Weather: where the clock drawer's forecast is for, with a live check on the right
+                WelcomePage {
+                    title: Translation.tr("Your weather")
+                    subtitle: Translation.tr("The clock drawer shows the weather and the next hours. Pick a city or let it find you.")
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 24
+                        ColumnLayout {
+                            Layout.preferredWidth: 300
+                            Layout.maximumWidth: 300
+                            Layout.alignment: Qt.AlignTop
+                            spacing: 14
+                            ConfigSwitch {
+                                Layout.fillWidth: true
+                                buttonIcon: "cloud"
+                                text: Translation.tr("Show the weather")
+                                option: "bar.weather.enable"
+                            }
+                            ContentSubsection {
+                                Layout.fillWidth: true
+                                visible: Config.options.bar.weather.enable
+                                title: Translation.tr("Location")
+                                ConfigSelectionArray {
+                                    currentValue: Config.options.bar.weather.enableGPS ? 1 : 0
+                                    onSelected: newValue => { Config.options.bar.weather.enableGPS = newValue === 1; }
+                                    options: [
+                                        { displayName: Translation.tr("A city"), icon: "location_city", value: 0 },
+                                        { displayName: Translation.tr("My location"), icon: "my_location", value: 1 }
+                                    ]
+                                }
+                            }
+                            ContentSubsection {
+                                Layout.fillWidth: true
+                                visible: Config.options.bar.weather.enable && !Config.options.bar.weather.enableGPS
+                                title: Translation.tr("City")
+                                MaterialTextArea {
+                                    Layout.fillWidth: true
+                                    text: WeatherLocation.city
+                                    onTextChanged: if (text !== WeatherLocation.city) WeatherLocation.setCity(text)
+                                }
+                            }
+                            ContentSubsection {
+                                Layout.fillWidth: true
+                                visible: Config.options.bar.weather.enable
+                                title: Translation.tr("Units")
+                                ConfigSelectionArray {
+                                    currentValue: Config.options.bar.weather.useUSCS ? 1 : 0
+                                    onSelected: newValue => { Config.options.bar.weather.useUSCS = newValue === 1; }
+                                    options: [
+                                        { displayName: Translation.tr("Celsius"), icon: "thermometer", value: 0 },
+                                        { displayName: Translation.tr("Fahrenheit"), icon: "thermometer", value: 1 }
+                                    ]
+                                }
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            WeatherCheck { Layout.fillWidth: true }
+                            Item { Layout.fillHeight: true }
+                        }
+                    }
+                }
+
+                // 5 · Gaming
                 WelcomePage {
                     title: Translation.tr("Built for games")
                     subtitle: Translation.tr("Your Steam, Lutris and other games in one launcher, with clips and a crosshair when you play.")
@@ -445,7 +511,7 @@ ApplicationWindow {
                     Item { Layout.fillHeight: true }
                 }
 
-                // 5 · Shortcuts
+                // 6 · Shortcuts
                 WelcomePage {
                     title: Translation.tr("The essentials")
                     subtitle: Translation.tr("A few shortcuts to get around. The full list is one shortcut away.")
@@ -466,7 +532,7 @@ ApplicationWindow {
                     Item { Layout.fillHeight: true }
                 }
 
-                // 6 · Done
+                // 7 · Done
                 Item {
                     ColumnLayout {
                         anchors.centerIn: parent
@@ -589,6 +655,74 @@ ApplicationWindow {
 
     // ── Pieces ──────────────────────────────────────────────────────────────
     // A step: title and subtitle, then its content
+    // The weather step's right side: the weather for the chosen place once it's found, else what's missing
+    component WeatherCheck: Rectangle {
+        id: wc
+        readonly property bool gps: Config.options.bar.weather.enableGPS
+        readonly property string city: WeatherLocation.city.trim()
+        readonly property bool found: Weather.locationValid && Weather.data.temp !== ""
+            && (gps || (!Weather.cityNotFound && Weather._geocodedCity.trim() === city))
+        readonly property string status: {
+            if (!Config.options.bar.weather.enable) return Translation.tr("Weather is off. You can turn it on here or in Settings any time.");
+            if (gps) return Weather.gpsActive ? Translation.tr("Finding your location…")
+                : Translation.tr("Couldn't get your location. Pick a city instead.");
+            if (city.length === 0) return Translation.tr("Type a city to see its weather here.");
+            if (Weather.cityNotFound) return Translation.tr("No place called “%1” found. Check the spelling.").arg(city);
+            return Translation.tr("Looking up %1…").arg(city);
+        }
+        implicitHeight: 220
+        radius: Appearance.rounding.normal
+        color: Appearance.colors.colLayer2
+        ColumnLayout { // Found: the weather, as a check that it's the right place
+            visible: wc.found && Config.options.bar.weather.enable
+            anchors.centerIn: parent
+            width: parent.width - 48
+            spacing: 6
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 14
+                MaterialSymbol { text: Weather.data.icon; iconSize: 56; color: Appearance.colors.colPrimary }
+                StyledText {
+                    text: Weather.data.temp
+                    font.pixelSize: Appearance.font.pixelSize.hugeass
+                    font.family: Appearance.font.family.title
+                    color: Appearance.colors.colOnLayer2
+                }
+            }
+            StyledText {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: Weather.data.condition
+                color: Appearance.colors.colOnLayer2
+            }
+            StyledText {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                text: wc.gps ? Weather.resolvedCity : Weather.resolvedPlace
+                color: Appearance.colors.colSubtext
+                font.pixelSize: Appearance.font.pixelSize.smaller
+            }
+        }
+        RowLayout { // Not found (yet): what's happening or what's missing
+            visible: !wc.found || !Config.options.bar.weather.enable
+            anchors.centerIn: parent
+            width: parent.width - 48
+            spacing: 12
+            MaterialSymbol {
+                text: Weather.cityNotFound && !wc.gps ? "wrong_location" : "travel_explore"
+                iconSize: 28
+                color: Appearance.colors.colSubtext
+            }
+            StyledText {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: wc.status
+                color: Appearance.colors.colSubtext
+            }
+        }
+    }
+
     component WelcomePage: Item {
         id: page
         property string title

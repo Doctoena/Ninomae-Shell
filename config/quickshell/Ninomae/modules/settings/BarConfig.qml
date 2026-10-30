@@ -166,8 +166,8 @@ ContentPage {
             text: Translation.tr("City")
             MaterialTextArea {
                 Layout.preferredWidth: 260 // The row says what it is: no floating label
-                text: Config.options.bar.weather.city
-                onTextChanged: Config.options.bar.weather.city = text
+                text: WeatherLocation.city
+                onTextChanged: if (text !== WeatherLocation.city) WeatherLocation.setCity(text)
             }
         }
         ConfigSwitch {

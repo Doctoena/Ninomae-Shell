@@ -7,13 +7,13 @@ import QtPositioning
 import qs.modules.common
 /**
  * Current weather and the next hours from Open-Meteo (no API key; wttr.in kept timing out).
- * Location is the configured city (looked up once with Open-Meteo's geocoder) or GPS.
+ * Location is the city (WeatherLocation.qml, looked up once with Open-Meteo's geocoder) or GPS.
  */
 Singleton {
     id: root
     readonly property bool enabled: Config.options.bar.weather.enable
     readonly property int fetchInterval: Config.options.bar.weather.fetchInterval * 60 * 1000
-    readonly property string city: Config.options.bar.weather.city
+    readonly property string city: WeatherLocation.city
     readonly property bool useUSCS: Config.options.bar.weather.useUSCS
     property bool gpsActive: Config.options.bar.weather.enableGPS
 
@@ -22,7 +22,9 @@ Singleton {
     property real lon: 0
     property bool locationValid: false
     property string resolvedCity: ""
+    property string resolvedPlace: "" // "Paris, Île-de-France, France": which match the lookup picked
     property string _geocodedCity: "" // The city `lat`/`lon` were looked up for
+    property bool cityNotFound: false // The geocoder had no match for the city (a typo, say)
 
     // `real`, not `int`: Date.now() doesn't fit in 32 bits, which made the cache never hit
     property real _lastFetchTime: 0
@@ -47,15 +49,28 @@ Singleton {
 
     onUseUSCSChanged: getData(true)
     onCityChanged: {
+        root.cityNotFound = false;
         if (root.gpsActive) return;
         root.locationValid = false;
         getData(true);
     }
     onEnabledChanged: if (enabled) getData()
+    // Switching between GPS and a city (Settings, the welcome window) takes effect straight away
+    Connections {
+        target: Config.options.bar.weather
+        function onEnableGPSChanged() { root.gpsActive = Config.options.bar.weather.enableGPS; }
+    }
+    onGpsActiveChanged: {
+        if (root.gpsActive && root.enabled) positionSource.start();
+        else positionSource.stop();
+        root.locationValid = false; // The other mode's coordinates
+        root.getData(true);
+    }
 
     function getData(force = false) {
         if (!root.enabled) return;
         if (!root.gpsActive) {
+            if (!WeatherLocation.loaded) return; // The city file is still loading: its city change fetches
             if (!root.city || root.city.trim().length === 0) {
                 console.warn("[WeatherService] No GPS location and no city configured, skipping fetch");
                 return;
@@ -73,7 +88,7 @@ Singleton {
     }
 
     function geocode() {
-        if (geoProc.running) return;
+        if (geoProc.running) { geocodeAgain.restart(); return; } // The city changed mid-lookup
         geoProc.lookingUp = root.city;
         geoProc.command = ["curl", "-sf", "--max-time", "15",
             `https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(root.city.trim())}`];
@@ -92,11 +107,14 @@ Singleton {
                     const place = JSON.parse(text).results?.[0];
                     if (!place) {
                         console.warn(`[WeatherService] City not found: ${geoProc.lookingUp}`);
+                        if (geoProc.lookingUp === root.city) root.cityNotFound = true;
                         return;
                     }
                     root.lat = place.latitude;
                     root.lon = place.longitude;
                     root.resolvedCity = place.name;
+                    root.resolvedPlace = [place.name, place.admin1, place.country].filter(Boolean).join(", ");
+                    root.cityNotFound = false;
                     root._geocodedCity = geoProc.lookingUp;
                     root.locationValid = true;
                     root.getData(true);
@@ -250,6 +268,11 @@ Singleton {
                 console.error("[WeatherService] Could not aquire a valid backend plugin.");
             }
         }
+    }
+    Timer {
+        id: geocodeAgain
+        interval: 500
+        onTriggered: root.getData(true)
     }
     Timer {
         // A failed lookup tries again soon instead of waiting a whole fetchInterval

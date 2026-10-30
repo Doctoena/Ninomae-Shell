@@ -154,7 +154,7 @@ Singleton {
                 property JsonObject weather: JsonObject {
                     property bool enable: false
                     property bool enableGPS: true // gps based location
-                    property string city: "" // When 'enableGPS' is false
+                    property string city: "" // Older setups only: the city is in WeatherLocation.qml's file, out of the repo
                     property bool useUSCS: false // Instead of metric (SI) units
                     property int fetchInterval: 10 // minutes
                 }
