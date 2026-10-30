@@ -41,10 +41,10 @@ Scope {
         onUnlocked: (targetAction) => {
             // Perform the target action if it's not just unlocking
             if (targetAction == LockContext.ActionEnum.Poweroff) {
-                Session.poweroff();
+                Session.poweroff(true); // Behind the lock nobody can answer a save dialog: go ahead after the wait
                 return;
             } else if (targetAction == LockContext.ActionEnum.Reboot) {
-                Session.reboot();
+                Session.reboot(true);
                 return;
             }
             // Unlock the keyring if configured to do so

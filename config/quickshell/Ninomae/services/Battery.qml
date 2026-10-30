@@ -148,7 +148,7 @@ Singleton {
     Timer {
         id: shutdownCountdown
         interval: 60000
-        onTriggered: if (root.shouldShutDown) Session.poweroff() // Asks windows to close first
+        onTriggered: if (root.shouldShutDown) Session.poweroff(true) // Asks windows to close first, then goes regardless
     }
     Process {
         id: shutdownWarning
