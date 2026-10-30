@@ -97,19 +97,19 @@ Variants {
                 // Range = groups that workspaces span on
                 property int chunkSize: Config?.options.bar.workspaces.shown ?? 10
                 // Workspaces 1–10 are one group (0-based), so ws 10 is the far end, not the start of the next
-                property int lower: Math.floor(((bgRoot.monitor.activeWorkspace?.id ?? 1) - 1) / chunkSize) * chunkSize + 1
+                property int lower: Math.floor(((bgRoot.monitor?.activeWorkspace?.id ?? 1) - 1) / chunkSize) * chunkSize + 1
                 property int range: Math.max(1, chunkSize - 1)
                 property real valueX: {
                     let result = 0.5;
                     if (Config.options.background.parallax.enableWorkspace && !bgRoot.verticalParallax) {
-                        result = ((bgRoot.monitor.activeWorkspace?.id - lower) / range);
+                        result = (((bgRoot.monitor?.activeWorkspace?.id ?? lower) - lower) / range);
                     }
                     return result;
                 }
                 property real valueY: {
                     let result = 0.5;
                     if (Config.options.background.parallax.enableWorkspace && bgRoot.verticalParallax) {
-                        result = ((bgRoot.monitor.activeWorkspace?.id - lower) / range);
+                        result = (((bgRoot.monitor?.activeWorkspace?.id ?? lower) - lower) / range);
                     }
                     return result;
                 }
@@ -132,8 +132,8 @@ Variants {
                     }
                 }
                 sourceSize {
-                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
-                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * (bgRoot.monitor?.scale ?? 1)
+                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * (bgRoot.monitor?.scale ?? 1)
                 }
                 width: bgRoot.wallpaperWidth / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale
                 height: bgRoot.wallpaperHeight / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale
