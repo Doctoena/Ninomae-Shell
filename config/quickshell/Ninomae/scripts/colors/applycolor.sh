@@ -33,6 +33,21 @@ apply_term() {
   done
   sed "${exprs[@]}" -e "s/\$alpha/$term_alpha/g" "$template" >"$out.tmp" && mv -f "$out.tmp" "$out" || return
 
+  # The same palette as a kitty config (kitty.conf includes it), so kitty windows that never start fish
+  # (btop from app search, kitty -e) get it too. Same colours as the sequences above
+  local -A c
+  for i in "${!colorlist[@]}"; do c[${colorlist[$i]#\$}]=${colorvalues[$i]}; done
+  local kitty_out="$(dirname "$out")/kitty-colors.conf"
+  {
+    for i in {0..15}; do echo "color$i #${c[term$i]}"; done
+    echo "foreground #${c[termfg]}"
+    echo "background #${c[termbg]}"
+    echo "cursor #${c[term15]}"
+    echo "selection_foreground #${c[termbg]}"
+    echo "selection_background #${c[term7]}"
+  } >"$kitty_out.tmp" && mv -f "$kitty_out.tmp" "$kitty_out"
+  pkill -USR1 -x kitty # Running kitty instances reload it, so new windows in them (kitty -1) match too
+
   local file
   for file in /dev/pts/[0-9]*; do
     [[ -w $file ]] && { cat "$out" >"$file" & } 2>/dev/null

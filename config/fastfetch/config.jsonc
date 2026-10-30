@@ -51,7 +51,8 @@
     },
     {
       "type": "packages",
-      "key": "{#90}│ ├{#green} "
+      "key": "{#90}│ ├{#green} ",
+      "format": "{all} ({rpm} rpm, {flatpak-all} flatpak)"
     },
     {
       "type": "shell",
@@ -89,7 +90,8 @@
     },
     {
       "type": "cpu",
-      "key": "{#90}│ ├{#magenta} "
+      "key": "{#90}│ ├{#magenta} ",
+      "format": "{name} ({cores-logical})"
     },
     {
       "type": "gpu",

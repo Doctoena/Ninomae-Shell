@@ -4,6 +4,7 @@
 # up to 3 s for it, and only then force it (a hung shell).
 #   restart_shell.sh [config]   (default: Ninomae)
 config="${1:-Ninomae}"
+unset NINOMAE_SETTINGS_APP # Set in the Settings window (its About page has a restart button): this is the shell
 qs kill -c "$config" >/dev/null 2>&1
 for _ in $(seq 30); do
     pgrep -x qs >/dev/null || pgrep -x quickshell >/dev/null || break

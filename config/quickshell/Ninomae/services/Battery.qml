@@ -119,7 +119,11 @@ Singleton {
     readonly property string criticalTitle: Translation.tr("Critically low battery")
     readonly property string fullTitle: Translation.tr("Battery full")
     readonly property string shutdownTitle: Translation.tr("Battery empty, shutting down")
+    // The Settings window loads this service too, for its battery readouts. Only the shell warns, plays the
+    // plug sounds and counts down to shutdown, or each would happen twice. open-settings.sh marks Settings
+    readonly property bool inSettingsApp: Quickshell.env("NINOMAE_SETTINGS_APP") === "1"
     function warn(title, body, critical, sound) {
+        if (root.inSettingsApp) return;
         Quickshell.execDetached(["notify-send", "-a", "Battery", "-u", critical ? "critical" : "normal", title, body]);
         if (root.soundEnabled) Audio.playSystemSound(sound);
     }
@@ -131,6 +135,7 @@ Singleton {
 
     // A minute's warning before shutting down: plugging in or pressing Cancel keeps it on
     onShouldShutDownChanged: {
+        if (root.inSettingsApp) return;
         if (shouldShutDown) {
             shutdownCountdown.restart();
             shutdownWarning.running = true;
@@ -159,18 +164,19 @@ Singleton {
     // unplug" when it's unplugged. Also on startup, for ones saved from an earlier session
     function clearStaleWarnings() {
         const stale = root.isPluggedIn ? [root.lowTitle, root.criticalTitle, root.shutdownTitle] : [root.fullTitle];
-        Notifications.list.filter(n => n.appName === "Shell" && stale.includes(n.summary))
+        Notifications.list.filter(n => n.appName === "Battery" && stale.includes(n.summary))
             .forEach(n => Notifications.discardNotification(n.notificationId));
     }
     // At startup the battery, its charger state and the saved notifications each turn up in their own
     // time; tidy up once all three are there (after that, plugging in or out does it)
-    readonly property bool readyToTidy: available && chargeState !== UPowerDeviceState.Unknown && Notifications.loaded
+    readonly property bool readyToTidy: !inSettingsApp && available && chargeState !== UPowerDeviceState.Unknown && Notifications.loaded
     onReadyToTidyChanged: if (readyToTidy) clearStaleWarnings()
     onIsPluggedInChanged: {
         if (!root.available) return;
         root._liveSince = Date.now() / 1000;
-        root.clearStaleWarnings();
         root.readVoltage(); // Jumps on plug/unplug
+        if (root.inSettingsApp) return;
+        root.clearStaleWarnings();
         if (root.soundEnabled) Audio.playSystemSound(isPluggedIn ? "power-plug" : "power-unplug");
     }
 }
