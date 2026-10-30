@@ -109,15 +109,16 @@ everywhere. Skip them with `--skip codecs`.
 
 ### Keeping it up to date
 
-In the terminal (fish):
+```sh
+ninomae update   # the latest version: new packages, rebuilt plugins, then a shell restart
+ninomae check    # is everything in place? (changes nothing)
+```
 
-- `ninomae update` pulls the latest version, installs anything new, rebuilds what needs it and offers
-  to restart the shell.
-- `ninomae check` checks that everything is in place (links, settings, packages, plugins, colours and
-  the shell's log). It changes nothing.
+Not using fish? `./install.sh --update` and `./install.sh --check` do the same.
 
-Your settings are yours: `config/ninomae-shell/config.json` isn't in git, so updates never touch it.
-A new install starts from `config.default.json`. Your weather city is kept outside this folder too.
+> [!TIP]
+> Updates never touch your settings. `config.json` isn't in git, and your weather city is kept
+> outside the folder. A new install starts from `config.default.json`.
 
 ### Two themes need one extra step
 
