@@ -8,6 +8,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Hyprland
 Scope {
@@ -34,7 +35,7 @@ Scope {
             }
         }
     }
-    // Warning pill shown under the actions (package manager / downloads running)
+    // Warning pill shown under the actions (unsaved changes, package manager or downloads running)
     component WarningPill: Rectangle {
         id: warningPill
         property string text
@@ -58,24 +59,6 @@ Scope {
             }
         }
     }
-    component KeyHint: RowLayout {
-        property list<string> keys
-        property string label
-        spacing: 4
-        Repeater {
-            model: parent.keys
-            delegate: KeyChip {
-                required property string modelData
-                key: modelData
-            }
-        }
-        StyledText {
-            Layout.leftMargin: 4
-            text: parent.label
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            color: Appearance.colors.colSubtext
-        }
-    }
     function detectRunningStuff() {
         packageManagerRunning = false;
         downloadRunning = false;
@@ -94,7 +77,8 @@ Scope {
     }
     Process {
         id: detectDownloadProc
-        command: ["bash", "-c", "pidof curl wget aria2c yt-dlp || ls ~/Downloads | grep -E '\.crdownload$|\.part$'"]
+        // Not curl or wget: the shell itself runs them now and then (weather, the game launcher)
+        command: ["bash", "-c", "pidof aria2c yt-dlp || ls ~/Downloads | grep -E '\.crdownload$|\.part$'"]
         onExited: (exitCode, exitStatus) => {
             root.downloadRunning = (exitCode === 0);
         }
@@ -132,8 +116,68 @@ Scope {
             id: sessionRoot
             visible: sessionLoader.active
             function hide() {
-                GlobalStates.sessionOpen = false;
+                GlobalStates.sessionOpen = false; // Also cancels a countdown (the Connections below)
             }
+
+            // Lock, sleep and the like run at once. The ones that end the session (and close every app) count
+            // down first: the same one again goes now, Esc or closing the menu cancels
+            readonly property int countdownFrom: 5
+            property string pending: ""
+            property int remaining: 0
+            readonly property var actions: ({
+                lock: { run: () => Session.lock() },
+                sleep: { run: () => Session.suspend() },
+                hibernate: { run: () => Session.hibernate() },
+                tasks: { run: () => Session.launchTaskManager() },
+                reboot: { confirm: true, doing: Translation.tr("Rebooting"), run: () => Session.reboot() },
+                poweroff: { confirm: true, doing: Translation.tr("Shutting down"), run: () => Session.poweroff() },
+                logout: { confirm: true, doing: Translation.tr("Logging out"), run: () => Session.logout() },
+                firmware: { confirm: true, doing: Translation.tr("Rebooting to the firmware"), run: () => Session.rebootToFirmware() }
+            })
+            function trigger(name) {
+                if (sessionRoot.actions[name].confirm && sessionRoot.pending !== name) {
+                    sessionRoot.pending = name;
+                    sessionRoot.remaining = sessionRoot.countdownFrom;
+                    countdownTimer.restart();
+                    return;
+                }
+                sessionRoot.runNow(name);
+            }
+            function runNow(name) {
+                sessionRoot.actions[name].run();
+                sessionRoot.hide();
+            }
+            function cancel() {
+                countdownTimer.stop();
+                sessionRoot.pending = "";
+            }
+            Timer {
+                id: countdownTimer
+                interval: 1000
+                repeat: true
+                onTriggered: {
+                    sessionRoot.remaining -= 1;
+                    if (sessionRoot.remaining <= 0) sessionRoot.runNow(sessionRoot.pending);
+                }
+            }
+            // Each action's letter (no labels for them on the buttons)
+            readonly property var keyActions: {
+                const keys = { [Qt.Key_L]: "lock", [Qt.Key_S]: "sleep", [Qt.Key_R]: "reboot", [Qt.Key_P]: "poweroff",
+                               [Qt.Key_O]: "logout", [Qt.Key_T]: "tasks" };
+                if (root.canHibernate) keys[Qt.Key_H] = "hibernate";
+                if (root.canRebootToFirmware) keys[Qt.Key_F] = "firmware";
+                return keys;
+            }
+            Connections { // Closed in any way (Esc, a click outside, the shortcut, the lock screen): nothing runs
+                target: GlobalStates
+                function onSessionOpenChanged() { if (!GlobalStates.sessionOpen) sessionRoot.cancel(); }
+            }
+            // Open apps, by class, for the countdown. Titles that mark unsaved work ("● file" as VS Code does,
+            // or a * before or after the name) for the warning
+            readonly property var openApps: [...new Set((HyprlandData.windowList ?? []).map(w => w.class).filter(c => c))]
+            readonly property var unsavedApps: [...new Set((HyprlandData.windowList ?? [])
+                .filter(w => /^\s*[●•*]|\*\s*$/.test(w.title ?? ""))
+                .map(w => DesktopEntries.heuristicLookup(w.class)?.name ?? w.class))]
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:session"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -229,11 +273,19 @@ Scope {
                     transformOrigin: Item.Top
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Escape) {
-                            sessionRoot.hide();
+                            if (sessionRoot.pending !== "") sessionRoot.cancel();
+                            else sessionRoot.hide();
+                            event.accepted = true;
+                            return;
+                        }
+                        const name = sessionRoot.keyActions[event.key];
+                        if (name) {
+                            sessionRoot.trigger(name);
+                            event.accepted = true;
                         }
                     }
 
-                    // Header: badge, title, who + uptime
+                    // Header: badge, title, who + uptime (+ the battery on a laptop)
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 12
@@ -264,6 +316,21 @@ Scope {
                             }
                         }
                         Item { Layout.fillWidth: true }
+                        RowLayout { // Battery: worth a look before choosing sleep over shutting down
+                            visible: Battery.available
+                            spacing: 4
+                            MaterialSymbol {
+                                text: Battery.isCharging ? "battery_charging_full" : Battery.percentage < 0.2 ? "battery_alert" : "battery_full"
+                                iconSize: 18
+                                color: !Battery.isPluggedIn && Battery.percentage < 0.2 ? Appearance.colors.colError : Appearance.colors.colSubtext
+                            }
+                            StyledText {
+                                text: Battery.isCharging ? Translation.tr("%1% · charging").arg(Math.round(Battery.percentage * 100))
+                                    : `${Math.round(Battery.percentage * 100)}%`
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colSubtext
+                            }
+                        }
                     }
 
                     // Main actions
@@ -274,7 +341,7 @@ Scope {
                             focus: sessionRoot.visible
                             buttonIcon: "lock"
                             buttonText: Translation.tr("Lock")
-                            onClicked: { Session.lock(); sessionRoot.hide() }
+                            onClicked: sessionRoot.trigger("lock")
                             KeyNavigation.right: sessionSleep
                             KeyNavigation.down: sessionLogout
                         }
@@ -282,7 +349,7 @@ Scope {
                             id: sessionSleep
                             buttonIcon: "dark_mode"
                             buttonText: Translation.tr("Sleep")
-                            onClicked: { Session.suspend(); sessionRoot.hide() }
+                            onClicked: sessionRoot.trigger("sleep")
                             KeyNavigation.left: sessionLock
                             KeyNavigation.right: sessionReboot
                             KeyNavigation.down: root.canHibernate ? sessionHibernate : sessionTaskManager
@@ -292,7 +359,9 @@ Scope {
                             buttonIcon: "restart_alt"
                             buttonText: Translation.tr("Reboot")
                             destructive: true
-                            onClicked: { Session.reboot(); sessionRoot.hide() }
+                            countdown: sessionRoot.pending === "reboot" ? sessionRoot.remaining : 0
+                            countdownFrom: sessionRoot.countdownFrom
+                            onClicked: { forceActiveFocus(); sessionRoot.trigger("reboot"); } // Focused, Enter goes now
                             KeyNavigation.left: sessionSleep
                             KeyNavigation.right: sessionShutdown
                             KeyNavigation.down: sessionTaskManager
@@ -302,7 +371,9 @@ Scope {
                             buttonIcon: "power_settings_new"
                             buttonText: Translation.tr("Shut down")
                             destructive: true
-                            onClicked: { Session.poweroff(); sessionRoot.hide() }
+                            countdown: sessionRoot.pending === "poweroff" ? sessionRoot.remaining : 0
+                            countdownFrom: sessionRoot.countdownFrom
+                            onClicked: { forceActiveFocus(); sessionRoot.trigger("poweroff"); } // Focused, Enter goes now
                             KeyNavigation.left: sessionReboot
                             KeyNavigation.down: root.canRebootToFirmware ? sessionFirmwareReboot : sessionTaskManager
                         }
@@ -317,7 +388,10 @@ Scope {
                             compact: true
                             buttonIcon: "logout"
                             buttonText: Translation.tr("Log out")
-                            onClicked: { Session.logout(); sessionRoot.hide() }
+                            destructive: true
+                            countdown: sessionRoot.pending === "logout" ? sessionRoot.remaining : 0
+                            countdownFrom: sessionRoot.countdownFrom
+                            onClicked: { forceActiveFocus(); sessionRoot.trigger("logout"); } // Focused, Enter goes now
                             KeyNavigation.up: sessionLock
                             KeyNavigation.right: root.canHibernate ? sessionHibernate : sessionTaskManager
                         }
@@ -327,7 +401,7 @@ Scope {
                             compact: true
                             buttonIcon: "downloading"
                             buttonText: Translation.tr("Hibernate")
-                            onClicked: { Session.hibernate(); sessionRoot.hide() }
+                            onClicked: sessionRoot.trigger("hibernate")
                             KeyNavigation.up: sessionSleep
                             KeyNavigation.left: sessionLogout
                             KeyNavigation.right: sessionTaskManager
@@ -337,7 +411,7 @@ Scope {
                             compact: true
                             buttonIcon: "browse_activity"
                             buttonText: Translation.tr("Tasks")
-                            onClicked: { Session.launchTaskManager(); sessionRoot.hide() }
+                            onClicked: sessionRoot.trigger("tasks")
                             KeyNavigation.up: sessionReboot
                             KeyNavigation.left: root.canHibernate ? sessionHibernate : sessionLogout
                             KeyNavigation.right: root.canRebootToFirmware ? sessionFirmwareReboot : null
@@ -348,17 +422,67 @@ Scope {
                             compact: true
                             buttonIcon: "settings_applications"
                             buttonText: Translation.tr("Firmware")
-                            onClicked: { Session.rebootToFirmware(); sessionRoot.hide() }
+                            destructive: true
+                            countdown: sessionRoot.pending === "firmware" ? sessionRoot.remaining : 0
+                            countdownFrom: sessionRoot.countdownFrom
+                            onClicked: { forceActiveFocus(); sessionRoot.trigger("firmware"); } // Focused, Enter goes now
                             KeyNavigation.up: sessionShutdown
                             KeyNavigation.left: sessionTaskManager
+                        }
+                    }
+
+                    // Counting down: what's about to happen, how to go now or back out, and what closes
+                    ColumnLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: sessionRoot.pending !== ""
+                        spacing: 6
+                        StyledText {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: Translation.tr("%1 in %2 s").arg(sessionRoot.actions[sessionRoot.pending]?.doing ?? "").arg(sessionRoot.remaining)
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colError
+                        }
+                        StyledText {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: Translation.tr("Click it again or press Enter to go now. Esc cancels.")
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colSubtext
+                        }
+                        RowLayout { // The apps that get closed
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: 4
+                            visible: sessionRoot.openApps.length > 0
+                            spacing: 6
+                            Repeater {
+                                model: sessionRoot.openApps.slice(0, 8)
+                                delegate: IconImage {
+                                    required property var modelData
+                                    implicitSize: 22
+                                    source: Quickshell.iconPath(AppSearch.guessIcon(modelData), "image-missing")
+                                }
+                            }
+                            StyledText {
+                                Layout.leftMargin: 4
+                                text: sessionRoot.openApps.length === 1 ? Translation.tr("1 app will close")
+                                    : Translation.tr("%1 apps will close").arg(sessionRoot.openApps.length)
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colSubtext
+                            }
                         }
                     }
 
                     // Warnings
                     ColumnLayout {
                         Layout.alignment: Qt.AlignHCenter
-                        visible: root.packageManagerRunning || root.downloadRunning
+                        visible: sessionRoot.unsavedApps.length > 0 || root.packageManagerRunning || root.downloadRunning
                         spacing: 6
+                        WarningPill {
+                            Layout.alignment: Qt.AlignHCenter
+                            visible: sessionRoot.unsavedApps.length > 0
+                            text: sessionRoot.unsavedApps.length === 1 ? Translation.tr("%1 has unsaved changes").arg(sessionRoot.unsavedApps[0])
+                                : Translation.tr("Unsaved changes in %1").arg(sessionRoot.unsavedApps.join(", "))
+                        }
                         WarningPill {
                             Layout.alignment: Qt.AlignHCenter
                             visible: root.packageManagerRunning
@@ -369,15 +493,6 @@ Scope {
                             visible: root.downloadRunning
                             text: Translation.tr("There might be a download in progress")
                         }
-                    }
-
-                    // Key hints
-                    RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: 18
-                        KeyHint { keys: ["←", "→", "↑", "↓"]; label: Translation.tr("Move") }
-                        KeyHint { keys: ["Enter"]; label: Translation.tr("Select") }
-                        KeyHint { keys: ["Esc"]; label: Translation.tr("Close") }
                     }
                 }
             }

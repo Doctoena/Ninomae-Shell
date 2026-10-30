@@ -75,8 +75,8 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <sub><b>Settings</b> · every option, applied live</sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/readme/session.jpg" alt="Power menu with lock, sleep, reboot and shut down"><br>
-<sub><b>Power menu</b> · lock, sleep, reboot, shut down</sub>
+<img src="assets/readme/power-menu.jpg" alt="Power menu with lock, sleep, reboot, shut down and the battery level"><br>
+<sub><b>Power menu</b> · a countdown before anything closes your apps</sub>
 </td>
 </tr>
 </table>

@@ -5,16 +5,21 @@ import QtQuick
 import QtQuick.Layouts
 // A power menu action: a big tile (icon badge + label) or, with `compact`, a pill.
 // Hover or keyboard focus, as the rest of the shell shows "active": the tile stays neutral (a step lighter),
-// its icon gets a solid accent squircle and its name turns accent (error red for reboot / shut down)
+// its icon gets a solid accent squircle and its name turns accent (error red for the ones that end the session).
+// While `countdown` > 0 the action is about to run: the number takes the icon's place and a bar runs out
 RippleButton {
     id: button
     property string buttonIcon
     property bool compact: false
     property bool keyboardDown: false
-    property bool destructive: false // Reboot / shut down: lit in the error colour instead of the accent
+    property bool destructive: false // Ends the session: lit in the error colour instead of the accent
+    property int countdown: 0
+    property int countdownFrom: 5
+    readonly property bool pending: countdown > 0
+    onPendingChanged: pending ? drain.restart() : drain.stop()
     readonly property color accent: destructive ? Appearance.colors.colError : Appearance.colors.colPrimary
     readonly property color onAccent: destructive ? Appearance.colors.colOnError : Appearance.colors.colOnPrimary
-    readonly property bool active: button.focus || button.hovered || button.down || button.keyboardDown
+    readonly property bool active: button.focus || button.hovered || button.down || button.keyboardDown || button.pending
 
     implicitWidth: compact ? compactRow.implicitWidth + 32 : 128
     implicitHeight: compact ? 44 : 128
@@ -32,8 +37,8 @@ RippleButton {
     colRipple: ColorUtils.transparentize(button.accent, 0.75)
     background.implicitWidth: implicitWidth
     background.implicitHeight: implicitHeight
-    // Keyboard focus looks the same as hover
-    buttonColor: active ? colBackgroundHover : colBackground
+    // Keyboard focus looks the same as hover. Counting down, the tile takes a tint of the action's colour
+    buttonColor: pending ? ColorUtils.mix(button.accent, colBackgroundHover, 0.16) : active ? colBackgroundHover : colBackground
     Behavior on buttonColor {
         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
     }
@@ -55,7 +60,7 @@ RippleButton {
     }
 
     contentItem: Item {
-        // Tile: round tinted badge with the icon, label underneath
+        // Tile: a squircle badge with the icon (or the countdown), the label underneath
         ColumnLayout {
             visible: !button.compact
             anchors.centerIn: parent
@@ -74,6 +79,7 @@ RippleButton {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                 }
                 MaterialSymbol {
+                    visible: !button.pending
                     anchors.centerIn: parent
                     text: button.buttonIcon
                     iconSize: 26
@@ -83,6 +89,15 @@ RippleButton {
                     Behavior on color {
                         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                     }
+                }
+                StyledText {
+                    visible: button.pending
+                    anchors.centerIn: parent
+                    text: button.countdown
+                    font.pixelSize: Appearance.font.pixelSize.huge
+                    font.family: Appearance.font.family.numbers
+                    font.weight: Font.DemiBold
+                    color: button.onAccent
                 }
             }
             StyledText {
@@ -96,18 +111,29 @@ RippleButton {
                 }
             }
         }
-        // Pill: icon + label in a row
+        // Pill: icon (or the countdown) + label in a row
         RowLayout {
             id: compactRow
             visible: button.compact
             anchors.centerIn: parent
             spacing: 8
-            MaterialSymbol {
-                text: button.buttonIcon
-                iconSize: 20
-                color: button.accent
-                Behavior on color {
-                    animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+            Item {
+                implicitWidth: 20
+                implicitHeight: 20
+                MaterialSymbol {
+                    visible: !button.pending
+                    anchors.centerIn: parent
+                    text: button.buttonIcon
+                    iconSize: 20
+                    color: button.accent
+                }
+                StyledText {
+                    visible: button.pending
+                    anchors.centerIn: parent
+                    text: button.countdown
+                    font.family: Appearance.font.family.numbers
+                    font.weight: Font.DemiBold
+                    color: button.accent
                 }
             }
             StyledText {
@@ -118,6 +144,23 @@ RippleButton {
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                 }
+            }
+        }
+        // Time left: a bar along the bottom that runs out with the countdown
+        Rectangle {
+            id: timeLeft
+            visible: button.pending
+            anchors { left: parent.left; bottom: parent.bottom; leftMargin: button.compact ? 10 : 16; bottomMargin: button.compact ? 4 : 10 }
+            readonly property real full: parent.width - (button.compact ? 20 : 32)
+            height: 3
+            radius: 2
+            color: button.accent
+            NumberAnimation on width {
+                id: drain
+                running: false
+                from: timeLeft.full
+                to: 0
+                duration: button.countdownFrom * 1000
             }
         }
     }
