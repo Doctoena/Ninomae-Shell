@@ -299,7 +299,7 @@ plain.
 
 <div align="center">
 
-Built on [end-4's dotfiles](https://github.com/end-4/dots-hyprland), with ideas from
+Built on [illogical-impulse](https://github.com/end-4/dots-hyprland) by end-4, with ideas from
 [Caelestia](https://github.com/caelestia-dots/shell).
 
 Licensed under the [GNU GPL v3](LICENSE). Wallpapers belong to their artists.

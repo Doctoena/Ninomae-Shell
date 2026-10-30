@@ -247,12 +247,12 @@ ContentPage {
             spacing: 6
             StyledText {
                 Layout.fillWidth: true
-                text: Translation.tr("end-4's dotfiles, the starting point, with ideas from Caelestia")
+                text: Translation.tr("illogical-impulse by end-4, the starting point, with ideas from Caelestia")
                 wrapMode: Text.Wrap
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colOnLayer1
             }
-            Link { label: "end-4"; url: "https://github.com/end-4/dots-hyprland" }
+            Link { label: "illogical-impulse"; url: "https://github.com/end-4/dots-hyprland" }
             Link { label: "Caelestia"; url: "https://github.com/caelestia-dots/shell" }
             Link { label: "Quickshell"; url: "https://quickshell.org" }
         }
