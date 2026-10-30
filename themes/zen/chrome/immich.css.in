@@ -1,0 +1,76 @@
+/* Immich, in its dark mode: its palette from the shell's. apply-theme.sh adds this to the profiles'
+   userContent.css with your server in place of @IMMICH_HOST@ (from Settings → Games, which keeps it in
+   the keyring, so the address isn't in the dotfiles). Two sets to cover:
+   the older --immich-* ("r g b", used as rgb(var(--x))) and the newer --immich-ui-* scales (light-* runs
+   from the background up, dark-* from the text down, primary-* from a faint accent tint up). A user
+   sheet's !important beats the page's own values wherever it sets them */
+@-moz-document domain("@IMMICH_HOST@") {
+  html.dark {
+    /* Steps between the outline, the dimmed text and the text, shared by both greyscales */
+    --nino-im-dim: color-mix(in oklab, var(--nino-outline), var(--nino-subtext));
+    --nino-im-soft: color-mix(in oklab, var(--nino-outline) 30%, var(--nino-subtext));
+    --nino-im-bright: color-mix(in oklab, var(--nino-subtext), var(--nino-text));
+    --immich-dark-bg: var(--nino-bg-rgb) !important;
+    --immich-dark-gray: var(--nino-surface-2-rgb) !important;
+    --immich-dark-fg: var(--nino-text-rgb) !important;
+    --immich-dark-primary: var(--nino-primary-rgb) !important;
+    --immich-primary: var(--nino-primary-rgb) !important;
+    --immich-bg: var(--nino-bg-rgb) !important;
+    --immich-fg: var(--nino-text-rgb) !important;
+
+    --immich-ui-light: var(--nino-bg) !important;
+    --immich-ui-light-50: var(--nino-bg) !important;
+    --immich-ui-light-100: var(--nino-surface) !important;
+    --immich-ui-light-200: var(--nino-surface-3) !important;
+    --immich-ui-light-300: var(--nino-surface-4) !important;
+    --immich-ui-light-400: var(--nino-outline) !important;
+    --immich-ui-light-500: var(--nino-im-dim) !important;
+    --immich-ui-light-600: var(--nino-im-soft) !important;
+    --immich-ui-light-700: var(--nino-subtext) !important;
+    --immich-ui-light-800: var(--nino-im-bright) !important;
+    --immich-ui-light-900: var(--nino-text) !important;
+    --immich-ui-light-950: var(--nino-text) !important;
+    --immich-ui-dark: var(--nino-text) !important;
+    --immich-ui-dark-50: var(--nino-text) !important;
+    --immich-ui-dark-100: var(--nino-text) !important;
+    --immich-ui-dark-200: var(--nino-im-bright) !important;
+    --immich-ui-dark-300: var(--nino-subtext) !important;
+    --immich-ui-dark-400: var(--nino-im-soft) !important;
+    --immich-ui-dark-500: var(--nino-im-dim) !important;
+    --immich-ui-dark-600: var(--nino-outline) !important;
+    --immich-ui-dark-700: var(--nino-surface-4) !important;
+    --immich-ui-dark-800: var(--nino-surface-3) !important;
+    --immich-ui-dark-900: var(--nino-surface-2) !important;
+    --immich-ui-dark-950: var(--nino-surface) !important;
+    --immich-ui-muted: var(--nino-subtext) !important;
+    --immich-ui-gray: var(--nino-surface-2) !important;
+    --immich-ui-default-border: var(--nino-outline) !important;
+    --immich-ui-primary-50: color-mix(in oklab, var(--nino-primary) 8%, var(--nino-bg)) !important;
+    --immich-ui-primary-100: color-mix(in oklab, var(--nino-primary) 16%, var(--nino-bg)) !important;
+    --immich-ui-primary-200: color-mix(in oklab, var(--nino-primary) 28%, var(--nino-bg)) !important;
+    --immich-ui-primary-300: color-mix(in oklab, var(--nino-primary) 44%, var(--nino-bg)) !important;
+    --immich-ui-primary-400: color-mix(in oklab, var(--nino-primary) 66%, var(--nino-bg)) !important;
+    --immich-ui-primary-500: var(--nino-primary) !important;
+    --immich-ui-primary-600: color-mix(in oklab, var(--nino-primary) 85%, var(--nino-text)) !important;
+    --immich-ui-primary-700: color-mix(in oklab, var(--nino-primary) 70%, var(--nino-text)) !important;
+    --immich-ui-primary-800: color-mix(in oklab, var(--nino-primary) 55%, var(--nino-text)) !important;
+    --immich-ui-primary-900: color-mix(in oklab, var(--nino-primary) 40%, var(--nino-text)) !important;
+    --immich-ui-primary-950: color-mix(in oklab, var(--nino-primary) 25%, var(--nino-text)) !important;
+    /* Tailwind's own greys, in a few dark: variants (menus, overlays) */
+    --color-gray-700: var(--nino-surface-4) !important;
+    --color-gray-800: var(--nino-surface-3) !important;
+    --color-gray-900: var(--nino-surface-2) !important;
+    --color-neutral-800: var(--nino-surface-3) !important;
+    --color-neutral-900: var(--nino-surface-2) !important;
+    --color-neutral-950: var(--nino-bg) !important;
+    --font-sans: "Roboto Flex", "Roboto", sans-serif !important;
+    accent-color: var(--nino-primary) !important;
+    scrollbar-color: var(--nino-surface-4) transparent !important;
+  }
+  html.dark body {
+    background-color: var(--nino-bg) !important;
+  }
+  html.dark ::selection {
+    background-color: var(--nino-primary-soft) !important;
+  }
+}

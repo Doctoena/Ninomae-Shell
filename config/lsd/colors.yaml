@@ -1,0 +1,44 @@
+# lsd colours by terminal palette name, not fixed numbers, so they follow the wallpaper theme
+# (scripts/colors/generate_colors_material.py sets the palette). In crossterm's names dark_* are the
+# normal colours (lavender = dark_green, pink = dark_magenta, light pink = dark_yellow, salmon = dark_red,
+# grey-lavender = dark_cyan / grey), plain names the bright ones (white = the text colour), dark_grey the
+# outline grey. Same roles as the VS Code editor theme: lavender for structure, pink for what runs.
+# File names aren't set here (this lsd version takes them from LS_COLORS, set in fish/config.fish).
+user: dark_green
+group: grey
+permission:
+  read: dark_yellow
+  write: dark_red
+  exec: dark_magenta
+  exec-sticky: magenta
+  no-access: dark_grey
+  octal: dark_cyan
+  acl: dark_cyan
+  context: cyan
+date:
+  hour-old: dark_green
+  day-old: grey
+  older: dark_grey
+size:
+  none: dark_grey
+  small: grey
+  medium: dark_yellow
+  large: dark_magenta
+inode:
+  valid: grey
+  invalid: dark_grey
+links:
+  valid: grey
+  invalid: dark_grey
+tree-edge: dark_grey
+git-status:
+  default: dark_grey
+  unmodified: dark_grey
+  ignored: dark_grey
+  new-in-index: dark_green
+  new-in-workdir: dark_green
+  typechange: dark_yellow
+  deleted: dark_red
+  renamed: dark_magenta
+  modified: dark_yellow
+  conflicted: red

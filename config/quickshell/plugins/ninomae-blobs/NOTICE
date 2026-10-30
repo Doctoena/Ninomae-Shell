@@ -1,0 +1,5 @@
+Ninomae.Blobs is derived from the Caelestia.Blobs module of caelestia-dots/shell
+(https://github.com/caelestia-dots/shell), licensed under the GNU GPL v3 (see LICENSE).
+Upstream commit: see UPSTREAM_COMMIT.
+Modifications: renamed the QML module (Caelestia.Blobs -> Ninomae.Blobs) and C++ namespace
+(caelestia::blobs -> ninomae::blobs); standalone CMake build.

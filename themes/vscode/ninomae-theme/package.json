@@ -1,0 +1,14 @@
+{
+  "name": "ninomae-theme",
+  "displayName": "Ninomae",
+  "description": "Colour theme generated from the current wallpaper by matugen (Ninomae dotfiles)",
+  "version": "1.0.0",
+  "publisher": "ninomae",
+  "engines": { "vscode": "^1.70.0" },
+  "categories": ["Themes"],
+  "contributes": {
+    "themes": [
+      { "label": "Ninomae", "uiTheme": "vs-dark", "path": "./themes/ninomae-color-theme.json" }
+    ]
+  }
+}

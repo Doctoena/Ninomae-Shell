@@ -1,0 +1,110 @@
+/**
+ * @name Ninomae
+ * @description midnight, coloured from the wallpaper by matugen (Ninomae dotfiles). Don't edit: regenerated on every wallpaper change.
+ * @author refact0r (midnight), Ninomae dotfiles (colours)
+ * @version 1.0.0
+ * @source https://github.com/refact0r/midnight-discord
+*/
+
+@import url('https://refact0r.github.io/midnight-discord/build/midnight.css');
+
+body {
+    --font: 'Roboto Flex';
+    --code-font: 'JetBrains Mono NF';
+    font-weight: 400;
+
+    --gap: 10px;
+    --divider-thickness: 4px;
+    --border-thickness: 1px;
+
+    --animations: on;
+    --list-item-transition: 0.2s ease;
+    --dms-icon-svg-transition: 0.4s ease;
+    --border-hover-transition: 0.2s ease;
+
+    --top-bar-height: var(--gap);
+    --top-bar-button-position: titlebar;
+    --top-bar-title-position: off;
+    --subtle-top-bar-title: off;
+
+    --custom-window-controls: on;
+    --window-control-size: 14px;
+
+    --custom-dms-icon: off;
+    --custom-dms-background: off;
+
+    --background-image: off;
+    --transparency-tweaks: off;
+    --remove-bg-layer: off;
+    --panel-blur: off;
+    --blur-amount: 12px;
+    --bg-floating: var(--bg-3);
+
+    --custom-chatbar: off;
+    --chatbar-height: 47px;
+    --small-user-panel: on;
+}
+
+:root {
+    --colors: on;
+
+    /* text */
+    --text-0: {{colors.on_primary.default.hex}};
+    --text-1: {{colors.on_surface.default.hex}};
+    --text-2: {{colors.on_surface.default.hex}};
+    --text-3: {{colors.on_surface_variant.default.hex}};
+    --text-4: {{colors.outline.default.hex}};
+    --text-5: {{colors.outline_variant.default.hex}};
+
+    /* surfaces: same layering as the shell (background → containers) */
+    --bg-1: {{colors.surface_container_highest.default.hex}};
+    --bg-2: {{colors.surface_container_high.default.hex}};
+    --bg-3: {{colors.surface_container_low.default.hex}};
+    --bg-4: {{colors.surface.default.hex}};
+    --hover: color-mix(in srgb, {{colors.primary.default.hex}}, transparent 92%);
+    --active: color-mix(in srgb, {{colors.primary.default.hex}}, transparent 86%);
+    --active-2: color-mix(in srgb, {{colors.primary.default.hex}}, transparent 80%);
+    --message-hover: color-mix(in srgb, {{colors.on_surface.default.hex}}, transparent 96%);
+
+    /* accent: lavender primary, like the shell's toggles and badges */
+    --accent-1: {{colors.primary.default.hex}};
+    --accent-2: {{colors.primary.default.hex}};
+    --accent-3: {{colors.primary.default.hex}};
+    --accent-4: color-mix(in srgb, {{colors.primary.default.hex}}, {{colors.on_primary.default.hex}} 8%);
+    --accent-5: color-mix(in srgb, {{colors.primary.default.hex}}, {{colors.on_primary.default.hex}} 14%);
+    --accent-new: {{colors.error.default.hex}};
+    --mention: linear-gradient(to right, color-mix(in srgb, var(--accent-2), transparent 88%) 40%, transparent);
+    --mention-hover: linear-gradient(to right, color-mix(in srgb, var(--accent-2), transparent 93%) 40%, transparent);
+    --reply: linear-gradient(to right, color-mix(in srgb, var(--text-3), transparent 90%) 40%, transparent);
+    --reply-hover: linear-gradient(to right, color-mix(in srgb, var(--text-3), transparent 95%) 40%, transparent);
+
+    /* status */
+    --online: #43a25a;
+    --dnd: #d83a42;
+    --idle: #ca9654;
+    --streaming: {{colors.tertiary.default.hex}};
+    --offline: var(--text-4);
+
+    /* borders */
+    --border-light: var(--hover);
+    --border: var(--active);
+    --border-hover: var(--active-2);
+    --button-border: color-mix(in srgb, {{colors.on_surface.default.hex}}, transparent 90%);
+
+    /* named colours midnight uses in places */
+    --red-1: {{colors.error.default.hex}};
+    --red-2: {{colors.error.default.hex}};
+    --red-3: {{colors.error.default.hex}};
+    --red-4: color-mix(in srgb, {{colors.error.default.hex}}, black 10%);
+    --red-5: color-mix(in srgb, {{colors.error.default.hex}}, black 20%);
+    --blue-1: {{colors.primary.default.hex}};
+    --blue-2: {{colors.primary.default.hex}};
+    --blue-3: {{colors.primary.default.hex}};
+    --blue-4: color-mix(in srgb, {{colors.primary.default.hex}}, black 10%);
+    --blue-5: color-mix(in srgb, {{colors.primary.default.hex}}, black 20%);
+    --purple-1: {{colors.tertiary.default.hex}};
+    --purple-2: {{colors.tertiary.default.hex}};
+    --purple-3: {{colors.tertiary.default.hex}};
+    --purple-4: color-mix(in srgb, {{colors.tertiary.default.hex}}, black 10%);
+    --purple-5: color-mix(in srgb, {{colors.tertiary.default.hex}}, black 20%);
+}

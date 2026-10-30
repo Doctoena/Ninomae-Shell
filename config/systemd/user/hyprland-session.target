@@ -1,0 +1,12 @@
+# Started at login by hypr/hyprland/execs.lua in a plain (non-uwsm) Hyprland session. Fedora 44's
+# xdg-desktop-portal only starts inside graphical-session.target, which nothing else activates there.
+# (XDG autostart apps hang off xdg-desktop-autostart.target, which this does not start.)
+[Unit]
+Description=Hyprland session (non-uwsm)
+BindsTo=graphical-session.target
+# Lingering keeps the user manager alive across logins: stopping this at login also stops
+# graphical-session.target and the portals, so they restart with the new session's environment
+PropagatesStopTo=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target
+Before=graphical-session.target

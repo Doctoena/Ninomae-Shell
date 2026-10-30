@@ -1,0 +1,74 @@
+[Plymouth Theme]
+Name=Ninomae
+Description=Boot splash matching the Ninomae desktop: the logo in an accent squircle badge, a progress bar while booting (colours filled in at install)
+ModuleName=two-step
+
+[two-step]
+Font=Sans 12
+TitleFont=Sans Medium 15
+ImageDir=/usr/share/plymouth/themes/ninomae
+# Badge, then the progress bar or spinner under it, then the title (restart / shut down / updates)
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.44
+HorizontalAlignment=.5
+VerticalAlignment=.548
+ProgressBarHorizontalAlignment=.5
+ProgressBarVerticalAlignment=.54
+ProgressBarWidth=176
+ProgressBarHeight=4
+ProgressBarBackgroundColor=@track_hex@
+ProgressBarForegroundColor=@primary_hex@
+ProgressBarShowPercentComplete=false
+TitleHorizontalAlignment=.5
+TitleVerticalAlignment=.615
+DialogHorizontalAlignment=.5
+DialogVerticalAlignment=.62
+MessageBelowAnimation=true
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=@background_hex@
+BackgroundEndColor=@background_hex@
+
+# Booting: how far along it is (Plymouth times it against earlier boots)
+[boot-up]
+UseProgressBar=true
+UseAnimation=false
+UseEndAnimation=false
+UseFirmwareBackground=false
+
+# No progress to show: the spinner, and what's happening
+[shutdown]
+UseProgressBar=false
+UseAnimation=true
+UseEndAnimation=false
+UseFirmwareBackground=false
+Title=Shutting down
+
+[reboot]
+UseProgressBar=false
+UseAnimation=true
+UseEndAnimation=false
+UseFirmwareBackground=false
+Title=Restarting
+
+# Offline updates (dnf offline / system-upgrade) report real progress
+[updates]
+UseProgressBar=true
+UseAnimation=false
+UseFirmwareBackground=false
+Title=Installing updates
+SubTitle=Don't turn off your computer
+
+[system-upgrade]
+UseProgressBar=true
+UseAnimation=false
+UseFirmwareBackground=false
+Title=Upgrading Fedora
+SubTitle=Don't turn off your computer
+
+[firmware-upgrade]
+UseProgressBar=true
+UseAnimation=false
+UseFirmwareBackground=false
+Title=Updating firmware
+SubTitle=Don't turn off your computer

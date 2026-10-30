@@ -1,0 +1,97 @@
+/*
+* GTK Colors
+* Generated with Matugen
+*/
+
+/* Import adw-gtk3-dark base theme */
+@import url('/usr/share/themes/adw-gtk3-dark/gtk-4.0/gtk.css');
+
+@media (prefers-color-scheme: light) {
+    @define-color accent_color {{colors.primary.light.hex}};
+    @define-color accent_fg_color {{colors.on_primary.light.hex}};
+    @define-color accent_bg_color {{colors.primary.light.hex}};
+    @define-color window_bg_color {{colors.background.light.hex}};
+    @define-color window_fg_color {{colors.on_background.light.hex}};
+    @define-color headerbar_bg_color {{colors.surface_dim.light.hex}};
+    @define-color headerbar_fg_color {{colors.on_surface.light.hex}};
+    @define-color popover_bg_color {{colors.surface_dim.light.hex}};
+    @define-color popover_fg_color {{colors.on_surface.light.hex}};
+    @define-color view_bg_color {{colors.surface.light.hex}};
+    @define-color view_fg_color {{colors.on_surface.light.hex}};
+    @define-color card_bg_color {{colors.surface.light.hex}};
+    @define-color card_fg_color {{colors.on_surface.light.hex}};
+    @define-color sidebar_bg_color @window_bg_color;
+    @define-color sidebar_fg_color @window_fg_color;
+    @define-color sidebar_border_color @window_bg_color;
+    @define-color sidebar_backdrop_color @window_bg_color;
+    /* libadwaita 1.6+ draws with these variables, not the @define-color names above (still read by
+       plain GTK 4 apps on adw-gtk3): without them libadwaita apps (Nautilus, the file picker…) only took
+       the accent from the wallpaper. GTK 4.18+ also takes the accent from the system setting through them */
+    :root {
+        --accent-bg-color: {{colors.primary.light.hex}};
+        --accent-fg-color: {{colors.on_primary.light.hex}};
+        --accent-color: {{colors.primary.light.hex}};
+        --window-bg-color: {{colors.background.light.hex}};
+        --window-fg-color: {{colors.on_background.light.hex}};
+        --view-bg-color: {{colors.surface.light.hex}};
+        --view-fg-color: {{colors.on_surface.light.hex}};
+        --headerbar-bg-color: {{colors.surface_dim.light.hex}};
+        --headerbar-fg-color: {{colors.on_surface.light.hex}};
+        --headerbar-backdrop-color: {{colors.background.light.hex}};
+        --popover-bg-color: {{colors.surface_dim.light.hex}};
+        --popover-fg-color: {{colors.on_surface.light.hex}};
+        --dialog-bg-color: {{colors.surface_dim.light.hex}};
+        --dialog-fg-color: {{colors.on_surface.light.hex}};
+        --card-bg-color: {{colors.surface.light.hex}};
+        --card-fg-color: {{colors.on_surface.light.hex}};
+        --sidebar-bg-color: var(--window-bg-color);
+        --sidebar-fg-color: var(--window-fg-color);
+        --sidebar-backdrop-color: var(--window-bg-color);
+        --sidebar-border-color: var(--window-bg-color);
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    @define-color accent_color {{colors.primary.dark.hex}};
+    @define-color accent_fg_color {{colors.on_primary.dark.hex}};
+    @define-color accent_bg_color {{colors.primary.dark.hex}};
+    @define-color window_bg_color {{colors.background.dark.hex}};
+    @define-color window_fg_color {{colors.on_background.dark.hex}};
+    @define-color headerbar_bg_color {{colors.surface_dim.dark.hex}};
+    @define-color headerbar_fg_color {{colors.on_surface.dark.hex}};
+    @define-color popover_bg_color {{colors.surface_dim.dark.hex}};
+    @define-color popover_fg_color {{colors.on_surface.dark.hex}};
+    @define-color view_bg_color {{colors.surface.dark.hex}};
+    @define-color view_fg_color {{colors.on_surface.dark.hex}};
+    @define-color card_bg_color {{colors.surface.dark.hex}};
+    @define-color card_fg_color {{colors.on_surface.dark.hex}};
+    @define-color sidebar_bg_color @window_bg_color;
+    @define-color sidebar_fg_color @window_fg_color;
+    @define-color sidebar_border_color @window_bg_color;
+    @define-color sidebar_backdrop_color @window_bg_color;
+    /* libadwaita 1.6+ draws with these variables, not the @define-color names above (still read by
+       plain GTK 4 apps on adw-gtk3): without them libadwaita apps (Nautilus, the file picker…) only took
+       the accent from the wallpaper. GTK 4.18+ also takes the accent from the system setting through them */
+    :root {
+        --accent-bg-color: {{colors.primary.dark.hex}};
+        --accent-fg-color: {{colors.on_primary.dark.hex}};
+        --accent-color: {{colors.primary.dark.hex}};
+        --window-bg-color: {{colors.background.dark.hex}};
+        --window-fg-color: {{colors.on_background.dark.hex}};
+        --view-bg-color: {{colors.surface.dark.hex}};
+        --view-fg-color: {{colors.on_surface.dark.hex}};
+        --headerbar-bg-color: {{colors.surface_dim.dark.hex}};
+        --headerbar-fg-color: {{colors.on_surface.dark.hex}};
+        --headerbar-backdrop-color: {{colors.background.dark.hex}};
+        --popover-bg-color: {{colors.surface_dim.dark.hex}};
+        --popover-fg-color: {{colors.on_surface.dark.hex}};
+        --dialog-bg-color: {{colors.surface_dim.dark.hex}};
+        --dialog-fg-color: {{colors.on_surface.dark.hex}};
+        --card-bg-color: {{colors.surface.dark.hex}};
+        --card-fg-color: {{colors.on_surface.dark.hex}};
+        --sidebar-bg-color: var(--window-bg-color);
+        --sidebar-fg-color: var(--window-fg-color);
+        --sidebar-backdrop-color: var(--window-bg-color);
+        --sidebar-border-color: var(--window-bg-color);
+    }
+}

@@ -1,0 +1,9 @@
+/* Ninomae tweaks on top of Material-Theme. Loaded via the theme's "Use Modifications File" option;
+   apply-theme.sh copies this into the theme folder. */
+
+/* Downloads list: Steam squares off the inner corners of the cancel (X) button, so next to the
+   theme's round download button it looked like a "D". Round it like its neighbour. Only the
+   corner radius changes; size and layout stay Steam's. */
+.OINnOU8K5HzPe2nzczpZi ._1cMXIpc5BRVY11dIrWKMNW .DialogButton {
+    border-radius: var(--corner-radius-full) !important;
+}

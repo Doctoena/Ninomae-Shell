@@ -1,0 +1,71 @@
+[config]
+version_check = false
+
+[templates.m3colors]
+input_path = '~/.config/matugen/templates/colors.json'
+output_path = '~/.local/state/quickshell/user/generated/colors.json'
+
+# Outside ~/.config/hypr: a write there makes Hyprland reload its whole config (a visible flash on every
+# wallpaper change). hypr/hyprland/colors.lua loads this at startup, switchwall.sh applies the live one
+[templates.hyprland]
+input_path = '~/.config/matugen/templates/hyprland/colors.lua'
+output_path = '~/.local/state/quickshell/user/generated/hyprland/colors.lua'
+
+[templates.hyprland_live]
+input_path = '~/.config/matugen/templates/hyprland/colors-live.lua'
+output_path = '~/.local/state/quickshell/user/generated/hyprland/colors-live.lua'
+
+[templates.fuzzel]
+input_path = '~/.config/matugen/templates/fuzzel/fuzzel_theme.ini'
+output_path = '~/.config/fuzzel/fuzzel_theme.ini'
+
+[templates.gtk3]
+input_path = '~/.config/matugen/templates/gtk-3.0/gtk.css'
+output_path = '~/.config/gtk-3.0/gtk.css'
+
+[templates.gtk4]
+input_path = '~/.config/matugen/templates/gtk-4.0/gtk.css'
+output_path = '~/.config/gtk-4.0/gtk.css'
+
+[templates.kde_colors]
+input_path = '~/.config/matugen/templates/kde/color.txt'
+output_path = '~/.local/state/quickshell/user/generated/color.txt'
+
+[templates.wallpaper]
+input_path = '~/.config/matugen/templates/wallpaper.txt'
+output_path = '~/.local/state/quickshell/user/generated/wallpaper/path.txt'
+
+[templates.sddm]
+input_path = '~/.config/matugen/templates/sddm/theme.conf'
+output_path = '~/Dotfiles/themes/sddm/Ninomae/theme.conf'
+post_hook = 'bash ~/Dotfiles/themes/sddm/sync-theme.sh'
+
+[templates.vscode]
+input_path = '~/.config/matugen/templates/vscode/ninomae-color-theme.json'
+output_path = '~/Dotfiles/themes/vscode/ninomae-theme/themes/ninomae-color-theme.json'
+post_hook = 'bash ~/Dotfiles/themes/vscode/apply-live.sh'
+
+[templates.zen]
+input_path = '~/.config/matugen/templates/zen/ninomae-colors.css'
+output_path = '~/Dotfiles/themes/zen/chrome/ninomae-colors.css'
+post_hook = 'bash ~/Dotfiles/themes/zen/apply-theme.sh'
+
+[templates.steam]
+input_path = '~/.config/matugen/templates/steam/material-theme.css'
+output_path = '~/Dotfiles/themes/steam/matugen.css'
+post_hook = 'bash ~/Dotfiles/themes/steam/apply-theme.sh'
+
+[templates.discord]
+input_path = '~/.config/matugen/templates/discord/ninomae.theme.css'
+output_path = '~/Dotfiles/themes/discord/ninomae.theme.css'
+post_hook = 'bash ~/Dotfiles/themes/discord/apply-theme.sh'
+
+[templates.mangohud]
+input_path = '~/.config/matugen/templates/mangohud/MangoHud.conf'
+output_path = '~/.config/MangoHud/MangoHud.conf'
+post_hook = 'sed -i "s|@HOME@|$HOME|" ~/.config/MangoHud/MangoHud.conf' # MangoHud wants the font's full path
+
+[templates.btop]
+input_path = '~/.config/matugen/templates/btop/ninomae.theme'
+output_path = '~/.config/btop/themes/ninomae.theme'
+post_hook = 'pkill -USR2 -x btop || true' # btop reloads its config (and theme) on SIGUSR2

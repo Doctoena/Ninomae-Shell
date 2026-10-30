@@ -1,0 +1,28 @@
+# Python and editor leftovers
+__pycache__/
+*.pyc
+*~
+*.swp
+# Temporary files scripts write before moving them into place
+*.tmp
+*.part
+# Written by switchwall.sh at runtime (video wallpaper restore + thumbnails)
+config/hypr/custom/scripts/
+
+# Colours written by matugen from the wallpaper on every change (config/matugen/config.toml).
+# install.sh makes them, so a fresh clone doesn't need them
+config/fuzzel/fuzzel_theme.ini
+config/gtk-3.0/gtk.css
+config/gtk-4.0/gtk.css
+config/btop/themes/ninomae.theme
+config/Kvantum/MaterialAdw/MaterialAdw.kvconfig
+themes/sddm/Ninomae/theme.conf
+themes/sddm/Ninomae/wallpaper.jpg
+themes/steam/matugen.css
+themes/discord/ninomae.theme.css
+themes/zen/chrome/ninomae-colors.css
+themes/vscode/ninomae-theme/themes/ninomae-color-theme.json
+
+# Per-machine state
+config/ninomae-shell/displays.json
+config/fish/fish_variables
