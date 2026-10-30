@@ -26,3 +26,7 @@ themes/vscode/ninomae-theme/themes/ninomae-color-theme.json
 # Per-machine state
 config/ninomae-shell/displays.json
 config/fish/fish_variables
+
+# Wallpapers: only the default one is shared (the rest of ~/Pictures/Wallpapers stays local)
+assets/wallpapers/*
+!assets/wallpapers/purpgirl.png

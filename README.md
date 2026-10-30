@@ -13,6 +13,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 ![Hyprland 0.56](https://img.shields.io/badge/Hyprland-0.56-8b5cf6?style=flat-square&logo=hyprland&logoColor=white)
 ![Quickshell](https://img.shields.io/badge/Quickshell-QML-8b5cf6?style=flat-square&logo=qt&logoColor=white)
 ![kitty + fish](https://img.shields.io/badge/kitty-fish-8b5cf6?style=flat-square&logo=gnometerminal&logoColor=white)
+![Licence GPL-3.0](https://img.shields.io/badge/licence-GPL--3.0-8b5cf6?style=flat-square)
 
 [Screenshots](#screenshots) · [Install](#install) · [Using it](#using-it) · [Keybinds](#keybinds) · [Colours](#wallpaper-and-colours) · [Gaming](#gaming) · [Layout](#where-things-are) · [Help](#troubleshooting)
 
@@ -285,5 +286,7 @@ plain.
 
 Built on [end-4's dotfiles](https://github.com/end-4/dots-hyprland), with ideas from
 [Caelestia](https://github.com/caelestia-dots/shell).
+
+Licensed under the [GNU GPL v3](LICENSE). Wallpapers belong to their artists.
 
 </div>
