@@ -50,7 +50,7 @@ PACKAGES=(
     gum
 )
 
-# home path (relative to $HOME)  →  path inside the Dotfiles folder
+# home path (relative to $HOME)  →  path inside this repo
 LINKS=(
     ".config/hypr|config/hypr"
     ".config/quickshell|config/quickshell"
@@ -282,7 +282,7 @@ update_codecs() { # --update: the swaps, where RPM Fusion is on (it isn't turned
 LINKED=0 BACKED_UP=0
 link_one() {
     local target="$HOME/$1" source="$DOTFILES/$2"
-    if [[ ! -e $source ]]; then warn "Missing in Dotfiles, skipped: $2"; return 0; fi
+    if [[ ! -e $source ]]; then warn "Missing in the repo, skipped: $2"; return 0; fi
     if [[ -L $target && "$(readlink -f "$target")" == "$(readlink -f "$source")" ]]; then return 0; fi
     if [[ -e $target || -L $target ]]; then
         run mkdir -p "$BACKUP_DIR/$(dirname "$1")"

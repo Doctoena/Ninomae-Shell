@@ -30,7 +30,7 @@
 set -uo pipefail
 
 DOTFILES="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DOTFILES_HOME="$HOME/Dotfiles" # Where the folder has to live (matugen's config points here)
+DOTFILES_HOME="$HOME/Ninomae-Shell" # Where the folder has to live (matugen's config points here)
 BACKUP_DIR="$HOME/.dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
 ORIG_ARGS=("$@") # Kept for re-running from $DOTFILES_HOME after the folder is moved there
 
@@ -111,24 +111,24 @@ if [[ $MODE == install ]]; then
     else warn "Couldn't reach the package servers; package steps may fail"; fi
 fi
 
-# Some configs (matugen's output paths) refer to ~/Dotfiles directly, so the script auto puts the files into that directory and symlinks them
+# Some configs (matugen's output paths) refer to ~/Ninomae-Shell directly, so the script auto puts the files into that directory and symlinks them
 if [[ $DOTFILES != "$DOTFILES_HOME" ]]; then
     [[ $MODE == install ]] || die "Run this from $DOTFILES_HOME (where the installed copy lives)."
-    section "Putting the dotfiles at $DOTFILES_HOME"
+    section "Putting Ninomae-Shell at $DOTFILES_HOME"
     [[ $DOTFILES_HOME == "$DOTFILES"/* ]] && die "Can't move $DOTFILES into a folder inside itself."
     if [[ -e $DOTFILES_HOME || -L $DOTFILES_HOME ]]; then
         confirm "$DOTFILES_HOME already exists. Move it to $BACKUP_DIR and use this copy?" \
             || die "Left $DOTFILES_HOME alone. Move or remove it, or run $DOTFILES_HOME/install.sh instead."
-        run mkdir -p "$BACKUP_DIR" && run mv "$DOTFILES_HOME" "$BACKUP_DIR/Dotfiles" \
+        run mkdir -p "$BACKUP_DIR" && run mv "$DOTFILES_HOME" "$BACKUP_DIR/Ninomae-Shell" \
             || die "Couldn't move the old $DOTFILES_HOME aside."
-        warn "Previous $DOTFILES_HOME moved to $BACKUP_DIR/Dotfiles"
+        warn "Previous $DOTFILES_HOME moved to $BACKUP_DIR/Ninomae-Shell"
     fi
     if [[ $DOTFILES == "$HOME"/* ]]; then run mv "$DOTFILES" "$DOTFILES_HOME" || die "Couldn't move the folder."; ok "Moved from $DOTFILES"
     else run cp -a "$DOTFILES" "$DOTFILES_HOME" || die "Couldn't copy the folder."; ok "Copied from $DOTFILES"; fi
     if (( DRY_RUN )); then warn "Dry run continues from $DOTFILES"
     else cd "$DOTFILES_HOME" && exec bash "$DOTFILES_HOME/install.sh" "${ORIG_ARGS[@]}"; fi
 fi
-ok "Dotfiles at $DOTFILES"
+ok "Ninomae-Shell at $DOTFILES"
 
 # The nicer interface: offer gum (small, from Fedora's own repos) if it's missing
 if (( INTERACTIVE && ! ASSUME_YES && ! DRY_RUN )) && [[ $MODE == install ]] && ! command -v gum >/dev/null; then

@@ -27,7 +27,7 @@ wallpaper="${wallpaper/#\~\//$HOME/}" # Stored as ~/…
     tmp="$(mktemp --suffix=.jpg)"
     if magick "$wallpaper" -resize '2560x1440^' -quality 90 "$tmp"; then
         cat "$tmp" > "$TARGET/wallpaper.jpg"
-        cp "$tmp" "$HERE/Ninomae/wallpaper.jpg" # Keep the Dotfiles copy current for the next install
+        cp "$tmp" "$HERE/Ninomae/wallpaper.jpg" # Keep the repo's copy current for the next install
         mkdir -p "$(dirname "$LAST")" && printf '%s' "$wallpaper" > "$LAST"
     fi
     rm -f "$tmp"

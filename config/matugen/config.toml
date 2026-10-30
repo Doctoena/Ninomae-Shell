@@ -37,28 +37,28 @@ output_path = '~/.local/state/quickshell/user/generated/wallpaper/path.txt'
 
 [templates.sddm]
 input_path = '~/.config/matugen/templates/sddm/theme.conf'
-output_path = '~/Dotfiles/themes/sddm/Ninomae/theme.conf'
-post_hook = 'bash ~/Dotfiles/themes/sddm/sync-theme.sh'
+output_path = '~/Ninomae-Shell/themes/sddm/Ninomae/theme.conf'
+post_hook = 'bash ~/Ninomae-Shell/themes/sddm/sync-theme.sh'
 
 [templates.vscode]
 input_path = '~/.config/matugen/templates/vscode/ninomae-color-theme.json'
-output_path = '~/Dotfiles/themes/vscode/ninomae-theme/themes/ninomae-color-theme.json'
-post_hook = 'bash ~/Dotfiles/themes/vscode/apply-live.sh'
+output_path = '~/Ninomae-Shell/themes/vscode/ninomae-theme/themes/ninomae-color-theme.json'
+post_hook = 'bash ~/Ninomae-Shell/themes/vscode/apply-live.sh'
 
 [templates.zen]
 input_path = '~/.config/matugen/templates/zen/ninomae-colors.css'
-output_path = '~/Dotfiles/themes/zen/chrome/ninomae-colors.css'
-post_hook = 'bash ~/Dotfiles/themes/zen/apply-theme.sh'
+output_path = '~/Ninomae-Shell/themes/zen/chrome/ninomae-colors.css'
+post_hook = 'bash ~/Ninomae-Shell/themes/zen/apply-theme.sh'
 
 [templates.steam]
 input_path = '~/.config/matugen/templates/steam/material-theme.css'
-output_path = '~/Dotfiles/themes/steam/matugen.css'
-post_hook = 'bash ~/Dotfiles/themes/steam/apply-theme.sh'
+output_path = '~/Ninomae-Shell/themes/steam/matugen.css'
+post_hook = 'bash ~/Ninomae-Shell/themes/steam/apply-theme.sh'
 
 [templates.discord]
 input_path = '~/.config/matugen/templates/discord/ninomae.theme.css'
-output_path = '~/Dotfiles/themes/discord/ninomae.theme.css'
-post_hook = 'bash ~/Dotfiles/themes/discord/apply-theme.sh'
+output_path = '~/Ninomae-Shell/themes/discord/ninomae.theme.css'
+post_hook = 'bash ~/Ninomae-Shell/themes/discord/apply-theme.sh'
 
 [templates.mangohud]
 input_path = '~/.config/matugen/templates/mangohud/MangoHud.conf'

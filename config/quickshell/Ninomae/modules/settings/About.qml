@@ -180,7 +180,7 @@ ContentPage {
                     Layout.alignment: Qt.AlignRight
                     materialIcon: "folder_open"
                     mainText: Translation.tr("Open the dotfiles folder")
-                    onClicked: Qt.openUrlExternally(`file://${Quickshell.env("HOME")}/Dotfiles`)
+                    onClicked: Qt.openUrlExternally(`file://${Quickshell.env("HOME")}/Ninomae-Shell`)
                 }
             }
         }

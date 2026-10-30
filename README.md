@@ -73,8 +73,8 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 ## Install
 
 ```sh
-git clone <this repo> ~/Dotfiles
-cd ~/Dotfiles
+git clone https://github.com/Doctoena/Ninomae-Shell.git ~/Ninomae-Shell
+cd ~/Ninomae-Shell
 ./install.sh
 ```
 
@@ -83,7 +83,7 @@ QWERTY). When it's done, reboot and pick the **Hyprland** session on the login s
 
 > [!NOTE]
 > - Anything it replaces is backed up to `~/.dotfiles-backup-<date>`.
-> - The folder has to live at `~/Dotfiles`. If you cloned it somewhere else, the installer moves it.
+> - The folder has to live at `~/Ninomae-Shell`. If you cloned it somewhere else, the installer moves it.
 > - It's safe to run again. It only changes what isn't set up yet.
 
 **Multimedia codecs** are on by default. They turn on [RPM Fusion](https://rpmfusion.org) for the
@@ -236,7 +236,7 @@ The same folder works on a desktop and a laptop.
 ## Where things are
 
 ```text
-~/Dotfiles
+~/Ninomae-Shell
 ├── install.sh, setup/          the installer
 ├── config/                     app configs, linked into ~/.config
 │   ├── hypr/                   Hyprland

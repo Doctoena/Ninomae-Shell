@@ -57,7 +57,7 @@ case "${1:-install}" in
         install -d -o root -g root -m 0755 "$theme_target"
         cp -a "$theme_source"/. "$theme_target"/
         # Fonts come from assets/fonts (the sddm user can't read ~/.local/share/fonts),
-        # so they aren't stored twice in the Dotfiles folder
+        # so they aren't stored twice in the repo
         install -d "$theme_target/fonts"
         install -m 0644 "$fonts_source/ttf-material-symbols-variable/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf" "$theme_target/fonts/MaterialSymbolsRounded.ttf"
         for font in RobotoFlex Rubik SpaceGrotesk; do

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copies the Ninomae Zen theme into every Zen profile (Flatpak and native), and keeps the live theme
-# extension's colours current. Copies rather than symlinks because the Flatpak can't read ~/Dotfiles.
+# extension's colours current. Copies rather than symlinks because the Flatpak can't read ~/Ninomae-Shell.
 # Run by matugen after it regenerates colours.
 #
 # Zen only reads userChrome.css at startup, so the colours also go to the Ninomae live theme extension
