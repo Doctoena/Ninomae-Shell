@@ -111,10 +111,10 @@ everywhere. Skip them with `--skip codecs`.
 
 In the terminal (fish):
 
-| Command | What it does |
-|---|---|
-| `ninomae update` | Pulls the latest version, installs anything new, rebuilds what needs it and offers to restart the shell |
-| `ninomae check` | Checks that everything is in place: links, settings, packages, plugins, colours and the shell's log. Changes nothing |
+- `ninomae update` pulls the latest version, installs anything new, rebuilds what needs it and offers
+  to restart the shell.
+- `ninomae check` checks that everything is in place (links, settings, packages, plugins, colours and
+  the shell's log). It changes nothing.
 
 Your settings are yours: `config/ninomae-shell/config.json` isn't in git, so updates never touch it.
 A new install starts from `config.default.json`. Your weather city is kept outside this folder too.
