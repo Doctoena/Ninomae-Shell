@@ -26,7 +26,9 @@ Variants {
         property string wallpaperPath
         Binding on wallpaperPath {
             when: !GlobalStates.themeHold || bgRoot.oldCaptured || bgRoot.wallpaperIsVideo
-            value: bgRoot.wallpaperIsVideo ? Config.thumbnailPath : Config.wallpaperPath
+            // A size version of the wallpaper made for this screen's shape, if there is one (WallpaperVariants)
+            value: bgRoot.wallpaperIsVideo ? Config.thumbnailPath
+                : WallpaperVariants.forScreen(Config.wallpaperPath, bgRoot.modelData.width, bgRoot.modelData.height)
             restoreMode: Binding.RestoreNone
         }
         property real wallpaperToScreenRatio: Math.min(wallpaperWidth / screen.width, wallpaperHeight / screen.height)

@@ -23,7 +23,8 @@ themes/discord/ninomae.theme.css
 themes/zen/chrome/ninomae-colors.css
 themes/vscode/ninomae-theme/themes/ninomae-color-theme.json
 
-# Per-machine state
+# Per-machine state. config.json starts as a copy of config.default.json (the shell or install.sh makes it)
+config/ninomae-shell/config.json
 config/ninomae-shell/displays.json
 config/fish/fish_variables
 

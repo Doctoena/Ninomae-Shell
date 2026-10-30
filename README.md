@@ -256,7 +256,7 @@ The same folder works on a desktop and a laptop.
 ├── config/                     app configs, linked into ~/.config
 │   ├── hypr/                   Hyprland
 │   ├── matugen/                colour templates
-│   ├── ninomae-shell/          config.json, your shell settings
+│   ├── ninomae-shell/          config.default.json, copied to config.json (your settings, not in git)
 │   └── quickshell/
 │       ├── Ninomae/            the shell
 │       └── plugins/            ninomae-blobs, the gooey drawer animation

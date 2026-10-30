@@ -111,9 +111,7 @@
     "dot": false,
     "dotOpacity": 100,
     "dotSize": 2,
-    "games": [
-      "steam_108600"
-    ],
+    "games": [],
     "gap": 1,
     "length": 7,
     "lineOpacity": 100,

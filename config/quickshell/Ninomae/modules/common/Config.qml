@@ -68,6 +68,16 @@ Singleton {
             configFileView.writeAdapter()
         }
     }
+    // config.json is each machine's own (git ignores it). The first time, it starts as a copy of the shipped
+    // config.default.json, or from the defaults below if that's missing too
+    Process {
+        id: firstConfig
+        command: ["cp", "-n", `${Directories.shellConfig}/config.default.json`, root.filePath]
+        onExited: (code, status) => {
+            if (code === 0) configFileView.reload();
+            else configFileView.writeAdapter();
+        }
+    }
     FileView {
         id: configFileView
         path: root.filePath
@@ -77,9 +87,10 @@ Singleton {
         onAdapterUpdated: fileWriteTimer.restart()
         onLoaded: root.ready = true
         onLoadFailed: error => {
-            if (error == FileViewError.FileNotFound) {
-                writeAdapter();
-            }
+            if (error != FileViewError.FileNotFound) return;
+            // Deleted while running (a git pull, say): write back the settings in use
+            if (root.ready) writeAdapter();
+            else firstConfig.running = true;
         }
         JsonAdapter {
             id: configOptionsJsonAdapter

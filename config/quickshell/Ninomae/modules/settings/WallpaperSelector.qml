@@ -19,7 +19,8 @@ ColumnLayout {
     spacing: 12
 
     readonly property string folder: `${FileUtils.trimFileProtocol(Directories.home)}/Pictures/Wallpapers`
-    readonly property string current: Config.wallpaperPath
+    // A size version ("name_5120x1440.png") counts as its plain wallpaper, which the carousel shows instead
+    readonly property string current: WallpaperVariants.plainOf(Config.wallpaperPath, found)
     readonly property bool currentIsVideo: /\.(mp4|webm|mkv|avi|mov)$/i.test(current)
     property var found: [] // Images in the folder, by name
     // The folder's images, with the current wallpaper first when it isn't one of them
@@ -52,7 +53,8 @@ ColumnLayout {
         stdout: StdioCollector {
             onStreamFinished: {
                 const list = text.split("\n").filter(l => l.length > 0).sort((a, b) => a.localeCompare(b));
-                if (list.join("\n") !== root.found.join("\n")) root.found = list;
+                const shown = WallpaperVariants.withoutVariants(list);
+                if (shown.join("\n") !== root.found.join("\n")) root.found = shown;
             }
         }
     }

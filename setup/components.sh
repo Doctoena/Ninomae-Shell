@@ -312,6 +312,10 @@ comp_configs() {
     # Settings that store absolute paths: point any other user's home in them at this one. Whole-path
     # matches only (followed by / or "), so a re-run changes nothing and /home/ann won't touch /home/anna
     local f="config/ninomae-shell/config.json" other
+    # Each machine's own settings (git ignores the file): the first time, a copy of the shipped defaults
+    if [[ ! -f "$DOTFILES/$f" ]]; then
+        run cp "$DOTFILES/config/ninomae-shell/config.default.json" "$DOTFILES/$f" && ok "Shell settings from the defaults"
+    fi
     if [[ -f "$DOTFILES/$f" ]]; then
         while IFS= read -r other; do
             [[ $other == "$HOME" ]] && continue

@@ -276,15 +276,28 @@ ApplicationWindow {
                         readonly property int cols: Math.max(2, Math.floor(width / 200))
                         cellWidth: Math.floor(width / cols)
                         cellHeight: Math.round(cellWidth * 0.62)
-                        model: FolderListModel {
+                        FolderListModel {
+                            id: wallpaperFiles
                             folder: "file://" + root.wallpaperDir
                             nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
                             showDirs: false
+                            onCountChanged: wallpaperGrid.collect()
+                            onStatusChanged: wallpaperGrid.collect()
                         }
+                        // Size versions ("name_5120x1440.png") show as their plain wallpaper (WallpaperVariants)
+                        property var wallpapers: []
+                        function collect() {
+                            const list = [];
+                            for (let i = 0; i < wallpaperFiles.count; i++) list.push(wallpaperFiles.get(i, "filePath"));
+                            wallpapers = WallpaperVariants.withoutVariants(list);
+                        }
+                        model: wallpapers
                         delegate: Item {
                             id: tile
-                            required property string filePath
-                            readonly property bool chosen: Config.wallpaperPath === filePath
+                            required property string modelData
+                            readonly property string filePath: modelData
+                            readonly property bool chosen: WallpaperVariants.fileName(WallpaperVariants.plainOf(Config.wallpaperPath))
+                                === WallpaperVariants.fileName(filePath)
                             width: wallpaperGrid.cellWidth
                             height: wallpaperGrid.cellHeight
                             ClippingRectangle {
