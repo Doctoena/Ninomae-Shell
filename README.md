@@ -94,7 +94,9 @@ cd ~/Ninomae-Shell
 ```
 
 The installer shows a checklist of what to set up and asks for your keyboard layout (US Dvorak or
-QWERTY). When it's done, reboot and pick the **Hyprland** session on the login screen.
+QWERTY). When it's done, reboot and pick the **Hyprland** session on the login screen. A welcome
+window then walks you through the look, the window layout, your weather location and the gaming
+features.
 
 > [!NOTE]
 > - Anything it replaces is backed up to `~/.dotfiles-backup-<date>`.
@@ -104,6 +106,18 @@ QWERTY). When it's done, reboot and pick the **Hyprland** session on the login s
 **Multimedia codecs** are on by default. They turn on [RPM Fusion](https://rpmfusion.org) for the
 full ffmpeg and video drivers, which gameplay clips need on AMD graphics and which make video faster
 everywhere. Skip them with `--skip codecs`.
+
+### Keeping it up to date
+
+In the terminal (fish):
+
+| Command | What it does |
+|---|---|
+| `ninomae update` | Pulls the latest version, installs anything new, rebuilds what needs it and offers to restart the shell |
+| `ninomae check` | Checks that everything is in place: links, settings, packages, plugins, colours and the shell's log. Changes nothing |
+
+Your settings are yours: `config/ninomae-shell/config.json` isn't in git, so updates never touch it.
+A new install starts from `config.default.json`. Your weather city is kept outside this folder too.
 
 ### Two themes need one extra step
 
@@ -121,7 +135,8 @@ The app has to be opened once first, so its folder exists.
 
 | Option | What it does |
 |---|---|
-| `--update` | Get the latest files, packages and plugins |
+| `--update` | Get the latest files, packages and plugins (`ninomae update`) |
+| `--check` | See if everything is in place, without changing anything (`ninomae check`) |
 | `--uninstall` | Remove the links and restore your backups (packages and this folder stay) |
 | `--dry-run` | Show what would happen without changing anything |
 | `-y` | Don't ask questions, use the defaults |
@@ -144,7 +159,7 @@ The app has to be opened once first, so its folder exists.
 | **Screenshot** | `Super+Shift+S` | A region, window or the whole screen, plus image search and text recognition |
 | **Settings** | `Super+I` | Every option, applied live |
 | **Lock** | `Super+L` | Also locks by itself after 5 minutes |
-| **Power menu** | `Ctrl+Alt+Delete` | |
+| **Power menu** | `Ctrl+Alt+Delete` | Lock, sleep, reboot, shut down. Reboot and shut down count down for 5 seconds first, and apps are asked to close so they can save |
 
 ### Searching in the overview
 
@@ -213,6 +228,10 @@ desktop recolours to match, with colours made by [matugen](https://github.com/In
 | **Next time you open them** | GTK and Qt apps, Zen |
 | **When you run** `sudo themes/boot/install-boot-theme.sh` | The boot splash |
 
+**Ultrawide and other shapes.** Put a version made for another screen shape next to the wallpaper,
+named with its size, like `purpgirl_5120x1440.png` beside `purpgirl.png`. Each screen then shows
+the version closest to its shape, and the pickers show the pair as one wallpaper.
+
 <br>
 
 ## Gaming
@@ -245,6 +264,8 @@ The same folder works on a desktop and a laptop.
   Settings are remembered per monitor, so a monitor keeps them on any computer you plug it into.
 - Settings for hardware a machine doesn't have are hidden: battery options only on a laptop,
   touchpad options only with a touchpad.
+- Each machine keeps its own settings, since `config.json` isn't in git. `ninomae update` on one
+  machine never changes the other's settings.
 
 <br>
 
@@ -290,9 +311,10 @@ plain.
 
 | Problem | Fix |
 |---|---|
+| Not sure what's wrong | `ninomae check` looks over the whole setup and says what to fix |
 | The shell is stuck or looks wrong | `Super+Ctrl+R` restarts it |
 | Something isn't working | `qs log -c Ninomae` shows the shell's log |
-| A setup step failed | Run `./install.sh` again |
+| A setup step failed | `ninomae update`, or run `./install.sh` again |
 | Colours didn't update | **Settings → Appearance → Apply theming changes** |
 
 <br>
