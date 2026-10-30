@@ -26,6 +26,8 @@ themes/vscode/ninomae-theme/themes/ninomae-color-theme.json
 # Per-machine state. config.json starts as a copy of config.default.json (the shell or install.sh makes it)
 config/ninomae-shell/config.json
 config/ninomae-shell/displays.json
+config/ninomae-shell/keybinds.json
+config/ninomae-shell/window-rules.json
 config/fish/fish_variables
 
 # Wallpapers: only the default one is shared (the rest of ~/Pictures/Wallpapers stays local)

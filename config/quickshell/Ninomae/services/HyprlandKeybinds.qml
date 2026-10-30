@@ -20,6 +20,7 @@ Singleton {
     id: root
     property int columnCount: 2
     property var keybinds: ({ "children": [] })
+    property var raw: [] // Every bind as hyprctl gives it, hidden ones too: Settings checks a new shortcut against these
 
     function modsFromMask(mask) {
         const mods = []
@@ -56,6 +57,7 @@ Singleton {
                 "mods": root.modsFromMask(bind.modmask),
                 "key": root.keyName(bind),
                 "comment": comment,
+                "description": desc,
             })
         }
         // Spread sections over columns, balancing by number of keybinds
@@ -87,7 +89,9 @@ Singleton {
             id: keybindCollector
             onStreamFinished: {
                 try {
-                    root.keybinds = root.buildTree(JSON.parse(keybindCollector.text))
+                    const binds = JSON.parse(keybindCollector.text)
+                    root.raw = binds
+                    root.keybinds = root.buildTree(binds)
                 } catch (e) {
                     console.error("[HyprlandKeybinds] Error parsing keybinds:", e)
                 }

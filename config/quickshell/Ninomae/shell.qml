@@ -80,6 +80,8 @@ ShellRoot {
         Cliphist.refresh()
         GameClips.load()
         Crosshair.load()
+        WindowRules.load()
+        KeybindOverrides.load()
     }
 
     // ------------------------------------------------------------------------

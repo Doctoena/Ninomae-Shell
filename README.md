@@ -158,7 +158,7 @@ The app has to be opened once first, so its folder exists.
 | **Overview** | `Super+E` | Launch apps and search |
 | **Game launcher** | `Super+Shift+O` | Your Steam and Lutris games |
 | **Screenshot** | `Super+Shift+S` | A region, window or the whole screen, plus image search and text recognition |
-| **Settings** | `Super+I` | Every option, applied live |
+| **Settings** | `Super+I` | Every option, applied live. Also your own shortcuts and window rules |
 | **Lock** | `Super+L` | Also locks by itself after 5 minutes |
 | **Power menu** | `Ctrl+Alt+Delete` | Lock, sleep, reboot, shut down. Reboot and shut down count down for 5 seconds first, and apps are asked to close so they can save |
 
@@ -177,7 +177,8 @@ Start with a symbol to search one thing:
 
 ## Keybinds
 
-`Super+/` opens the full, searchable list. These are the ones you'll use most.
+`Super+/` opens the full, searchable list, where **Edit** changes a shortcut's keys, turns one off or adds
+your own. These are the ones you'll use most.
 
 <table>
 <tr><th>Apps and windows</th><th>Workspaces and desktop</th></tr>

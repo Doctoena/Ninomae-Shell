@@ -16,7 +16,20 @@ local scripts = "~/.config/hypr/hyprland/scripts/"
 -- in the same physical place (keymap.lua), so the shortcuts stay where your fingers expect them
 local variant = require("hyprland/keyboard").variant
 local translate = require("hyprland/keymap").translate
-local function bind(combo, ...) return hl.bind(translate(combo, variant), ...) end
+-- Your changes from Settings → Keybinds (the shell writes them: services/KeybindOverrides.qml). `changed` maps a
+-- bind's description to new keys (as Hyprland sees them, so not translated) or to false for turned off.
+-- `added` are your own shortcuts that run a command
+local user = (function()
+    local ok, t = pcall(dofile, os.getenv("HOME") .. "/.local/state/quickshell/user/keybinds.lua")
+    return (ok and type(t) == "table") and t or {}
+end)()
+local changed = user.changed or {}
+local function bind(combo, dispatcher, opts)
+    local new = opts and opts.description and changed[opts.description]
+    if new == false then return end
+    if type(new) == "string" then return hl.bind(new, dispatcher, opts) end
+    return hl.bind(translate(combo, variant), dispatcher, opts)
+end
 
 -- Small helpers to keep the binds readable
 local function exec(cmd) return hl.dsp.exec_cmd(cmd) end
@@ -214,4 +227,17 @@ hl.define_submap("global", function()
     bind("SUPER + I",      exec("XDG_CURRENT_DESKTOP=gnome " .. launch .. [["]] .. openSettings .. [[" "systemsettings" "gnome-control-center" "better-control"]]), { description = "Apps: Settings app" })
     bind("CTRL + SHIFT + Escape", exec(launch .. [["kitty -1 btop"]]), { description = "Apps: Task manager" }) -- Same as the session screen's Tasks
 
+    -- Your own shortcuts (Settings → Keybinds → Add shortcut)
+    for _, b in ipairs(user.added or {}) do
+        if type(b.keys) == "string" and type(b.command) == "string" then
+            hl.bind(b.keys, exec(b.command), { description = "Custom: " .. (b.name or b.command) })
+        end
+    end
+
+end)
+
+-- While Settings records a new shortcut it switches to this submap, so keys that already have a bind reach
+-- it instead of running. Escape always leaves it, in case Settings can't switch back
+hl.define_submap("ninomae_capture", function()
+    hl.bind("Escape", hl.dsp.submap("global"), { non_consuming = true, description = "[hidden] Stop recording a shortcut" })
 end)

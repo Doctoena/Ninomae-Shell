@@ -206,7 +206,9 @@ update)
     # A running shell keeps the old files loaded until it restarts
     if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && pgrep -f "^qs -c $QS_CONFIG\$" >/dev/null && (( ! DRY_RUN )); then
         if confirm "Restart the shell now to load the update?"; then
-            "$DOTFILES/config/hypr/hyprland/scripts/restart_shell.sh" "$QS_CONFIG" && ok "Shell restarted"
+            # 8>&-: the new shell mustn't inherit the installer's lock (fd 8), or it, and every app it starts,
+            # would hold it and the next run would say the installer is already running
+            "$DOTFILES/config/hypr/hyprland/scripts/restart_shell.sh" "$QS_CONFIG" 8>&- && ok "Shell restarted"
         else info "Restart it later with Super+Ctrl+R"; fi
     fi
     ;;

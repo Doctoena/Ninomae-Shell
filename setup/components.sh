@@ -581,7 +581,7 @@ check_links() {
 check_settings() {
     step "Shell settings"
     local dir="$DOTFILES/config/ninomae-shell" f bad=0
-    for f in config.json config.default.json; do
+    for f in config.json config.default.json window-rules.default.json; do
         if [[ ! -f $dir/$f ]]; then
             if [[ $f == config.json ]]; then info "No config.json yet: the shell makes it from the defaults"
             else warn "$f is missing"; bad=1; fi

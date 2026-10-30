@@ -1,0 +1,292 @@
+[
+  {
+    "name": "transparent-apps",
+    "note": "Slightly transparent, so the wallpaper shows through",
+    "enabled": true,
+    "match": {
+      "class": "^(com\\.microsoft\\.VSCode|kitty|discord|vesktop|org\\.gnome\\.Nautilus|org\\.gnome\\.Loupe|xdg-desktop-portal-gtk|net\\.lutris\\.Lutris|steam|com\\.github\\.th_ch\\.youtube_music)$"
+    },
+    "effects": {
+      "opacity": "0.94 override 0.94 override"
+    }
+  },
+  {
+    "name": "transparent-settings",
+    "note": "The shell's Settings app, like the apps above (matched by title: its class is Quickshell's)",
+    "enabled": true,
+    "match": {
+      "title": "^(Ninomae Settings)$"
+    },
+    "effects": {
+      "opacity": "0.94 override 0.94 override"
+    },
+    "builtin": true
+  },
+  {
+    "name": "xwayland-no-blur",
+    "note": "Disable blur for xwayland context menus",
+    "enabled": true,
+    "match": {
+      "xwayland": true
+    },
+    "effects": {
+      "no_blur": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "file-dialogs",
+    "note": "Floating dialogs - common file/folder dialogs",
+    "enabled": true,
+    "match": {
+      "title": "^(Open File|Select a File|Choose wallpaper|Open Folder|Save As|Library|File Upload)(.*)$"
+    },
+    "effects": {
+      "float": true,
+      "center": true
+    }
+  },
+  {
+    "name": "wallpaper-chooser-size",
+    "note": "The wallpaper file picker's size",
+    "enabled": true,
+    "match": {
+      "title": "^(Choose wallpaper)(.*)$"
+    },
+    "effects": {
+      "size": "60% 65%"
+    },
+    "builtin": true
+  },
+  {
+    "name": "browser-save-open-dialogs",
+    "note": "A browser's save and open dialogs float",
+    "enabled": true,
+    "match": {
+      "title": "^(.*)(wants to save|wants to open)$"
+    },
+    "effects": {
+      "float": true,
+      "center": true
+    }
+  },
+  {
+    "name": "pavucontrol",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "class": "^(pavucontrol|org\\.pulseaudio\\.pavucontrol)$"
+    },
+    "effects": {
+      "float": true,
+      "size": "75% 75%",
+      "center": true
+    }
+  },
+  {
+    "name": "nm-connection-editor",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "class": "^(nm-connection-editor)$"
+    },
+    "effects": {
+      "float": true,
+      "size": "45% 50%",
+      "center": true
+    }
+  },
+  {
+    "name": "blueman-manager",
+    "note": "The Bluetooth menu's Settings button",
+    "enabled": true,
+    "match": {
+      "class": "^(blueman-manager)$"
+    },
+    "effects": {
+      "float": true,
+      "size": "45% 50%",
+      "center": true
+    }
+  },
+  {
+    "name": "plasmawindowed",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "class": "^.*plasmawindowed.*$"
+    },
+    "effects": {
+      "float": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "kcm",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "class": "^kcm_.*$"
+    },
+    "effects": {
+      "float": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "bluedevilwizard",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "class": "^.*bluedevilwizard$"
+    },
+    "effects": {
+      "float": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "welcome",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "title": "^.*Welcome$"
+    },
+    "effects": {
+      "float": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "shell-conflicts",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "title": "^.*Shell conflicts.*$"
+    },
+    "effects": {
+      "float": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "kde-portal",
+    "note": "",
+    "enabled": true,
+    "match": {
+      "class": "^org\\.freedesktop\\.impl\\.portal\\.desktop\\.kde$"
+    },
+    "effects": {
+      "float": true,
+      "size": "60% 65%"
+    },
+    "builtin": true
+  },
+  {
+    "name": "plasma-changeicons",
+    "note": "kde-material-you-colors spawns a window when changing dark/light theme. This is to make sure it doesn't interfere at all.",
+    "enabled": true,
+    "match": {
+      "class": "^(plasma-changeicons)$"
+    },
+    "effects": {
+      "float": true,
+      "no_initial_focus": true,
+      "move": "999999 999999"
+    },
+    "builtin": true
+  },
+  {
+    "name": "steam-launching-dialog",
+    "note": "Steam's \"Starting game\" dialog: the shell's launch splash (modules/gameLauncher/LaunchSplash.qml) already shows the launch and update progress. Moved off-screen, not closed: closing it may cancel the launch",
+    "enabled": true,
+    "match": {
+      "class": "^steam$",
+      "title": "^Launching\\.\\.\\.$"
+    },
+    "effects": {
+      "float": true,
+      "no_initial_focus": true,
+      "no_anim": true,
+      "move": "999999 999999"
+    },
+    "builtin": true
+  },
+  {
+    "name": "picture-in-picture",
+    "note": "Picture-in-Picture",
+    "enabled": true,
+    "match": {
+      "title": "^([Pp]icture[-\\s]?[Ii]n[-\\s]?[Pp]icture)(.*)$"
+    },
+    "effects": {
+      "float": true,
+      "keep_aspect_ratio": true,
+      "move": "73% 72%",
+      "size": "25% 28%",
+      "pin": true
+    }
+  },
+  {
+    "name": "tearing-exe",
+    "note": "Lets Windows games (.exe) tear, for lower input lag",
+    "enabled": true,
+    "match": {
+      "title": ".*\\.exe"
+    },
+    "effects": {
+      "immediate": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "tearing-steam-app",
+    "note": "Lets Steam games tear, for lower input lag",
+    "enabled": true,
+    "match": {
+      "class": "^(steam_app).*"
+    },
+    "effects": {
+      "immediate": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "idle-inhibit-fullscreen",
+    "note": "Any fullscreen window keeps the screen on: hypridle would otherwise lock after 5 min and suspend after 15 during a game played on a controller or a video",
+    "enabled": true,
+    "match": {
+      "class": ".*"
+    },
+    "effects": {
+      "idle_inhibit": "fullscreen"
+    },
+    "builtin": true
+  },
+  {
+    "name": "jetbrains-focus-fix",
+    "note": "Fix Jetbrain IDEs focus/rerendering problem",
+    "enabled": true,
+    "match": {
+      "class": "^jetbrains-.*$",
+      "float": true,
+      "title": "^$|^\\s$|^win\\d+$"
+    },
+    "effects": {
+      "no_initial_focus": true
+    },
+    "builtin": true
+  },
+  {
+    "name": "tiled-no-shadow",
+    "note": "No shadow for tiled windows (matches windows that are not floating).",
+    "enabled": true,
+    "match": {
+      "float": false
+    },
+    "effects": {
+      "no_shadow": true
+    },
+    "builtin": true
+  }
+]
