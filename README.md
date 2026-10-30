@@ -37,7 +37,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 
 <div align="center">
 
-<img src="assets/readme/desktop.jpg" alt="The desktop with fastfetch, btop and cava tiled over the wallpaper" width="100%">
+<img src="assets/readme/desktop-terminals.jpg" alt="The desktop with fastfetch, btop and cava tiled over the wallpaper" width="100%">
 
 <sub><b>Desktop</b> · the terminal, borders and bar all take their colours from the wallpaper</sub>
 
@@ -65,7 +65,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <sub><b>Overview</b> · apps, clipboard, emoji, web search</sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/readme/sidebar.jpg" alt="Sidebar with quick toggles, grouped notifications and system stats"><br>
+<img src="assets/readme/sidebar-panel.jpg" alt="Sidebar with quick toggles, grouped notifications and system stats"><br>
 <sub><b>Sidebar</b> · toggles, notifications, system stats</sub>
 </td>
 </tr>
