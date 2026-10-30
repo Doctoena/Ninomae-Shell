@@ -21,6 +21,23 @@ case "${wallpaper,,}" in *.mp4|*.webm|*.mkv|*.avi|*.mov) # Video wallpaper: use 
 esac
 wallpaper="${wallpaper/#\~\//$HOME/}" # Stored as ~/…
 [[ -r "$wallpaper" ]] || exit 0
+
+# The size version made for the main (largest) screen's shape, as the desktop uses one per screen: name_5120x1440.png
+# beside name.png (services/WallpaperVariants.qml). The login screen gets one image, so the main screen's
+for_main_screen() {
+    local path=$1 sw sh dir stem f w h off best="" best_off=1000
+    read -r sw sh < <(hyprctl monitors -j 2>/dev/null | jq -r 'max_by(.width * .height) | "\(.width) \(.height)"' 2>/dev/null)
+    [[ ${sw:-0} -gt 0 && ${sh:-0} -gt 0 ]] || { echo "$path"; return; }
+    dir=${path%/*}; stem=${path##*/}; stem=${stem%.*}
+    for f in "$dir/$stem"_*x*.*; do
+        [[ -f $f && ${f##*/} =~ _([0-9]+)x([0-9]+)\ ?(\([0-9]+\))?\.[^.]+$ ]] || continue
+        w=${BASH_REMATCH[1]}; h=${BASH_REMATCH[2]}
+        off=$(awk -v a="$w" -v b="$h" -v c="$sw" -v d="$sh" 'BEGIN { x = log((a / b) / (c / d)); printf "%d", (x < 0 ? -x : x) * 1000 }')
+        (( off < best_off )) && { best=$f; best_off=$off; }
+    done
+    if [[ -n $best ]] && (( best_off < 95 )); then echo "$best"; else echo "$path"; fi # Within 10% of the shape
+}
+wallpaper="$(for_main_screen "$wallpaper")"
 [[ "$(cat "$LAST" 2>/dev/null)" == "$wallpaper" ]] && exit 0
 (
     # In the background so theming isn't held up; written over the existing file to keep its permissions

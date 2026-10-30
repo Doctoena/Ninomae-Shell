@@ -10,6 +10,10 @@
 #                    new links, Python helpers, drawer plugin, Steam plugin
 #    --uninstall     Remove the config links and put back what they replaced
 #                    (packages and system themes stay)
+#    --check         See if everything is in place (links, settings, packages, the
+#                    drawer plugin, colours, the running shell). Changes nothing
+#
+#  In fish, `ninomae update` and `ninomae check` run the last two
 #
 #  Options
 #    --dry-run       Show what would happen, change nothing
@@ -49,6 +53,7 @@ while (( $# )); do
     case "$1" in
         --update) MODE=update ;;
         --uninstall) MODE=uninstall ;;
+        --check) MODE=check ;;
         --dry-run) DRY_RUN=1 ;;
         -y|--yes) ASSUME_YES=1 ;;
         --no-packages) FORCE[packages]=off ;;
@@ -93,6 +98,7 @@ case $MODE in
     install) banner "dotfiles installer" "$subtitle" ;;
     update) banner "update" "$subtitle" ;;
     uninstall) banner "uninstall" "$subtitle" ;;
+    check) banner "check" "$subtitle" ;;
 esac
 (( DRY_RUN )) && printf '%*s%sDry run: nothing will be changed%s\n' $(( (WIDTH - 32) / 2 + 2 )) "" "$c_warn" "$c_off"
 
@@ -102,7 +108,7 @@ section "Checking your system"
 grep -q '^ID=fedora' /etc/os-release 2>/dev/null || die "This installer is written for Fedora."
 command -v dnf >/dev/null || die "dnf not found."
 ok "Fedora $fedora_version, user $USER"
-if (( ! INTERACTIVE && ! ASSUME_YES )); then die "Not running in a terminal: add -y to install with the defaults."; fi
+if (( ! INTERACTIVE && ! ASSUME_YES )) && [[ $MODE != check ]]; then die "Not running in a terminal: add -y to install with the defaults."; fi
 if [[ $MODE == install ]]; then
     free_gb=$(( $(df --output=avail -k "$HOME" | tail -1) / 1024 / 1024 ))
     if (( free_gb < 4 )); then warn "Only ${free_gb} GB free in your home; the install needs about 4 GB"
@@ -196,7 +202,20 @@ update)
     steps=(update_files update_packages update_codecs comp_configs update_shell update_steam_plugin update_apps)
     STEP_TOTAL=${#steps[@]}
     for s in "${steps[@]}"; do "$s"; done
-    report "Restart the shell to load everything new: ${c_bold}Super+Ctrl+R${c_off}"
+    report "Check everything any time: ${c_bold}ninomae check${c_off}"
+    # A running shell keeps the old files loaded until it restarts
+    if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && pgrep -f "^qs -c $QS_CONFIG\$" >/dev/null && (( ! DRY_RUN )); then
+        if confirm "Restart the shell now to load the update?"; then
+            "$DOTFILES/config/hypr/hyprland/scripts/restart_shell.sh" "$QS_CONFIG" && ok "Shell restarted"
+        else info "Restart it later with Super+Ctrl+R"; fi
+    fi
+    ;;
+
+check)
+    steps=(check_links check_settings check_packages check_plugin check_colours check_python check_running)
+    STEP_TOTAL=${#steps[@]}
+    for s in "${steps[@]}"; do "$s"; done
+    report "Fix what's flagged with ${c_bold}ninomae update${c_off}"
     ;;
 
 uninstall)

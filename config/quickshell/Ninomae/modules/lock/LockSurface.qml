@@ -56,7 +56,8 @@ MouseArea {
     Image {
         id: wallpaper
         anchors.fill: parent
-        source: Config.wallpaperPath
+        // The wallpaper's size version for this screen's shape, as the desktop shows (WallpaperVariants)
+        source: WallpaperVariants.forScreen(Config.wallpaperPath, root.width, root.height)
         fillMode: Image.PreserveAspectCrop
         sourceSize: Qt.size(root.width, root.height)
         asynchronous: true

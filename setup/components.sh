@@ -506,8 +506,13 @@ comp_fish() {
 update_files() {
     step "Latest files"
     if [[ -d "$DOTFILES/.git" ]] && command -v git >/dev/null; then
+        # Your settings (config.json) aren't in git. A pull that stops tracking a file deletes it, which the
+        # first pull after that change did: keep a copy and put it back
+        local cfg="$DOTFILES/config/ninomae-shell/config.json" kept="$LOG_DIR/config.json.before-update"
+        [[ -f $cfg ]] && run cp -p "$cfg" "$kept"
         if spin "git pull" git -C "$DOTFILES" pull --ff-only; then result done "Pulled the latest changes"
         else result fail "git pull failed (local changes?); see the log"; fi
+        if [[ ! -f $cfg && -f $kept ]]; then run cp -p "$kept" "$cfg" && ok "Kept your settings (config.json)"; fi
     else
         info "This folder isn't a git checkout; using the files as they are"
         result skip "Not a git checkout"
@@ -553,6 +558,79 @@ update_apps() {
         && run "$DOTFILES/themes/zen/apply-theme.sh" && did+=("Zen")
     command -v vesktop >/dev/null && discord_theme && did+=("Discord")
     if (( ${#did[@]} )); then ok "Re-applied: ${did[*]}"; result done "${did[*]}"; else result skip "Nothing to re-apply"; fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Check: is everything in place? Reads only (./install.sh --check, or `ninomae check`)
+# ─────────────────────────────────────────────────────────────────────────────
+check_links() {
+    step "Config links"
+    local entry dst src bad=() broken
+    for entry in "${LINKS[@]}"; do
+        dst="$HOME/${entry%%|*}"; src="$DOTFILES/${entry#*|}"
+        [[ -L $dst && "$(readlink -f "$dst")" == "$(readlink -f "$src")" ]] || bad+=("~/${entry%%|*}")
+    done
+    # Links left pointing at nothing (a moved or deleted folder). Apps' own lock files aside
+    broken=$(find "$HOME/.config" -maxdepth 2 -xtype l ! -name 'Singleton*' 2>/dev/null | sed "s|^$HOME|~|" | tr '\n' ' ')
+    (( ${#bad[@]} )) && warn "Not linked to this folder: ${bad[*]}"
+    [[ -n $broken ]] && warn "Broken links: $broken"
+    if (( ${#bad[@]} )); then result fail "${#bad[@]} not linked, run ninomae update"
+    elif [[ -n $broken ]]; then result todo "Broken links in ~/.config"
+    else result done "${#LINKS[@]} linked"; fi
+}
+check_settings() {
+    step "Shell settings"
+    local dir="$DOTFILES/config/ninomae-shell" f bad=0
+    for f in config.json config.default.json; do
+        if [[ ! -f $dir/$f ]]; then
+            if [[ $f == config.json ]]; then info "No config.json yet: the shell makes it from the defaults"
+            else warn "$f is missing"; bad=1; fi
+        elif ! python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$dir/$f" 2>/dev/null; then
+            warn "$f isn't valid JSON"; bad=1
+        fi
+    done
+    if (( bad )); then result fail "See above"; else result done "Readable"; fi
+}
+check_packages() {
+    step "Packages"
+    local missing; mapfile -t missing < <(missing_packages)
+    if (( ${#missing[@]} )); then info "Missing: ${missing[*]}"; result todo "${#missing[@]} missing, run ninomae update"
+    else result done "All installed"; fi
+}
+check_plugin() {
+    step "Gooey drawer plugin"
+    local plugin="$DOTFILES/config/quickshell/plugins/ninomae-blobs"
+    local built="$HOME/.local/lib/qt6/qml/Ninomae/Blobs/.built-against"
+    if [[ ! -f $built ]]; then result todo "Not built, run ninomae update"
+    elif [[ "$("$plugin/ensure-built.sh" --stamp 2>/dev/null)" != "$(cat "$built")" ]]; then result todo "Out of date, run ninomae update"
+    else result done "Up to date"; fi
+}
+check_colours() {
+    step "Wallpaper colours"
+    local gen="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/generated" f missing=()
+    for f in "$gen/material_colors.scss" "$gen/terminal/sequences.txt" "$gen/terminal/kitty-colors.conf" \
+             "$DOTFILES/config/gtk-3.0/gtk.css" "$DOTFILES/config/gtk-4.0/gtk.css" \
+             "$DOTFILES/config/fuzzel/fuzzel_theme.ini" "$DOTFILES/config/btop/themes/ninomae.theme"; do
+        [[ -f $f ]] || missing+=("${f/#$HOME/\~}")
+    done
+    if (( ${#missing[@]} )); then info "Missing: ${missing[*]}"; result todo "Pick a wallpaper to make them"
+    else result done "All there"; fi
+}
+check_python() {
+    step "Python helpers"
+    if "$VENV/bin/python" -c "import materialyoucolor, PIL, numpy, cv2; cv2.ximgproc" 2>/dev/null; then result done "Working"
+    else result todo "Missing or broken, run ninomae update"; fi
+}
+check_running() {
+    step "Running shell"
+    if ! pgrep -f "^qs -c $QS_CONFIG\$" >/dev/null; then result todo "Not running, Super+Ctrl+R starts it"; return; fi
+    local log errors=0 pattern='TypeError|ReferenceError|SyntaxError| ERROR '
+    log=$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$UID}"/quickshell/by-id/*/log.log 2>/dev/null | xargs -r grep -l "$QS_CONFIG/shell.qml" | head -n1)
+    [[ -n $log ]] && errors=$(grep -acE "$pattern" "$log")
+    if (( errors )); then
+        info "Latest: $(grep -aE "$pattern" "$log" | tail -n1 | cut -c1-140)"
+        result todo "$errors error line(s) in its log"
+    else result done "Running, no errors in its log"; fi
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -14,6 +14,30 @@ alias autoremove="sudo dnf autoremove"
 alias ls="lsd"
 alias ll="lsd -l"
 
+# fastfetch: in a terminal too narrow for the logo beside the info (116 columns: half a 1080p screen is about
+# 105), a 40-column copy of the logo (ascii-narrow.txt) with less padding, so nothing wraps
+function fastfetch --wraps fastfetch
+    if test "$COLUMNS" -lt 116
+        command fastfetch --logo ~/.config/fastfetch/ascii-narrow.txt --logo-padding-left 2 --logo-padding-right 3 $argv
+    else
+        command fastfetch $argv
+    end
+end
+
+# ninomae update: pull the latest Ninomae-Shell, install what's new, keep your settings
+# ninomae check: see if everything is in place (changes nothing)
+function ninomae --description "Update or check Ninomae-Shell"
+    switch "$argv[1]"
+        case update
+            ~/Ninomae-Shell/install.sh --update $argv[2..]
+        case check
+            ~/Ninomae-Shell/install.sh --check $argv[2..]
+        case '*'
+            echo "Usage: ninomae update | check"
+            return 1
+    end
+end
+
 ## Interactive shells
 
 # No greeting (-g: set for this session, not saved into fish_variables)
@@ -21,7 +45,8 @@ set -g fish_greeting ""
 
 if status is-interactive
     # Terminal colours from the current wallpaper (Quickshell regenerates this file on wallpaper change;
-    # kitty.conf has no palette of its own). string collect: fish's own, so no cat process per shell
+    # kitty also loads them from kitty.conf, these update windows already open). string collect: fish's own,
+    # so no cat process per shell
     set -l sequences ~/.local/state/quickshell/user/generated/terminal/sequences.txt
     test -f $sequences; and string collect <$sequences
 

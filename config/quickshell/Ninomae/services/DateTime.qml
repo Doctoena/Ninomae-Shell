@@ -19,16 +19,17 @@ Singleton {
         }
     }
     // Config.options.time.format; with showAmPm off, a 12-hour format ("h:mm AP") drops its AM/PM
-    readonly property string timeFormat: Config.options?.time.format ?? "hh:mm"
+    readonly property string timeFormat: Config.options?.time?.format ?? "hh:mm"
     readonly property bool is12Hour: /a/i.test(timeFormat)
-    // The clock has no date for a moment at startup: "" until it does (no "undefined" warnings)
+    // The clock has no date for a moment at startup, and the config can be half there during a reload: ""
+    // then, not undefined (which QML warns about)
     property string time: {
         if (!clock.date) return "";
-        const formatted = Qt.locale().toString(clock.date, timeFormat);
-        return (Config.options?.time.showAmPm ?? true) ? formatted : formatted.replace(/\s*[AaPp][Mm]\b/g, "");
+        const formatted = Qt.locale().toString(clock.date, timeFormat) ?? "";
+        return (Config.options?.time?.showAmPm ?? true) ? formatted : formatted.replace(/\s*[AaPp][Mm]\b/g, "");
     }
     property string amPm: is12Hour && clock.date ? Qt.locale().toString(clock.date, "AP") : ""
-    property string date: clock.date ? Qt.locale().toString(clock.date, Config.options?.time.dateFormat ?? "dddd, dd/MM") : ""
+    property string date: clock.date ? (Qt.locale().toString(clock.date, Config.options?.time?.dateFormat ?? "dddd, dd/MM") ?? "") : ""
     property string uptime: "0h 0m"
     function updateUptime() {
         fileUptime.reload();
