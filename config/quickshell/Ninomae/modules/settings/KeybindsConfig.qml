@@ -8,8 +8,8 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 // Keybinds (formerly the cheatsheet overlay): one card per category, read live from Hyprland.
-// Binds come from the `description` in keybinds.lua ("Category: What it does"). Edit changes their keys, turns
-// them off or adds your own (services/KeybindOverrides.qml, which hands them to Hyprland).
+// Binds come from the `description` in keybinds.lua ("Category: What it does"). Each row's Edit changes its keys
+// or turns it off, and Add shortcut adds your own (services/KeybindOverrides.qml, which hands them to Hyprland).
 ContentPage {
     id: page
     property string query: ""
@@ -80,7 +80,8 @@ ContentPage {
 
 
     // ── Editing ──
-    property bool editMode: false
+    property string editingRow: "" // The bind whose edit buttons are open, by description
+    property bool adding: false // The Add a shortcut form is open
     // What's being recorded: a bind's description, "add" for a new shortcut, or "" for nothing
     property string capturing: ""
     property string captureMessage: ""
@@ -106,7 +107,20 @@ ContentPage {
         captureArea.forceActiveFocus();
         captureTimeout.restart();
     }
+    // A row's Edit: open its buttons and, when its keys can be changed, start listening for them straight away
+    function editRow(row) {
+        page.stopCapture();
+        page.captureMessage = "";
+        page.editingRow = row.description;
+        if (page.editable(row)) page.startCapture(row.description);
+    }
+    function closeRow() {
+        page.stopCapture();
+        page.captureMessage = "";
+        page.editingRow = "";
+    }
     function stopCapture() {
+        page.previewKeys = [];
         if (page.capturing === "") return;
         page.capturing = "";
         captureTimeout.stop();
@@ -144,9 +158,25 @@ ContentPage {
         return (found.description ?? "").replace(/^\[hidden\]\s*/, "") || Translation.tr("another shortcut");
     }
     function pretty(mods, key) { return [...mods.map(m => m === "SUPER" ? "Super" : m === "CTRL" ? "Ctrl" : m === "ALT" ? "Alt" : "Shift"), page.keySubstitutions[key] ?? key].join("+"); }
+    // What's held down while recording, as the key chips show it, so you see the shortcut build up
+    property var previewKeys: []
+    function updatePreview(event, released) {
+        const m = event.modifiers, k = event.key;
+        let held = { Super: !!(m & Qt.MetaModifier), Ctrl: !!(m & Qt.ControlModifier),
+                     Alt: !!(m & Qt.AltModifier), Shift: !!(m & Qt.ShiftModifier) };
+        // A modifier's own press or release: its event carries the state from before it
+        if (k === Qt.Key_Meta || k === Qt.Key_Super_L || k === Qt.Key_Super_R) held.Super = !released;
+        else if (k === Qt.Key_Control) held.Ctrl = !released;
+        else if (k === Qt.Key_Alt || k === Qt.Key_AltGr) held.Alt = !released;
+        else if (k === Qt.Key_Shift) held.Shift = !released;
+        const keys = Object.keys(held).filter(name => held[name]);
+        const name = released ? "" : page.keyName(k);
+        page.previewKeys = name ? [...keys, name] : keys;
+    }
     function handleKey(event) {
         event.accepted = true;
-        if (event.key === Qt.Key_Escape) { page.stopCapture(); page.captureMessage = ""; return; }
+        page.updatePreview(event, false);
+        if (event.key === Qt.Key_Escape) { page.stopCapture(); page.captureMessage = ""; page.editingRow = ""; return; }
         const key = page.keyName(event.key);
         if (key === "") return; // A modifier on its own: wait for the key
         const mods = [];
@@ -167,9 +197,11 @@ ContentPage {
         const what = page.capturing;
         page.stopCapture();
         page.captureMessage = "";
+        page.editingRow = "";
         if (what === "add") {
             KeybindOverrides.addShortcut(page.newName.trim() || page.newCommand.trim(), page.newCommand.trim(), combo);
             page.newName = ""; page.newCommand = "";
+            page.adding = false;
         } else if (page.isCustom(what)) {
             KeybindOverrides.setShortcutKeys(page.customIndex(what), combo);
         } else {
@@ -180,6 +212,25 @@ ContentPage {
         id: captureArea
         Layout.preferredHeight: 0
         Keys.onPressed: event => page.handleKey(event)
+        Keys.onReleased: event => { event.accepted = true; if (page.capturing !== "") page.updatePreview(event, true); }
+    }
+    // While recording: the keys held so far, or what to do when none are
+    component KeyPreview: Row {
+        spacing: 4
+        StyledText {
+            visible: page.previewKeys.length === 0
+            anchors.verticalCenter: parent.verticalCenter
+            text: Translation.tr("Press the new shortcut. Esc cancels.")
+            font.pixelSize: Appearance.font.pixelSize.small
+            color: Appearance.colors.colPrimary
+        }
+        Repeater {
+            model: page.previewKeys
+            delegate: KeyChip {
+                required property string modelData
+                key: page.keySubstitutions[modelData] ?? modelData
+            }
+        }
     }
     component IconAction: RippleButton {
         id: iconAction
@@ -199,7 +250,7 @@ ContentPage {
         StyledToolTip { text: iconAction.tip }
     }
 
-    // Search pill, and Edit
+    // Search pill, and Add shortcut
     RowLayout {
         Layout.fillWidth: true
         spacing: 8
@@ -245,29 +296,20 @@ ContentPage {
 
         RippleButtonWithIcon {
             implicitHeight: 44
-            materialIcon: page.editMode ? "check" : "edit"
-            mainText: page.editMode ? Translation.tr("Done") : Translation.tr("Edit")
-            onClicked: { page.stopCapture(); page.captureMessage = ""; page.editMode = !page.editMode; }
+            materialIcon: page.adding ? "close" : "add"
+            mainText: page.adding ? Translation.tr("Cancel") : Translation.tr("Add shortcut")
+            onClicked: { page.closeRow(); page.adding = !page.adding; }
         }
     }
 
-    // ── Your changes: add a shortcut, the ones turned off ──
+    // ── Add a shortcut ──
     ContentSection {
-        visible: page.editMode
-        icon: "edit_note"
-        title: Translation.tr("Your changes")
+        visible: page.adding
+        icon: "add"
+        title: Translation.tr("Add a shortcut")
         spacing: 10
-        StyledText {
+        ColumnLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 4
-            wrapMode: Text.Wrap
-            color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.small
-            text: Translation.tr("Change a shortcut's keys or turn it off with the buttons on its row. Hyprland picks up each change straight away.")
-        }
-        ContentSubsection {
-            Layout.fillWidth: true
-            title: Translation.tr("Add a shortcut")
             SettingRow {
                 icon: "label"
                 text: Translation.tr("Name")
@@ -289,11 +331,9 @@ ContentPage {
             }
             RowLayout {
                 Layout.fillWidth: true
-                StyledText {
+                KeyPreview {
                     Layout.fillWidth: true
                     visible: page.capturing === "add"
-                    text: Translation.tr("Press the new shortcut. Esc cancels.")
-                    color: Appearance.colors.colPrimary
                 }
                 Item { Layout.fillWidth: page.capturing !== "add" }
                 RippleButtonWithIcon {
@@ -301,14 +341,20 @@ ContentPage {
                     opacity: enabled ? 1 : 0.5
                     materialIcon: "keyboard"
                     mainText: Translation.tr("Record the keys")
-                    onClicked: page.startCapture("add")
+                    onClicked: { page.closeRow(); page.startCapture("add"); }
                 }
             }
         }
-        ContentSubsection {
+    }
+
+    // ── Turned off: shown while there are any, to turn them back on ──
+    ContentSection {
+        visible: Object.keys(KeybindOverrides.changed).some(d => KeybindOverrides.changed[d] === false)
+        icon: "block"
+        title: Translation.tr("Turned off")
+        spacing: 10
+        ColumnLayout {
             Layout.fillWidth: true
-            visible: Object.keys(KeybindOverrides.changed).some(d => KeybindOverrides.changed[d] === false)
-            title: Translation.tr("Turned off")
             Repeater {
                 model: Object.keys(KeybindOverrides.changed).filter(d => KeybindOverrides.changed[d] === false)
                 delegate: RowLayout {
@@ -331,10 +377,10 @@ ContentPage {
         }
     }
 
-    StyledText { // Why a recorded shortcut wasn't taken
+    StyledText { // Why a recorded shortcut wasn't taken (a row shows its own under it)
         Layout.fillWidth: true
         Layout.leftMargin: 4
-        visible: page.captureMessage !== ""
+        visible: page.captureMessage !== "" && page.editingRow === ""
         wrapMode: Text.Wrap
         text: page.captureMessage
         color: Appearance.colors.colError
@@ -372,19 +418,41 @@ ContentPage {
                         id: bindRow
                         required property var modelData
                         required property int index
+                        readonly property bool editing: page.editingRow === modelData.description
+                        readonly property bool recording: page.capturing !== "" && page.capturing === modelData.description
+                        readonly property bool custom: page.isCustom(modelData.description)
                         Layout.fillWidth: true
-                        implicitHeight: 40
+                        implicitHeight: 40 + (rowMessage.visible ? rowMessage.implicitHeight + 8 : 0)
                         radius: Appearance.rounding.small
-                        color: rowHover.hovered ? Appearance.m3colors.m3surfaceContainerHigh : "transparent"
+                        color: rowHover.hovered || editing ? Appearance.m3colors.m3surfaceContainerHigh : "transparent"
                         HoverHandler {
                             id: rowHover
                         }
+                        StyledText { // Why the keys pressed weren't taken
+                            id: rowMessage
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                bottom: parent.bottom
+                                leftMargin: 10
+                                rightMargin: 8
+                                bottomMargin: 8
+                            }
+                            visible: bindRow.editing && page.captureMessage !== ""
+                            wrapMode: Text.Wrap
+                            text: page.captureMessage
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colError
+                        }
                         RowLayout {
                             anchors {
-                                fill: parent
+                                left: parent.left
+                                right: parent.right
+                                top: parent.top
                                 leftMargin: 10
                                 rightMargin: 8
                             }
+                            height: 40
                             spacing: 12
                             StyledText {
                                 Layout.fillWidth: true
@@ -393,11 +461,8 @@ ContentPage {
                                 color: Appearance.colors.colOnLayer1
                                 elide: Text.ElideRight
                             }
-                            StyledText { // Recording this one
-                                visible: page.capturing !== "" && page.capturing === bindRow.modelData.description
-                                text: Translation.tr("Press the new shortcut. Esc cancels.")
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: Appearance.colors.colPrimary
+                            KeyPreview { // Recording this one
+                                visible: bindRow.recording
                             }
                             Repeater { // Each combo, "or" between them
                                 model: bindRow.modelData.combos
@@ -405,7 +470,7 @@ ContentPage {
                                     id: combo
                                     required property var modelData
                                     required property int index
-                                    visible: page.capturing === "" || page.capturing !== bindRow.modelData.description
+                                    visible: !bindRow.recording
                                     spacing: 4
                                     StyledText {
                                         visible: combo.index > 0
@@ -424,30 +489,38 @@ ContentPage {
                                     }
                                 }
                             }
-                            // Editing: change the keys, turn it off (or remove your own), put it back
-                            IconAction {
-                                visible: page.editMode && page.editable(bindRow.modelData) && page.capturing === ""
-                                symbol: "edit"
+                            // Edit starts listening for the new keys at once, with this row's other buttons beside
+                            // it: turn it off (or remove your own), put it back, close
+                            IconAction { // Listen again (recording stops by itself after 20 s)
+                                visible: bindRow.editing && !bindRow.recording && page.editable(bindRow.modelData)
+                                symbol: "keyboard"
                                 tip: Translation.tr("Change the keys")
                                 onClicked: page.startCapture(bindRow.modelData.description)
                             }
                             IconAction {
-                                visible: page.editMode && page.capturing === "" && !page.isCustom(bindRow.modelData.description) && !page.fixed(bindRow.modelData.description)
+                                visible: bindRow.editing && !bindRow.custom
                                 symbol: "block"
                                 tip: Translation.tr("Turn off")
-                                onClicked: KeybindOverrides.turnOff(bindRow.modelData.description)
+                                onClicked: { page.closeRow(); KeybindOverrides.turnOff(bindRow.modelData.description); }
                             }
                             IconAction {
-                                visible: page.editMode && page.capturing === "" && page.isCustom(bindRow.modelData.description)
+                                visible: bindRow.editing && bindRow.custom
                                 symbol: "delete"
                                 tip: Translation.tr("Remove")
-                                onClicked: KeybindOverrides.removeShortcut(page.customIndex(bindRow.modelData.description))
+                                onClicked: { page.closeRow(); KeybindOverrides.removeShortcut(page.customIndex(bindRow.modelData.description)); }
                             }
                             IconAction {
-                                visible: page.editMode && page.capturing === "" && KeybindOverrides.changed[bindRow.modelData.description] !== undefined
+                                visible: bindRow.editing && KeybindOverrides.changed[bindRow.modelData.description] !== undefined
                                 symbol: "undo"
                                 tip: Translation.tr("Back to the original keys")
-                                onClicked: KeybindOverrides.reset(bindRow.modelData.description)
+                                onClicked: { page.closeRow(); KeybindOverrides.reset(bindRow.modelData.description); }
+                            }
+                            IconAction { // Edit, or Close while open. Kept in place on every row, so they line up
+                                opacity: page.fixed(bindRow.modelData.description) ? 0 : 1
+                                enabled: !page.fixed(bindRow.modelData.description)
+                                symbol: bindRow.editing ? "close" : "edit"
+                                tip: bindRow.editing ? Translation.tr("Close") : Translation.tr("Edit")
+                                onClicked: bindRow.editing ? page.closeRow() : page.editRow(bindRow.modelData)
                             }
                         }
                     }
