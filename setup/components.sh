@@ -46,6 +46,8 @@ PACKAGES=(
     # Building the Ninomae.Blobs plugin and the shell's Python helpers
     git-core cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtshadertools-devel
     python3
+    # Settings → Keybinds names keys as your keyboard layout prints them (scripts/keyboard/xkb_layouts.py)
+    xkbcomp
     # This installer's interface
     gum
 )
@@ -84,6 +86,7 @@ LOCAL_COPIES=(
     "config/Kvantum/kvantum.kvconfig|config/Kvantum/kvantum.default.kvconfig"
     "config/gtk-3.0/settings.ini|config/gtk-3.0/settings.default.ini"
     "config/gtk-4.0/settings.ini|config/gtk-4.0/settings.default.ini"
+    "config/hypr/hyprland/keyboard.lua|config/hypr/hyprland/keyboard.default.lua"
 )
 # Yours, but in git once: kept across the pull that stops tracking them (the LOCAL_COPIES too)
 KEEP_ACROSS_PULL=(config/gtk-3.0/bookmarks)
@@ -113,16 +116,39 @@ missing_packages() {
 }
 
 # ── Keyboard layout (config/hypr/hyprland/keyboard.lua: Hyprland and the login screen read it) ──
+# A layout is "layout" or "layout:variant", as xkb names them: us, us:dvorak, de, fr:azerty…
 KEYBOARD_LUA="$DOTFILES/config/hypr/hyprland/keyboard.lua"
-keyboard_current() { # → dvorak | qwerty
-    local v; v=$(sed -n 's/^[[:space:]]*variant[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$KEYBOARD_LUA" 2>/dev/null | head -n1)
-    [[ $v == dvorak || ! -f $KEYBOARD_LUA ]] && echo dvorak || echo qwerty
+XKB_RULES=/usr/share/X11/xkb/rules/evdev.lst
+keyboard_field() { # keyboard_field FILE layout|variant
+    sed -n "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" 2>/dev/null | head -n1
 }
-keyboard_name() { [[ $1 == dvorak ]] && echo "US Dvorak" || echo "US QWERTY"; }
-keyboard_set() { # keyboard_set dvorak|qwerty
-    local variant=""; [[ $1 == dvorak ]] && variant=dvorak
-    [[ $(keyboard_current) == "$1" ]] && return 0
-    run sed -i "s/^\([[:space:]]*variant[[:space:]]*=[[:space:]]*\)\"[^\"]*\"/\1\"$variant\"/" "$KEYBOARD_LUA"
+keyboard_join() { [[ -n $2 ]] && echo "$1:$2" || echo "$1"; }
+keyboard_current() { # Yours if set, else this computer's (what Fedora's setup picked), else US
+    if [[ -f $KEYBOARD_LUA ]]; then keyboard_join "$(keyboard_field "$KEYBOARD_LUA" layout)" "$(keyboard_field "$KEYBOARD_LUA" variant)"; return; fi
+    local status layout variant
+    status=$(localectl status 2>/dev/null)
+    layout=$(sed -n 's/^ *X11 Layout: *//p' <<<"$status"); layout=${layout%%,*}
+    variant=$(sed -n 's/^ *X11 Variant: *//p' <<<"$status"); variant=${variant%%,*}
+    local kb; kb=$(keyboard_join "${layout:-us}" "$variant")
+    keyboard_valid "$kb" && echo "$kb" || echo us
+}
+# xkb's name for a layout (and variant): us:dvorak → English (Dvorak). Fails when xkb doesn't know it
+keyboard_lookup() {
+    local layout=${1%%:*} variant=; [[ $1 == *:* ]] && variant=${1#*:}
+    [[ $layout =~ ^[A-Za-z0-9_-]+$ && $variant =~ ^[A-Za-z0-9_-]*$ ]] || return 1
+    [[ -r $XKB_RULES ]] || { echo "$1"; return 0; }
+    awk -v l="$layout" -v v="$variant" '/^!/ { s = $2; next }
+        (s == "layout" && $1 == l && v == "") || (s == "variant" && $1 == v && $2 == l ":") {
+            sub(/^ *[^ ]+ +/, ""); if (v != "") sub(/^[^ ]+ +/, ""); print; found = 1; exit }
+        END { exit !found }' "$XKB_RULES"
+}
+keyboard_valid() { keyboard_lookup "$1" >/dev/null; }
+keyboard_name() { keyboard_lookup "$1" || echo "$1"; }
+keyboard_set() { # keyboard_set us:dvorak (your copy made from the default first)
+    local layout=${1%%:*} variant=; [[ $1 == *:* ]] && variant=${1#*:}
+    [[ -f $KEYBOARD_LUA ]] || run cp "$DOTFILES/config/hypr/hyprland/keyboard.default.lua" "$KEYBOARD_LUA" || return 1
+    run sed -i -e "s/^\([[:space:]]*layout[[:space:]]*=[[:space:]]*\)\"[^\"]*\"/\1\"$layout\"/" \
+               -e "s/^\([[:space:]]*variant[[:space:]]*=[[:space:]]*\)\"[^\"]*\"/\1\"$variant\"/" "$KEYBOARD_LUA"
 }
 
 # ── Packages ────────────────────────────────────────────────────────────────
@@ -448,8 +474,7 @@ comp_apps() {
     if [[ -f "$HOME/.var/app/app.zen_browser.zen/.zen/profiles.ini" || -f "$HOME/.zen/profiles.ini" ]]; then
         run "$DOTFILES/themes/zen/apply-theme.sh" && { ok "Zen: theme copied into your profiles"; did+=("Zen"); } || failed=1
     else
-        info "Zen hasn't been opened yet"
-        needs_you "Zen: open it once, then run ${c_bold}themes/zen/apply-theme.sh${c_off}"
+        info "Zen hasn't been opened yet: it's themed by itself the first time it is"
     fi
     if command -v vesktop >/dev/null; then
         discord_theme; case $? in
@@ -469,9 +494,8 @@ comp_steam() {
     ensure_colours
     if ! command -v steam >/dev/null; then info "Steam isn't installed"; result skip "Steam isn't installed"; return; fi
     if [[ ! -d "$HOME/.steam/steam/ubuntu12_64" ]]; then
-        info "Steam hasn't been opened yet"
-        needs_you "Steam: open it once and sign in, close it, then run ${c_bold}themes/steam/install-theme.sh${c_off}"
-        result todo "Open Steam once first"; return
+        info "Steam hasn't been opened yet. Open it once and sign in, then close it: a notification offers to theme it"
+        result skip "Offered once Steam has been opened"; return
     fi
     if pgrep -x steam >/dev/null && ! confirm "Steam is open and will be closed to theme it. Go ahead?"; then
         needs_you "Steam: run ${c_bold}themes/steam/install-theme.sh${c_off} when it's convenient to close Steam"
@@ -550,6 +574,9 @@ update_files() {
             fi
         done
         (( ${#restored[@]} )) && ok "Kept yours: ${restored[*]}"
+        # Hyprland may have reloaded while the pull had your keyboard layout out of place: load it again
+        [[ " ${restored[*]} " == *" hypr/hyprland/keyboard.lua "* && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] \
+            && run hyprctl reload >/dev/null
     else
         info "This folder isn't a git checkout; using the files as they are"
         result skip "Not a git checkout"

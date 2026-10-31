@@ -24,8 +24,9 @@
 #    --boot          Include the boot splash
 #    --no-steam      Skip the Steam theme
 #    --no-shell      Don't make fish the login shell (uninstall: don't offer bash)
-#    --keyboard K    Keyboard layout for the desktop and login screen: dvorak (default)
-#                    or qwerty
+#    --keyboard K    Keyboard layout for the desktop and login screen, as xkb names it:
+#                    us, de, fr, gb, us:dvorak, de:nodeadkeys… (qwerty and dvorak work too).
+#                    Default: the one this computer uses now
 #    --only a,b      Only these components (install mode): packages, codecs, configs,
 #                    shell, apps, steam, sddm, boot, fish
 #    --skip a,b      Everything except these components
@@ -63,8 +64,8 @@ while (( $# )); do
         --no-steam) FORCE[steam]=off ;;
         --no-shell) FORCE[fish]=off ;;
         --keyboard)
-            [[ ${2:-} == dvorak || ${2:-} == qwerty ]] || die "--keyboard needs dvorak or qwerty"
-            KEYBOARD=$2; shift ;;
+            KEYBOARD=${2:-}; shift
+            case $KEYBOARD in qwerty) KEYBOARD=us ;; dvorak) KEYBOARD=us:dvorak ;; esac ;;
         --only|--skip)
             [[ $# -ge 2 ]] || die "$1 needs a list, e.g. $1 configs,apps"
             for k in ${2//,/ }; do
@@ -162,10 +163,20 @@ install)
     mapfile -t chosen < <(choose_many "What should be set up?" "${items[@]}")
     (( ${#chosen[@]} )) || die "Nothing picked; nothing to do."
 
-    # Keyboard layout: --keyboard, else ask (preselecting what's set now: Dvorak on a fresh copy)
-    if [[ -z $KEYBOARD ]]; then
-        KEYBOARD=$(choose_one "Keyboard layout? (desktop and login screen)" "$(keyboard_current)" \
-            "US Dvorak|dvorak" "US QWERTY (regular)|qwerty") || die "Cancelled; nothing was changed."
+    # Keyboard layout: --keyboard, else ask (preselecting what's set now, or this computer's layout)
+    if [[ -n $KEYBOARD ]]; then
+        keyboard_valid "$KEYBOARD" || die "--keyboard: xkb doesn't know \"$KEYBOARD\" (e.g. us, de, fr:azerty, us:dvorak)"
+    else
+        kb_now=$(keyboard_current) kb_items=()
+        [[ $kb_now == us || $kb_now == us:dvorak ]] || kb_items+=("$(keyboard_name "$kb_now")|$kb_now")
+        kb_items+=("English (US)|us" "English (Dvorak)|us:dvorak" "Another layout…|other")
+        KEYBOARD=$(choose_one "Keyboard layout? (desktop and login screen, Settings → Input can change it)" \
+            "$kb_now" "${kb_items[@]}") || die "Cancelled; nothing was changed."
+        while [[ $KEYBOARD == other ]] || ! keyboard_valid "$KEYBOARD"; do
+            [[ $KEYBOARD == other ]] || warn "xkb doesn't know \"$KEYBOARD\""
+            printf '\n    %sAn xkb layout code, with a variant after a colon: de, fr, gb, es, se, de:nodeadkeys, us:colemak\n    (all of them: localectl list-x11-keymap-layouts)%s\n    Layout: ' "$c_dim" "$c_off" >&2
+            read -r KEYBOARD || die "Cancelled; nothing was changed."
+        done
     fi
 
     needs_sudo=0 plan=()
@@ -185,7 +196,7 @@ install)
     (( needs_sudo )) && sudo_keepalive
 
     # Write the layout first: the configs and login screen steps both use it
-    if [[ $KEYBOARD != "$(keyboard_current)" ]]; then
+    if [[ ! -f $KEYBOARD_LUA || $KEYBOARD != "$(keyboard_current)" ]]; then
         keyboard_set "$KEYBOARD" && ok "Keyboard layout: $(keyboard_name "$KEYBOARD")" || warn "Couldn't set the keyboard layout"
     fi
     STEP_TOTAL=${#chosen[@]}

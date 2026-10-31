@@ -11,7 +11,7 @@
 
 -- Monitors: monitors.lua (and Settings → Display)
 
-local keyboard = require("hyprland/keyboard")
+local keyboard = require("hyprland/keymap").load()
 
 hl.config({
     -- General settings
@@ -84,7 +84,7 @@ hl.config({
     -- Input settings (keyboard & Mouse). Settings → Input overrides the keyboard repeat, mouse and touchpad
     -- options live (services/DeviceSettings.qml), so change them there; these only apply without the shell
     input = {
-        kb_layout          = keyboard.layout,  -- Set in keyboard.lua (Dvorak or QWERTY)
+        kb_layout          = keyboard.layout,  -- Set in keyboard.lua (Settings → Input)
         kb_variant         = keyboard.variant,
         numlock_by_default = true,
         repeat_delay       = 250,

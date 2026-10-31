@@ -44,6 +44,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("qs -c " .. qs)
     -- Rebuild the gooey drawer plugin if Qt was updated (or its sources changed); offers a shell restart after
     hl.exec_cmd("~/.config/quickshell/plugins/ninomae-blobs/ensure-built.sh")
+    -- Theme Zen and Steam once they've been opened (a fresh install hasn't yet); exits straight away when they're done
+    hl.exec_cmd("~/Ninomae-Shell/themes/apply-when-ready.sh")
     -- Bring a video wallpaper back (switchwall.sh writes this; it's empty for image wallpapers)
     hl.exec_cmd("sh -c 'f=~/.config/hypr/custom/scripts/__restore_video_wallpaper.sh; [ -x \"$f\" ] && exec \"$f\"'")
 

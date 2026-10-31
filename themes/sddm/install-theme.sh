@@ -13,12 +13,13 @@ keyboard_state="/var/lib/sddm-ninomae"
 keyboard_backup="$keyboard_state/00-keyboard.conf.before"
 keyboard_was_missing="$keyboard_state/keyboard-config-was-missing"
 keyboard_installed_hash="$keyboard_state/00-keyboard.conf.installed.sha256"
-# The login screen uses the same layout as the desktop: read it from Hyprland's keyboard.lua
+# The login screen uses the same layout as the desktop: read it from Hyprland's keyboard.lua (yours, else
+# the default beside it). Settings → Input can set it again later, with localectl as here
 keyboard_lua="$script_dir/../../config/hypr/hyprland/keyboard.lua"
-kb_variant="dvorak"
-if [[ -r "$keyboard_lua" ]]; then
-    kb_variant="$(sed -n 's/^[[:space:]]*variant[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$keyboard_lua" | head -n1)"
-fi
+[[ -r "$keyboard_lua" ]] || keyboard_lua="$script_dir/../../config/hypr/hyprland/keyboard.default.lua"
+kb_field() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$keyboard_lua" 2>/dev/null | head -n1; }
+kb_layout="$(kb_field layout)"; kb_layout="${kb_layout:-us}"
+kb_variant="$(kb_field variant)"
 
 case "${1:-install}" in
     install)
@@ -42,7 +43,7 @@ case "${1:-install}" in
                 touch "$keyboard_was_missing"
             fi
         fi
-        localectl set-x11-keymap us pc105 "$kb_variant"
+        localectl set-x11-keymap "$kb_layout" pc105 "$kb_variant"
         # Sync the desktop's current wallpaper (the sddm user cannot read $HOME, so it is copied in)
         user_home="$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)"
         wallpaper_ref="$user_home/.local/state/quickshell/user/generated/wallpaper/path.txt"
@@ -91,8 +92,7 @@ case "${1:-install}" in
         sha256sum "$keyboard_config" | cut -d' ' -f1 > "$keyboard_installed_hash"
         chmod 0600 "$keyboard_installed_hash"
         printf 'Installed Ninomae SDDM theme. It will be used at the next greeter start.\n'
-        if [[ -n "$kb_variant" ]]; then printf 'Set the keyboard layout to US %s for the greeter.\n' "${kb_variant^}"
-        else printf 'Set the keyboard layout to US (QWERTY) for the greeter.\n'; fi
+        printf 'Set the keyboard layout to %s for the greeter.\n' "$kb_layout${kb_variant:+ ($kb_variant)}"
         ;;
     --uninstall)
         if [[ ${EUID:-$(id -u)} -ne 0 ]]; then

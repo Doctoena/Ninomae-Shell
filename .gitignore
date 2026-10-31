@@ -30,6 +30,8 @@ config/ninomae-shell/config.json
 config/ninomae-shell/displays.json
 config/ninomae-shell/keybinds.json
 config/ninomae-shell/window-rules.json
+# Your keyboard layout (from hypr/hyprland/keyboard.default.lua; ./install.sh and Settings → Input write it)
+config/hypr/hyprland/keyboard.lua
 config/fish/fish_variables
 # Nautilus writes your bookmarked folders here (~/.config/gtk-3.0 is this folder): personal, never in git
 config/gtk-3.0/bookmarks

@@ -26,9 +26,43 @@ ContentPage {
     }
 
     ContentSection {
+        id: keyboardSection
         icon: "keyboard"
         title: Translation.tr("Keyboard")
         spacing: 10
+        // Layouts: services/KeyboardLayout.qml writes hypr/hyprland/keyboard.lua, and the shortcuts move with it
+        readonly property var layoutEntry: KeyboardLayout.layouts.find(l => l.layout === KeyboardLayout.layout)
+        Component.onCompleted: { KeyboardLayout.loadLayouts(); KeyboardLayout.refreshLogin(); }
+        ConfigComboBox {
+            icon: "language"
+            text: Translation.tr("Layout")
+            tooltip: Translation.tr("Shortcuts stay on the same physical keys whatever the layout. Settings → Keybinds shows them as your layout prints them")
+            currentValue: KeyboardLayout.layout
+            fallbackText: KeyboardLayout.layout
+            options: KeyboardLayout.layouts.map(l => ({ displayName: l.name, value: l.layout }))
+            onSelected: v => KeyboardLayout.set(v, "")
+        }
+        ConfigComboBox {
+            visible: (keyboardSection.layoutEntry?.variants.length ?? 0) > 0
+            icon: "tune"
+            text: Translation.tr("Variant")
+            currentValue: KeyboardLayout.variant
+            fallbackText: KeyboardLayout.variant
+            options: [{ displayName: Translation.tr("Standard"), value: "" }]
+                .concat((keyboardSection.layoutEntry?.variants ?? []).map(v => ({ displayName: v.name, value: v.variant })))
+            onSelected: v => KeyboardLayout.set(KeyboardLayout.layout, v)
+        }
+        SettingRow {
+            visible: KeyboardLayout.loginLayout !== "" && KeyboardLayout.loginLayout !== KeyboardLayout.current
+            icon: "login"
+            text: Translation.tr("The login screen uses a different layout")
+            tooltip: Translation.tr("Asks for your password, then the login screen uses this layout from the next time it shows")
+            RippleButtonWithIcon {
+                materialIcon: "sync"
+                mainText: Translation.tr("Use this one")
+                onClicked: KeyboardLayout.setLoginScreen()
+            }
+        }
         ConfigSpinBox {
             icon: "speed"
             text: Translation.tr("Repeat rate")

@@ -93,8 +93,8 @@ cd ~/Ninomae-Shell
 ./install.sh
 ```
 
-The installer shows a checklist of what to set up and asks for your keyboard layout (US Dvorak or
-QWERTY). When it's done, reboot and pick the **Hyprland** session on the login screen. A welcome
+The installer shows a checklist of what to set up and asks for your keyboard layout (any layout:
+it offers the one this computer uses now). When it's done, reboot and pick the **Hyprland** session on the login screen. A welcome
 window then walks you through the look, the window layout, your weather location and the gaming
 features.
 
@@ -120,14 +120,11 @@ Not using fish? `./install.sh --update` and `./install.sh --check` do the same.
 > Updates never touch your settings. `config.json` isn't in git, and your weather city is kept
 > outside the folder. A new install starts from `config.default.json`.
 
-### Two themes need one extra step
+### Steam and Zen
 
-The app has to be opened once first, so its folder exists.
-
-| App | Do this |
-|---|---|
-| **Steam** | Open Steam, sign in, close it, then run `themes/steam/install-theme.sh` |
-| **Zen** | Open Zen once, then run `themes/zen/apply-theme.sh` |
+They're themed once they've been opened for the first time. Zen is themed by itself. For Steam, open it
+once, sign in and close it: a notification offers to theme it (it asks for your password in a terminal).
+Turned it down? Run `themes/steam/install-theme.sh` any time.
 
 <details>
 <summary><b>Installer options</b>: update, uninstall, pick components</summary>
@@ -143,7 +140,7 @@ The app has to be opened once first, so its folder exists.
 | `-y` | Don't ask questions, use the defaults |
 | `--only a,b` / `--skip a,b` | Pick components: `packages` `codecs` `configs` `shell` `apps` `steam` `sddm` `boot` `fish` |
 | `--boot` | Also install the boot splash (off by default) |
-| `--keyboard dvorak\|qwerty` | Set the layout without asking |
+| `--keyboard LAYOUT` | Set the layout without asking: `us`, `de`, `fr`, `us:dvorak`, `de:nodeadkeys`… |
 
 </details>
 
@@ -216,8 +213,9 @@ your own. These are the ones you'll use most.
 </table>
 
 > [!TIP]
-> The letters are for **US Dvorak**. On QWERTY each shortcut stays on the same *physical* key, so
-> lock (`Super+L`) becomes `Super+P`. The list in Settings always shows the letters for your layout.
+> The letters are for **US Dvorak**. On any other layout each shortcut stays on the same *physical* key, so
+> lock (`Super+L`) becomes `Super+P`. The list in Settings always shows the keys as your layout prints them.
+> Change the layout in **Settings → Input**.
 
 <br>
 

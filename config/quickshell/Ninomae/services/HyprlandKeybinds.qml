@@ -20,6 +20,7 @@ Singleton {
     id: root
     property int columnCount: 2
     property var keybinds: ({ "children": [] })
+    property var codes: ({}) // Description → keycode, for binds made with "code:NN"
     property var raw: [] // Every bind as hyprctl gives it, hidden ones too: Settings checks a new shortcut against these
 
     function modsFromMask(mask) {
@@ -37,7 +38,10 @@ Singleton {
         // The workspace keys are bound by position (keybinds.lua "code:" loops), so they come with no key:
         // the description says which
         if ((bind.description ?? "").includes("1-10")) return "1–0"
-        return `code:${bind.keycode}`
+        // Punctuation is bound by position away from US layouts (hypr/hyprland/keymap.lua): named as your layout
+        // prints it. Hyprland's JSON gives these keycode 0, so the code comes from its plain-text list (codes)
+        const code = bind.keycode || root.codes[bind.description ?? ""]
+        return KeyboardLayout.labels[String(code)] ?? `code:${code}`
     }
 
     function buildTree(binds) {
@@ -81,15 +85,28 @@ Singleton {
             }
         }
     }
+    Connections {
+        target: KeyboardLayout
+        function onLabelsChanged() { root.keybinds = root.buildTree(root.raw) }
+    }
     Process {
         id: getKeybinds
         running: true
-        command: ["hyprctl", "binds", "-j"]
+        // The JSON list, then the plain one (which keeps the "code:NN" of binds made by position)
+        command: ["bash", "-c", 'hyprctl binds -j; printf "\\x1e"; hyprctl binds']
         stdout: StdioCollector {
             id: keybindCollector
             onStreamFinished: {
                 try {
-                    const binds = JSON.parse(keybindCollector.text)
+                    const [json, plain] = keybindCollector.text.split("\x1e")
+                    const codes = {}
+                    for (const block of (plain ?? "").split(/\n\s*\n/)) {
+                        const code = block.match(/^\s*key: .*code:(\d+)\s*$/m)
+                        const desc = block.match(/^\s*description: (.*)$/m)
+                        if (code && desc && !(desc[1] in codes)) codes[desc[1]] = Number(code[1])
+                    }
+                    root.codes = codes
+                    const binds = JSON.parse(json)
                     root.raw = binds
                     root.keybinds = root.buildTree(binds)
                 } catch (e) {
