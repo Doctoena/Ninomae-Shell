@@ -30,6 +30,7 @@ RippleButton {
     property string itemClickActionName: entry?.clickActionName ?? "Open"
     property string bigText: entry?.bigText ?? ""
     property string materialSymbol: entry?.materialSymbol ?? ""
+    property bool settingsIcon: entry?.settingsIcon ?? false
     property string cliphistRawString: entry?.cliphistRawString ?? ""
     visible: root.entryShown
     // Apps carry a DesktopEntry: show its comment / generic name under the title
@@ -120,7 +121,8 @@ RippleButton {
         Loader {
             id: iconLoader
             active: true
-            sourceComponent: root.materialSymbol !== "" ? materialSymbolComponent :
+            sourceComponent: root.settingsIcon ? settingsIconComponent :
+                root.materialSymbol !== "" ? materialSymbolComponent :
                 root.bigText ? bigTextComponent :
                 root.itemIcon !== "" ? iconImageComponent :
                 null
@@ -130,6 +132,49 @@ RippleButton {
             IconImage {
                 source: Quickshell.iconPath(root.itemIcon, "image-missing")
                 implicitSize: 32
+            }
+        }
+        // Ninomae Settings: the icon theme's systemsettings (two sliders on a dark square), drawn here so the
+        // sliders take the wallpaper's accent. Laid out on the SVG's 40-unit grid
+        Component {
+            id: settingsIconComponent
+            Rectangle {
+                id: settingsIcon
+                readonly property real u: width / 40
+                implicitWidth: 32
+                implicitHeight: 32
+                radius: 6.15 * u
+                color: "#404448"
+                Repeater {
+                    model: [{ y: 15, knob: 28 }, { y: 25, knob: 16 }]
+                    Item {
+                        required property var modelData
+                        x: 5 * settingsIcon.u
+                        y: (modelData.y - 1) * settingsIcon.u
+                        width: 30 * settingsIcon.u
+                        height: 2 * settingsIcon.u
+                        Rectangle { // Track
+                            anchors.fill: parent
+                            radius: height / 2
+                            color: "white"
+                            opacity: 0.19
+                        }
+                        Rectangle { // Filled part
+                            width: (modelData.knob - 5) * settingsIcon.u
+                            height: parent.height
+                            radius: height / 2
+                            color: Appearance.colors.colPrimary
+                        }
+                        Rectangle { // Knob
+                            width: 5.8 * settingsIcon.u
+                            height: width
+                            radius: width / 2
+                            x: (modelData.knob - 5) * settingsIcon.u - width / 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: "#fafafa"
+                        }
+                    }
+                }
             }
         }
         Component {

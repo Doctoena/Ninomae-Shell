@@ -173,6 +173,8 @@ Start with a symbol to search one thing:
 | `:` | Emoji | | `?` | The web |
 | `/` | Actions, like `/wallpaper` | | | |
 
+Typing `settings` also finds **Ninomae Settings**, above other apps.
+
 <br>
 
 ## Keybinds

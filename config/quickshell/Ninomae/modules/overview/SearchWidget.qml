@@ -13,6 +13,7 @@ Item { // Wrapper
     id: root
     property string searchingText: ""
     property string mathResult: ""
+    readonly property var shellSettingsTarget: Fuzzy.prepare("Ninomae Settings") // Prepared once, matched every keystroke
     property var searchActions: [
         {
             action: "accentcolor",
@@ -450,12 +451,25 @@ Item { // Wrapper
                                         Quickshell.clipboardText = root.mathResult;
                                     }
                                 };
-                                const appResultObjects = AppSearch.fuzzyQuery(StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.app)).filter(e => !root.isGameShortcut(e)).map(entry => {
+                                const appQuery = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.app);
+                                const appResultObjects = AppSearch.fuzzyQuery(appQuery).filter(e => !root.isGameShortcut(e)).map(entry => {
                                     entry.clickActionName = Translation.tr("Launch");
                                     entry.type = Translation.tr("App");
                                     entry.key = entry.execute
                                     return entry;
                                 })
+                                // The shell's own Settings window: not an installed app, so it's added here, and goes
+                                // above the apps so "settings" opens it rather than GNOME's Settings
+                                const shellSettingsObjects = Fuzzy.go(appQuery, [root.shellSettingsTarget]).length > 0 ? [{
+                                    key: "ninomae-settings",
+                                    name: Translation.tr("Ninomae Settings"),
+                                    clickActionName: Translation.tr("Open"),
+                                    type: Translation.tr("Shell"),
+                                    settingsIcon: true, // Sliders in the accent colour (SearchItem.qml)
+                                    execute: () => {
+                                        Quickshell.execDetached([Quickshell.shellPath("scripts/open-settings.sh")]);
+                                    }
+                                }] : [];
                                 const commandResultObject = {
                                     key: `cmd ${root.searchingText}`,
                                     name: StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.shellCommand).replace("file://", ""),
@@ -522,7 +536,7 @@ Item { // Wrapper
                                     result.push(webSearchResultObject);
                                 }
                                 //////////////// Apps //////////////////
-                                result = result.concat(appResultObjects);
+                                result = result.concat(shellSettingsObjects, appResultObjects);
                                 ////////// Launcher actions ////////////
                                 result = result.concat(launcherActionObjects);
                                 /// Math result, command, web search ///
