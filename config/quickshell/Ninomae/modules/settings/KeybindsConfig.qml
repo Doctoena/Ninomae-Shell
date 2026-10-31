@@ -152,8 +152,11 @@ ContentPage {
     // The bind already on these keys, if any (not the one being changed)
     function clash(mods, key) {
         const mask = (mods.includes("SUPER") ? 64 : 0) | (mods.includes("CTRL") ? 4 : 0) | (mods.includes("ALT") ? 8 : 0) | (mods.includes("SHIFT") ? 1 : 0);
-        const found = HyprlandKeybinds.raw.find(b => (b.submap ?? "global") === "global" && b.modmask === mask
-            && (b.key ?? "").toLowerCase() === key.toLowerCase() && b.description !== page.capturing);
+        const global = b => (b.submap ?? "global") === "global" && b.modmask === mask && b.description !== page.capturing;
+        // The workspace keys (Super, Super+Shift, Super+Alt with 1–0) are bound by position, so Hyprland lists
+        // them with no key: find them by their description instead
+        const workspaceKey = b => /^\d$/.test(key) && (b.key ?? "") === "" && (b.description ?? "").includes("1-10");
+        const found = HyprlandKeybinds.raw.find(b => global(b) && ((b.key ?? "").toLowerCase() === key.toLowerCase() || workspaceKey(b)));
         if (!found) return "";
         return (found.description ?? "").replace(/^\[hidden\]\s*/, "") || Translation.tr("another shortcut");
     }
@@ -313,7 +316,7 @@ ContentPage {
             SettingRow {
                 icon: "label"
                 text: Translation.tr("Name")
-                MaterialTextArea {
+                StyledTextArea {
                     Layout.preferredWidth: 300
                     text: page.newName
                     onTextChanged: if (text !== page.newName) page.newName = text.replace(/\n/g, "")
@@ -323,7 +326,7 @@ ContentPage {
                 icon: "terminal"
                 text: Translation.tr("Command")
                 tooltip: Translation.tr("What runs, like zen-browser or kitty -e btop")
-                MaterialTextArea {
+                StyledTextArea {
                     Layout.preferredWidth: 300
                     text: page.newCommand
                     onTextChanged: if (text !== page.newCommand) page.newCommand = text.replace(/\n/g, "")
