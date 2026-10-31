@@ -1,25 +1,23 @@
 import qs.modules.common
 import QtQuick
-import QtQuick.Controls.Material
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 /**
- * Material 3 styled TextField (filled style)
- * https://m3.material.io/components/text-fields/overview
- * Note: We don't use NativeRendering because it makes the small placeholder text look weird
+ * The shell's single-line text box (looks: TextFieldBackground)
  */
 TextField {
     id: root
-    Material.theme: Material.System
-    Material.accent: Appearance.colors.colPrimary
-    Material.primary: Appearance.colors.colPrimary
-    Material.background: Appearance.colors.colSurfaceContainer
-    Material.foreground: Appearance.colors.colOnSurface
-    Material.containerStyle: Material.Outlined
-    renderType: Text.QtRendering
+    renderType: Text.QtRendering // Not NativeRendering: small text looked uneven
+    color: Appearance.colors.colOnSurface
     selectedTextColor: Appearance.colors.colOnSecondaryContainer
     selectionColor: Appearance.colors.colSecondaryContainer
-    placeholderTextColor: Appearance.colors.colOutline
+    placeholderTextColor: "transparent" // TextFieldBackground shows it, as the label
     clip: true
+    leftPadding: 14
+    rightPadding: 14
+    // A label (placeholderText) takes the top of the box: TextFieldBackground draws it there
+    topPadding: placeholderText !== "" ? 24 : 10
+    bottomPadding: placeholderText !== "" ? 8 : 10
+    background: TextFieldBackground { field: root }
     font {
         family: Appearance.font.family.main
         pixelSize: Appearance?.font.pixelSize.small ?? 15
