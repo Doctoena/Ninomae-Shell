@@ -59,7 +59,6 @@ hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 hl.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false;quickshell.desktopentry.warning=false;qt.qpa.services.warning=false;qt.qml.propertyCache.append.warning=false")
 -- User QML modules (Ninomae.Blobs for the launcher, see config/quickshell/plugins)
 hl.env("QML_IMPORT_PATH", os.getenv("HOME") .. "/.local/lib/qt6/qml")
-hl.env("XDG_MENU_PREFIX", "plasma-")
 
 -- Cursor
 hl.env("XCURSOR_THEME", "BreezeX-RosePine-Linux")

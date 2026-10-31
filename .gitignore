@@ -31,6 +31,8 @@ config/ninomae-shell/displays.json
 config/ninomae-shell/keybinds.json
 config/ninomae-shell/window-rules.json
 config/fish/fish_variables
+# Nautilus writes your bookmarked folders here (~/.config/gtk-3.0 is this folder): personal, never in git
+config/gtk-3.0/bookmarks
 
 # Wallpapers: only the default one is shared (the rest of ~/Pictures/Wallpapers stays local)
 assets/wallpapers/*
