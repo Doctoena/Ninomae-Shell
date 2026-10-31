@@ -16,7 +16,7 @@ PACKAGES=(
     # Quickshell (upstream 0.3+, COPR lionheartp/Hyprland) and its Qt runtime modules
     quickshell qt6-qtsvg qt6-qtpositioning qt6-qtwayland
     # Theming: wallpaper colours, GTK/Qt themes
-    matugen adw-gtk3-theme qt6ct kvantum python3-kde-material-you-colors
+    matugen adw-gtk3-theme qt6ct kvantum
     # Terminal, launcher, shell, and what the app keybinds open (Super+P files, Ctrl+Shift+Esc btop)
     kitty fuzzel fish lsd fastfetch nautilus btop
     # Steam and Vesktop (Discord with Vencord), both from Terra; themed in themes/steam and themes/discord

@@ -183,20 +183,6 @@
     "builtin": true
   },
   {
-    "name": "plasma-changeicons",
-    "note": "kde-material-you-colors spawns a window when changing dark/light theme. This is to make sure it doesn't interfere at all.",
-    "enabled": true,
-    "match": {
-      "class": "^(plasma-changeicons)$"
-    },
-    "effects": {
-      "float": true,
-      "no_initial_focus": true,
-      "move": "999999 999999"
-    },
-    "builtin": true
-  },
-  {
     "name": "steam-launching-dialog",
     "note": "Steam's \"Starting game\" dialog: the shell's launch splash (modules/gameLauncher/LaunchSplash.qml) already shows the launch and update progress. Moved off-screen, not closed: closing it may cancel the launch",
     "enabled": true,

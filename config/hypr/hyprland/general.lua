@@ -9,8 +9,7 @@
 -- |                                         |
 -- '-----------------------------------------'
 
--- Monitor layout & per-monitor workspace assignment now live in monitors.lua,
--- since they depend on which machine this is (laptop vs shitbox).
+-- Monitors: monitors.lua (and Settings → Display)
 
 local keyboard = require("hyprland/keyboard")
 

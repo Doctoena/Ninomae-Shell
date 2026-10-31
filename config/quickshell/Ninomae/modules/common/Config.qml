@@ -280,9 +280,6 @@ Singleton {
                     property bool enable: false
                 }
             }
-            property JsonObject language: JsonObject {
-                property string ui: "auto" // UI language. "auto" for system locale, or specific language code like "zh_CN", "en_US"
-            }
             property JsonObject light: JsonObject {
                 property JsonObject night: JsonObject {
                     property bool automatic: true

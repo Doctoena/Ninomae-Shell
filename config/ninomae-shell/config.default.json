@@ -195,9 +195,6 @@
       "touchpadScrollFactor": 450
     }
   },
-  "language": {
-    "ui": "auto"
-  },
   "light": {
     "antiFlashbang": {
       "enable": false

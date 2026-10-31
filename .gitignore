@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 *~
 *.swp
+# fontconfig writes one into every font folder it caches
+.uuid
 # Temporary files scripts write before moving them into place
 *.tmp
 *.part

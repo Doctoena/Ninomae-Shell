@@ -70,5 +70,5 @@ test -d ~/.openclaw/completions; and set -g fish_complete_path ~/.openclaw/compl
 test -d ~/.cargo/bin; and fish_add_path -g ~/.cargo/bin
 
 # opencode
-# -g: add for this session only; without it the path is saved into fish_variables (which is in the repo)
+# -g: add for this session only; without it the path is saved into fish_variables
 test -d ~/.opencode/bin; and fish_add_path -g ~/.opencode/bin

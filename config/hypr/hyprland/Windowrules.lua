@@ -16,11 +16,11 @@
 -- ######## Workspace rules ########
 hl.workspace_rule({ workspace = "special:special", gaps_out = 30 })
 
--- Quickshell launcher (Super + E) animates itself (drawer sliding out of the bar);
--- Hyprland's layer pop-in on top of that made the start look detached.
+-- The shell's drawers and popups (launcher, sidebar, OSD…) animate themselves;
+-- Hyprland's layer pop-in on top of that made them look detached.
 hl.layer_rule({
-    name    = "launcher-no-anim",
-    match   = { namespace = [[^quickshell:(overview|barDrawer|sidebarRight|gamelauncher|mediaControls|notificationPopup|onScreenDisplay|trayMenu|reloadPopup|session)$]] }, -- drawers animate themselves
+    name    = "drawers-no-anim",
+    match   = { namespace = [[^quickshell:(overview|barDrawer|sidebarRight|gamelauncher|mediaControls|notificationPopup|onScreenDisplay|trayMenu|reloadPopup|session)$]] },
     no_anim = true,
 })
 

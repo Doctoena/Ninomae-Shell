@@ -22,11 +22,11 @@ read_config() {
     local values=()
     [[ -f $SHELL_CONFIG_FILE ]] && mapfile -t values < <(jq -r '
         .appearance as $a | $a.wallpaperTheming as $w |
-        $w.enableQtApps, $w.enableAppsAndShell, $a.themeTransition, $w.terminalGenerationProps.forceDarkMode,
+        $w.enableAppsAndShell, $a.themeTransition, $w.terminalGenerationProps.forceDarkMode,
         $a.palette.type, .background.wallpaperPath
         | if . == null then "" else tostring end' "$SHELL_CONFIG_FILE" 2>/dev/null)
-    cfg_qt_apps=${values[0]-} cfg_apps_shell=${values[1]-} cfg_transition=${values[2]-} cfg_force_dark=${values[3]-}
-    cfg_palette_type=${values[4]-} cfg_wallpaper=${values[5]-}
+    cfg_apps_shell=${values[0]-} cfg_transition=${values[1]-} cfg_force_dark=${values[2]-}
+    cfg_palette_type=${values[3]-} cfg_wallpaper=${values[4]-}
 }
 
 # A file picked in the dialog moves into the Wallpapers folder, so it shows in Settings' wallpaper list.
@@ -59,15 +59,6 @@ offer_install() {
     local action
     action=$(notify-send -a "Wallpaper switcher" -c "im.error" -A "install=Install" "$title" "$body")
     [[ $action == install ]] && kitty -1 sudo dnf install "$@"
-}
-
-handle_kde_material_you_colors() {
-    # Plasma's colour applier only exists on Plasma; skip when Qt app theming is off
-    command -v plasma-apply-colorscheme >/dev/null 2>&1 || return
-    [[ $cfg_qt_apps == false ]] && return
-    local variant="scheme-tonal-spot"
-    is_scheme "$type_flag" && variant="$type_flag"
-    "$XDG_CONFIG_HOME"/matugen/templates/kde/kde-material-you-colors-wrapper.sh --scheme-variant "$variant"
 }
 
 check_and_prompt_upscale() {
@@ -245,16 +236,14 @@ switch() {
         return
     fi
 
-    # matugen (shell, apps) and the terminal/Qt palette are independent: generate both at once.
-    # Both write color.txt (matugen through its KDE template); the Python one goes in last, as it always has
+    # matugen (shell, apps) and the terminal/Qt palette are independent: generate both at once
     mkdir -p "$GENERATED"
     matugen "${matugen_args[@]}" &
     local matugen_pid=$!
-    "$PYTHON" "$SCRIPT_DIR/generate_colors_material.py" "${gcm_args[@]}" --cache "$GENERATED/color.txt.new" \
+    "$PYTHON" "$SCRIPT_DIR/generate_colors_material.py" "${gcm_args[@]}" \
         >"$GENERATED/material_colors.scss.new" \
         && mv -f "$GENERATED/material_colors.scss.new" "$GENERATED/material_colors.scss"
     wait "$matugen_pid"
-    [[ -f $GENERATED/color.txt.new ]] && mv -f "$GENERATED/color.txt.new" "$GENERATED/color.txt"
     "$SCRIPT_DIR"/applycolor.sh
     # Hyprland's border and background colours, set on the running Hyprland: they're written outside its config
     # folder (matugen/config.toml), so it doesn't reload everything and flash
@@ -262,7 +251,6 @@ switch() {
     # Without its comments: one starting with "--" would be taken as a hyprctl flag
     [[ -f $hypr_live ]] && hyprctl eval "$(grep -v '^[[:space:]]*--' -- "$hypr_live" | tr '\n' ' ')" >/dev/null 2>&1
 
-    handle_kde_material_you_colors &
     refresh_gtk_services &
     # VS Code follows through matugen's hook (themes/vscode/apply-live.sh)
 }
