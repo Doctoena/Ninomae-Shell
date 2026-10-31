@@ -74,6 +74,20 @@ LINKS=(
     "Pictures/Wallpapers|assets/wallpapers"
 )
 
+# Each machine's own copy of a file the repo ships a default for: "yours|default". Made once from the default,
+# then git ignores it: the shell's settings, and configs the apps rewrite themselves (so a change in btop or
+# Kvantum Manager never shows up in git, or stops `ninomae update` from pulling)
+LOCAL_COPIES=(
+    "config/ninomae-shell/config.json|config/ninomae-shell/config.default.json"
+    "config/btop/btop.conf|config/btop/btop.default.conf"
+    "config/qt6ct/qt6ct.conf|config/qt6ct/qt6ct.default.conf"
+    "config/Kvantum/kvantum.kvconfig|config/Kvantum/kvantum.default.kvconfig"
+    "config/gtk-3.0/settings.ini|config/gtk-3.0/settings.default.ini"
+    "config/gtk-4.0/settings.ini|config/gtk-4.0/settings.default.ini"
+)
+# Yours, but in git once: kept across the pull that stops tracking them (the LOCAL_COPIES too)
+KEEP_ACROSS_PULL=(config/gtk-3.0/bookmarks)
+
 # The checklist: "label|key|on-by-default". Labels mustn't contain commas
 COMPONENTS=(
     "Packages and repositories — Hyprland · the shell · apps (needs sudo)|packages|on"
@@ -311,11 +325,16 @@ comp_configs() {
 
     # Settings that store absolute paths: point any other user's home in them at this one. Whole-path
     # matches only (followed by / or "), so a re-run changes nothing and /home/ann won't touch /home/anna
+    # Each machine's own copies (git ignores them): the first time, from the shipped defaults
+    local entry_copy made=()
+    for entry_copy in "${LOCAL_COPIES[@]}"; do
+        local mine="$DOTFILES/${entry_copy%%|*}" shipped="$DOTFILES/${entry_copy#*|}"
+        [[ -f $mine || ! -f $shipped ]] && continue
+        run cp "$shipped" "$mine" && made+=("${entry_copy%%|*}")
+    done
+    (( ${#made[@]} )) && ok "From the defaults: ${made[*]#config/}"
+
     local f="config/ninomae-shell/config.json" other
-    # Each machine's own settings (git ignores the file): the first time, a copy of the shipped defaults
-    if [[ ! -f "$DOTFILES/$f" ]]; then
-        run cp "$DOTFILES/config/ninomae-shell/config.default.json" "$DOTFILES/$f" && ok "Shell settings from the defaults"
-    fi
     if [[ -f "$DOTFILES/$f" ]]; then
         while IFS= read -r other; do
             [[ $other == "$HOME" ]] && continue
@@ -506,13 +525,31 @@ comp_fish() {
 update_files() {
     step "Latest files"
     if [[ -d "$DOTFILES/.git" ]] && command -v git >/dev/null; then
-        # Your settings (config.json) aren't in git. A pull that stops tracking a file deletes it, which the
-        # first pull after that change did: keep a copy and put it back
-        local cfg="$DOTFILES/config/ninomae-shell/config.json" kept="$LOG_DIR/config.json.before-update"
-        [[ -f $cfg ]] && run cp -p "$cfg" "$kept"
+        # Your own files (config.json, the app configs, bookmarks) aren't in git, or are about to stop being. A
+        # pull that stops tracking a file deletes it, and refuses to run at all if you've changed it: keep a copy,
+        # set an edited one back to git's version so the pull goes ahead, and put yours back after
+        local kept_dir="$LOG_DIR/kept-before-update" f entry_copy reset=() restored=()
+        local mine_files=("${KEEP_ACROSS_PULL[@]}")
+        for entry_copy in "${LOCAL_COPIES[@]}"; do mine_files+=("${entry_copy%%|*}"); done
+        run rm -rf "$kept_dir"
+        for f in "${mine_files[@]}"; do
+            [[ -f $DOTFILES/$f ]] || continue
+            run mkdir -p "$kept_dir/$(dirname "$f")" && run cp -p "$DOTFILES/$f" "$kept_dir/$f" || continue
+            if git -C "$DOTFILES" ls-files --error-unmatch -- "$f" >/dev/null 2>&1 \
+                && ! git -C "$DOTFILES" diff --quiet -- "$f"; then
+                run git -C "$DOTFILES" checkout -- "$f" && reset+=("$f")
+            fi
+        done
         if spin "git pull" git -C "$DOTFILES" pull --ff-only; then result done "Pulled the latest changes"
         else result fail "git pull failed (local changes?); see the log"; fi
-        if [[ ! -f $cfg && -f $kept ]]; then run cp -p "$kept" "$cfg" && ok "Kept your settings (config.json)"; fi
+        for f in "${mine_files[@]}"; do
+            [[ -f $kept_dir/$f ]] || continue
+            # Gone (no longer tracked), or set back above: yours again. Otherwise the pull's update stands
+            if [[ ! -f $DOTFILES/$f ]] || [[ " ${reset[*]} " == *" $f "* ]]; then
+                run cp -p "$kept_dir/$f" "$DOTFILES/$f" && restored+=("${f#config/}")
+            fi
+        done
+        (( ${#restored[@]} )) && ok "Kept yours: ${restored[*]}"
     else
         info "This folder isn't a git checkout; using the files as they are"
         result skip "Not a git checkout"

@@ -33,6 +33,13 @@ config/ninomae-shell/window-rules.json
 config/fish/fish_variables
 # Nautilus writes your bookmarked folders here (~/.config/gtk-3.0 is this folder): personal, never in git
 config/gtk-3.0/bookmarks
+# Configs the apps rewrite themselves (btop, qt6ct, Kvantum Manager, GTK settings tools). Each starts as a copy of
+# the .default one beside it (setup/components.sh, LOCAL_COPIES), then it's yours
+config/btop/btop.conf
+config/qt6ct/qt6ct.conf
+config/Kvantum/kvantum.kvconfig
+config/gtk-3.0/settings.ini
+config/gtk-4.0/settings.ini
 
 # Wallpapers: only the default one is shared (the rest of ~/Pictures/Wallpapers stays local)
 assets/wallpapers/*
