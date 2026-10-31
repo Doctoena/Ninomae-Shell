@@ -428,7 +428,7 @@ ContentPage {
                     icon: "aspect_ratio"
                     text: Translation.tr("Size")
                     tooltip: Translation.tr("Width and height, in % of the screen or pixels, like 60% 65%. For floating windows")
-                    MaterialTextArea {
+                    StyledTextArea {
                         Layout.preferredWidth: 160
                         text: page.form.effects?.size ?? ""
                         onTextChanged: if (text !== (page.form.effects?.size ?? "")) page.setEffect("size", text.replace(/\n/g, "").trim())
@@ -439,7 +439,7 @@ ContentPage {
                     icon: "open_with"
                     text: Translation.tr("Position")
                     tooltip: Translation.tr("Left and top, in % of the screen or pixels, like 73% 72%. For floating windows")
-                    MaterialTextArea {
+                    StyledTextArea {
                         Layout.preferredWidth: 160
                         text: page.form.effects?.move ?? ""
                         onTextChanged: if (text !== (page.form.effects?.move ?? "")) page.setEffect("move", text.replace(/\n/g, "").trim())
@@ -596,7 +596,7 @@ ContentPage {
                     icon: "badge"
                     text: Translation.tr("Window class pattern")
                     tooltip: Translation.tr("A regular expression. The app search fills it in")
-                    MaterialTextArea {
+                    StyledTextArea {
                         Layout.preferredWidth: 340
                         text: page.form.match?.class ?? ""
                         onTextChanged: if (text !== (page.form.match?.class ?? "")) page.setMatch("class", text.replace(/\n/g, ""))
@@ -606,7 +606,7 @@ ContentPage {
                     icon: "title"
                     text: Translation.tr("Window title pattern")
                     tooltip: Translation.tr("A regular expression, like ^(Picture-in-Picture)(.*)$ for titles that start that way")
-                    MaterialTextArea {
+                    StyledTextArea {
                         Layout.preferredWidth: 340
                         text: page.form.match?.title ?? ""
                         onTextChanged: if (text !== (page.form.match?.title ?? "")) page.setMatch("title", text.replace(/\n/g, ""))
@@ -616,7 +616,7 @@ ContentPage {
                     icon: "sticky_note_2"
                     text: Translation.tr("Note")
                     tooltip: Translation.tr("Why the rule is there, for later")
-                    MaterialTextArea {
+                    StyledTextArea {
                         Layout.preferredWidth: 340
                         text: page.form.note ?? ""
                         onTextChanged: page.form.note = text.replace(/\n/g, " ")

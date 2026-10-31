@@ -224,7 +224,7 @@ hl.define_submap("global", function()
     -- open-settings.sh brings an already open Settings window forward instead of doing nothing
     local openSettings = "~/.config/quickshell/" .. qs .. "/scripts/open-settings.sh"
     bind("SUPER + Slash",  exec(openSettings .. " keybinds"), { description = "Shell: Keybinds" })
-    bind("SUPER + I",      exec("XDG_CURRENT_DESKTOP=gnome " .. launch .. [["]] .. openSettings .. [[" "systemsettings" "gnome-control-center" "better-control"]]), { description = "Apps: Settings app" })
+    bind("SUPER + I",      exec("XDG_CURRENT_DESKTOP=gnome " .. launch .. [["]] .. openSettings .. [[" "systemsettings" "gnome-control-center" "better-control"]]), { description = "Apps: Ninomae Settings" })
     bind("CTRL + SHIFT + Escape", exec(launch .. [["kitty -1 btop"]]), { description = "Apps: Task manager" }) -- Same as the session screen's Tasks
 
     -- Your own shortcuts (Settings → Keybinds → Add shortcut)

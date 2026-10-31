@@ -6,7 +6,7 @@ import QtQuick.Layouts
 /**
  * A settings row: icon, label and an optional (i) on the left, then whatever you put inside on the right,
  * lined up with ConfigSwitch and ConfigSpinBox rows.
- *   SettingRow { icon: "folder"; text: "Folder"; MaterialTextArea { … } }
+ *   SettingRow { icon: "folder"; text: "Folder"; StyledTextArea { … } }
  */
 RowLayout {
     id: root

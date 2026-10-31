@@ -238,7 +238,7 @@ ContentPage {
         ContentSubsection {
             title: Translation.tr("Immich server")
             visible: Config.options.gameLauncher.immichEnabled
-            MaterialSecretField { // In the keyring too: it's your server's address, kept out of the dotfiles
+            StyledSecretField { // In the keyring too: it's your server's address, kept out of the dotfiles
                 Layout.fillWidth: true
                 secret: false
                 enabled: KeyringStorage.loaded
@@ -260,7 +260,7 @@ ContentPage {
                     if (ok) Quickshell.execDetached(["bash", "-c", 'bash "$(realpath "$0")/../../../themes/zen/apply-theme.sh"', Quickshell.shellDir]);
                 }
             }
-            MaterialSecretField { // Hidden until shown: they're personal credentials
+            StyledSecretField { // Hidden until shown: they're personal credentials
                 Layout.fillWidth: true
                 enabled: KeyringStorage.loaded
                 placeholderText: Translation.tr("API key")
@@ -286,7 +286,7 @@ ContentPage {
             text: Translation.tr("Your keyring is locked, so the keys can't be read or saved right now. Log out and back in (logging in unlocks it), then come back here.")
         }
         Component.onCompleted: KeyringStorage.fetchKeyringData() // This Settings window is its own process
-        MaterialSecretField { // Hidden until shown: they're personal credentials
+        StyledSecretField { // Hidden until shown: they're personal credentials
             Layout.fillWidth: true
             enabled: KeyringStorage.loaded
             placeholderText: Translation.tr("Steam Web API key")
@@ -299,7 +299,7 @@ ContentPage {
                 text: Translation.tr("Optional. Keeps your library to the games you own (and family-shared ones),\nand fills in playtime and when you last played\n\nStored in your system keyring")
             }
         }
-        MaterialSecretField { // Hidden until shown: they're personal credentials
+        StyledSecretField { // Hidden until shown: they're personal credentials
             Layout.fillWidth: true
             enabled: KeyringStorage.loaded
             placeholderText: Translation.tr("SteamGridDB API key")

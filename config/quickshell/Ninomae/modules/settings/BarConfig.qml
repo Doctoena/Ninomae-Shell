@@ -164,7 +164,7 @@ ContentPage {
             visible: Config.options.bar.weather.enable && !Config.options.bar.weather.enableGPS
             icon: "location_city"
             text: Translation.tr("City")
-            MaterialTextArea {
+            StyledTextArea {
                 Layout.preferredWidth: 260 // The row says what it is: no floating label
                 text: WeatherLocation.city
                 onTextChanged: if (text !== WeatherLocation.city) WeatherLocation.setCity(text)

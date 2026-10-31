@@ -460,7 +460,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 visible: Config.options.bar.weather.enable && !Config.options.bar.weather.enableGPS
                                 title: Translation.tr("City")
-                                MaterialTextArea {
+                                StyledTextArea {
                                     Layout.fillWidth: true
                                     text: WeatherLocation.city
                                     onTextChanged: if (text !== WeatherLocation.city) WeatherLocation.setCity(text)
@@ -535,7 +535,7 @@ ApplicationWindow {
                         rowSpacing: 10
                         ShortcutCard { icon: "search"; label: Translation.tr("Launcher, apps and search"); keys: root.bindFor("Shell", "Toggle overview/launcher") }
                         ShortcutCard { icon: "view_sidebar"; label: Translation.tr("Sidebar: toggles, notifications"); keys: root.bindFor("Shell", "Toggle right sidebar") }
-                        ShortcutCard { icon: "settings"; label: Translation.tr("Settings"); keys: root.bindFor("Apps", "Settings app") }
+                        ShortcutCard { icon: "settings"; label: Translation.tr("Settings"); keys: root.bindFor("Apps", "Ninomae Settings") }
                         ShortcutCard { icon: "content_paste"; label: Translation.tr("Clipboard history"); keys: root.bindFor("Shell", "Clipboard history") }
                         ShortcutCard { icon: "screenshot_region"; label: Translation.tr("Screenshot"); keys: root.bindFor("Screen", "Screenshot") }
                         ShortcutCard { icon: "lock"; label: Translation.tr("Lock"); keys: root.bindFor("Session", "Lock screen") }

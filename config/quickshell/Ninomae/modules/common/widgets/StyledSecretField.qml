@@ -3,11 +3,11 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 /**
- * MaterialTextField for a secret (an API key): hidden as dots until the eye button shows it.
+ * StyledTextField for a secret (an API key): hidden as dots until the eye button shows it.
  * Single line, so editingFinished fires on Enter as well as on losing focus. secret: false makes it a
  * plain field in the same look (e.g. a server URL next to its key).
  */
-MaterialTextField {
+StyledTextField {
     id: root
     property bool secret: true
     property bool revealed: false

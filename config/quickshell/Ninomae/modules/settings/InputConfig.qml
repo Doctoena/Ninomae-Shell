@@ -47,7 +47,7 @@ ContentPage {
             to: 1000
             stepSize: 25
         }
-        MaterialTextArea { // Hold a key in here to feel the two above
+        StyledTextArea { // Hold a key in here to feel the two above
             Layout.fillWidth: true
             Layout.leftMargin: 8
             Layout.rightMargin: 8

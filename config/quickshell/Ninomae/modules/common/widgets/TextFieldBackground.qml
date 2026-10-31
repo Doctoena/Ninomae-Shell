@@ -2,7 +2,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import QtQuick
 /**
- * The text boxes' look (MaterialTextArea, MaterialTextField, MaterialSecretField): a filled squircle like the
+ * The text boxes' look (StyledTextArea, StyledTextField, StyledSecretField): a filled squircle like the
  * buttons beside them, lighter on hover, with an accent outline while typing. A box with placeholderText is
  * taller and shows it as its label: inside the box while it's empty, small at the top once there's text
  * or you're typing (the fields leave room for it: topPadding).

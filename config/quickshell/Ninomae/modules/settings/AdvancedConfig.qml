@@ -87,7 +87,7 @@ ContentPage {
             visible: Config.options.regionSelector.save
             icon: "folder"
             text: Translation.tr("Folder")
-            MaterialTextArea {
+            StyledTextArea {
                 Layout.preferredWidth: 320
                 text: Config.options.regionSelector.saveDir
                 onTextChanged: Config.options.regionSelector.saveDir = text

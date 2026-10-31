@@ -122,7 +122,7 @@ ColumnLayout {
             color: Qt.hsva(root.h, root.s, root.v, 1)
             border.width: 1; border.color: "#30ffffff"
         }
-        MaterialTextField {
+        StyledTextField {
             id: hexField
             Layout.fillWidth: true
             wrapMode: TextEdit.NoWrap
