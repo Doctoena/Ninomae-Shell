@@ -431,7 +431,9 @@ ContentPage {
                         HoverHandler {
                             id: rowHover
                         }
-                        StyledText { // Why the keys pressed weren't taken
+                        // The parts only the row being edited shows are built for that row alone: ~140 rows
+                        // with all of them built cost the window about 40 MB
+                        Loader { // Why the keys pressed weren't taken
                             id: rowMessage
                             anchors {
                                 left: parent.left
@@ -441,11 +443,14 @@ ContentPage {
                                 rightMargin: 8
                                 bottomMargin: 8
                             }
-                            visible: bindRow.editing && page.captureMessage !== ""
-                            wrapMode: Text.Wrap
-                            text: page.captureMessage
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            color: Appearance.colors.colError
+                            active: bindRow.editing && page.captureMessage !== ""
+                            visible: active
+                            sourceComponent: StyledText {
+                                wrapMode: Text.Wrap
+                                text: page.captureMessage
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: Appearance.colors.colError
+                            }
                         }
                         RowLayout {
                             anchors {
@@ -464,8 +469,10 @@ ContentPage {
                                 color: Appearance.colors.colOnLayer1
                                 elide: Text.ElideRight
                             }
-                            KeyPreview { // Recording this one
-                                visible: bindRow.recording
+                            Loader { // Recording this one
+                                active: bindRow.recording
+                                visible: active
+                                sourceComponent: KeyPreview {}
                             }
                             Repeater { // Each combo, "or" between them
                                 model: bindRow.modelData.combos
@@ -494,29 +501,36 @@ ContentPage {
                             }
                             // Edit starts listening for the new keys at once, with this row's other buttons beside
                             // it: turn it off (or remove your own), put it back, close
-                            IconAction { // Listen again (recording stops by itself after 20 s)
-                                visible: bindRow.editing && !bindRow.recording && page.editable(bindRow.modelData)
-                                symbol: "keyboard"
-                                tip: Translation.tr("Change the keys")
-                                onClicked: page.startCapture(bindRow.modelData.description)
-                            }
-                            IconAction {
-                                visible: bindRow.editing && !bindRow.custom
-                                symbol: "block"
-                                tip: Translation.tr("Turn off")
-                                onClicked: { page.closeRow(); KeybindOverrides.turnOff(bindRow.modelData.description); }
-                            }
-                            IconAction {
-                                visible: bindRow.editing && bindRow.custom
-                                symbol: "delete"
-                                tip: Translation.tr("Remove")
-                                onClicked: { page.closeRow(); KeybindOverrides.removeShortcut(page.customIndex(bindRow.modelData.description)); }
-                            }
-                            IconAction {
-                                visible: bindRow.editing && KeybindOverrides.changed[bindRow.modelData.description] !== undefined
-                                symbol: "undo"
-                                tip: Translation.tr("Back to the original keys")
-                                onClicked: { page.closeRow(); KeybindOverrides.reset(bindRow.modelData.description); }
+                            Loader {
+                                active: bindRow.editing
+                                visible: active
+                                sourceComponent: Row {
+                                    spacing: 12
+                                    IconAction { // Listen again (recording stops by itself after 20 s)
+                                        visible: !bindRow.recording && page.editable(bindRow.modelData)
+                                        symbol: "keyboard"
+                                        tip: Translation.tr("Change the keys")
+                                        onClicked: page.startCapture(bindRow.modelData.description)
+                                    }
+                                    IconAction {
+                                        visible: !bindRow.custom
+                                        symbol: "block"
+                                        tip: Translation.tr("Turn off")
+                                        onClicked: { page.closeRow(); KeybindOverrides.turnOff(bindRow.modelData.description); }
+                                    }
+                                    IconAction {
+                                        visible: bindRow.custom
+                                        symbol: "delete"
+                                        tip: Translation.tr("Remove")
+                                        onClicked: { page.closeRow(); KeybindOverrides.removeShortcut(page.customIndex(bindRow.modelData.description)); }
+                                    }
+                                    IconAction {
+                                        visible: KeybindOverrides.changed[bindRow.modelData.description] !== undefined
+                                        symbol: "undo"
+                                        tip: Translation.tr("Back to the original keys")
+                                        onClicked: { page.closeRow(); KeybindOverrides.reset(bindRow.modelData.description); }
+                                    }
+                                }
                             }
                             IconAction { // Edit, or Close while open. Kept in place on every row, so they line up
                                 opacity: page.fixed(bindRow.modelData.description) ? 0 : 1

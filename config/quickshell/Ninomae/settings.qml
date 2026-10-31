@@ -1,5 +1,7 @@
 //@ pragma UseQApplication
 //@ pragma Env QS_NO_RELOAD_POPUP=1
+// Tells the services they're in the Settings window, not the shell (no battery warnings or notification server)
+//@ pragma Env NINOMAE_SETTINGS_APP=1
 //@ pragma Env QT_QUICK_CONTROLS_STYLE=Basic
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 // Adjust this to make the app smaller or larger

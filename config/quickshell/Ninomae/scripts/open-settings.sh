@@ -5,4 +5,4 @@
 settings="$(realpath "$(dirname "$(realpath "$0")")/../settings.qml")" # Normalised: qs finds instances by path
 page="${1:-}"
 qs -p "$settings" ipc call settings open "$page" >/dev/null 2>&1 \
-    || NINOMAE_SETTINGS_APP=1 NINOMAE_SETTINGS_PAGE="$page" exec qs -p "$settings"
+    || NINOMAE_SETTINGS_PAGE="$page" exec qs -p "$settings"
