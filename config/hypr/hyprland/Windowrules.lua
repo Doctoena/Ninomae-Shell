@@ -9,9 +9,9 @@
 -- │                                                                    │
 -- └────────────────────────────────────────────────────────────────────┘
 
--- Window rules live in Settings → Window rules: ~/.config/ninomae-shell/window-rules.json (yours, not in git),
--- first copied from window-rules.default.json beside it (the shipped ones). The shell writes them to the Lua
--- file loaded at the end of this one. Workspace and layer rules stay here
+-- Window rules live in Settings → Window rules: the shipped ones in ~/.config/ninomae-shell/window-rules.default.json,
+-- your changes to them and your own rules in window-rules.json beside it (not in git). The shell writes them to the
+-- Lua file loaded at the end of this one. Workspace and layer rules stay here
 
 -- ######## Workspace rules ########
 hl.workspace_rule({ workspace = "special:special", gaps_out = 30 })
@@ -24,5 +24,5 @@ hl.layer_rule({
     no_anim = true,
 })
 
--- The window rules, written by the shell (services/WindowRules.qml) from window-rules.json
+-- The window rules, written by the shell (services/WindowRules.qml)
 pcall(dofile, os.getenv("HOME") .. "/.local/state/quickshell/user/window_rules.lua")

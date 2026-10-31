@@ -106,8 +106,18 @@ ContentPage {
 
     // ── Editing: a copy of the rule, saved back as a whole ──
     property int editing: -2 // -2 none, -1 a new rule, else its index
+    property string editingName: "" // The rule being edited: followed by name, as other changes move it in the list
     property var form: ({})
+    Connections {
+        target: WindowRules
+        function onRulesChanged() {
+            if (page.editing < 0) return;
+            const index = WindowRules.rules.findIndex(r => r.name === page.editingName);
+            page.editing = index >= 0 ? index : -2; // Removed: close the editor
+        }
+    }
     function edit(index) {
+        page.editingName = index >= 0 ? (WindowRules.rules[index]?.name ?? "") : "";
         const r = index >= 0 ? WindowRules.rules[index]
                              : { name: "", note: "", enabled: true, match: {}, effects: { float: true, center: true } };
         page.form = JSON.parse(JSON.stringify(r));
@@ -239,6 +249,13 @@ ContentPage {
                 onClicked: WindowRules.setEnabled(ruleRow.ruleIndex, checked)
                 StyledToolTip { text: Translation.tr("Turn the rule on or off without removing it") }
             }
+            RippleButtonWithIcon { // A shipped rule you edited: back to how it ships
+                visible: WindowRules.isEdited(ruleRow.ruleIndex)
+                materialIcon: "undo"
+                mainText: Translation.tr("Reset")
+                onClicked: { if (page.editing === ruleRow.ruleIndex) page.editing = -2; WindowRules.restore(ruleRow.ruleIndex); }
+                StyledToolTip { text: Translation.tr("Back to the rule as it ships") }
+            }
             RippleButtonWithIcon {
                 materialIcon: "edit"
                 mainText: Translation.tr("Edit")
@@ -247,7 +264,7 @@ ContentPage {
             RippleButtonWithIcon {
                 materialIcon: "delete"
                 mainText: Translation.tr("Remove")
-                onClicked: { if (page.editing === ruleRow.ruleIndex) page.editing = -2; WindowRules.remove(ruleRow.ruleIndex); }
+                onClicked: WindowRules.remove(ruleRow.ruleIndex) // An editor open on it closes (onRulesChanged)
             }
         }
     }

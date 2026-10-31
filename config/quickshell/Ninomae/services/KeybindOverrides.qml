@@ -60,7 +60,9 @@ Singleton {
     }
 
     function luaString(s) { return '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n") + '"'; }
+    property bool luaPending: false // Changed again while the last write ran: write once more after it
     function writeLua() {
+        if (luaWriter.running) { root.luaPending = true; return; }
         const changedLines = Object.keys(root.changed).map(d => `        [${luaString(d)}] = ${root.changed[d] === false ? "false" : luaString(root.changed[d])},`);
         const addedLines = root.added.filter(b => b.keys && b.command)
             .map(b => `        { keys = ${luaString(b.keys)}, command = ${luaString(b.command)}, name = ${luaString(b.name || b.command)} },`);
@@ -72,5 +74,8 @@ Singleton {
             "keybinds", root.luaPath, lua];
         luaWriter.running = true;
     }
-    Process { id: luaWriter }
+    Process {
+        id: luaWriter
+        onExited: if (root.luaPending) { root.luaPending = false; root.writeLua(); }
+    }
 }
