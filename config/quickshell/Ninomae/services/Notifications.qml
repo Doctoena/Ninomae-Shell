@@ -76,6 +76,13 @@ Singleton {
     // Saved history is capped; the oldest notifications that aren't showing as popups go first
     readonly property int maxHistory: 200
     property bool silent: false
+    // Do not disturb from scripts and keybinds: `qs -c Ninomae ipc call notifications dnd true`
+    IpcHandler {
+        target: "notifications"
+        function dnd(on: bool): void { root.silent = on; }
+        function toggleDnd(): void { root.silent = !root.silent; }
+        function isDnd(): bool { return root.silent; }
+    }
     property int unread: 0
     property var filePath: Directories.notificationsPath
     property list<Notif> list: []
