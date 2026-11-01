@@ -743,13 +743,43 @@ Scope {
                                         focus: true; keyNavigationEnabled: true; keyNavigationWraps: true
                                         highlightFollowsCurrentItem: true; highlightMoveDuration: 200
                                         opacity: gamesBackground._gridOpacity
-                                        // Diffed by game id, so typing keeps the tiles that still match (they slide
-                                        // to their new places) and only adds or removes the rest. A plain array
-                                        // rebuilt every tile on each keystroke and replayed the entrance stagger.
-                                        // Ids, not the games: ScriptModel copies its values, and the tiles need the
-                                        // service's own game objects (looked up in _gameById)
-                                        model: ScriptModel {
-                                            values: GameLauncherService.filteredGames.map(g => g.id || g.name)
+                                        // Diffed by game id, so typing keeps the tiles that still match and only adds or
+                                        // removes the rest (a plain array rebuilt every tile on each keystroke and replayed
+                                        // the entrance stagger). Ids, not the games: ScriptModel copies its values, and the
+                                        // tiles need the service's own game objects (looked up in _gameById).
+                                        // Never a change of order, though: ScriptModel turns one into row moves, and Qt's
+                                        // delegate model can crash applying them (SIGSEGV in QQmlDelegateModel::itemsMoved,
+                                        // the whole shell down after a search). Tiles whose place changed go out and come
+                                        // back in their new place instead, which is how the move transition looked anyway
+                                        model: ScriptModel { values: gamesListView._gridIds }
+                                        property var _gridIds: []
+                                        function _syncGrid() {
+                                            const next = GameLauncherService.filteredGames.map(g => g.id || g.name);
+                                            if (next.length === _gridIds.length && next.every((id, i) => id === _gridIds[i])) return;
+                                            const oldIndex = new Map(_gridIds.map((id, i) => [id, i]));
+                                            // The tiles in both, in the new order, by their old place: the longest run
+                                            // still in order stays put, the rest leave and come back
+                                            const common = next.filter(id => oldIndex.has(id)).map(id => oldIndex.get(id));
+                                            const kept = _inOrder(common);
+                                            if (kept.size < common.length) _gridIds = _gridIds.filter((id, i) => kept.has(i)); // Removes only
+                                            _gridIds = next; // Adds only
+                                        }
+                                        // The values of the longest increasing run in seq (patience sorting)
+                                        function _inOrder(seq) {
+                                            const tails = [], tailAt = [], prev = [];
+                                            for (let i = 0; i < seq.length; i++) {
+                                                let lo = 0, hi = tails.length;
+                                                while (lo < hi) { const mid = (lo + hi) >> 1; if (tails[mid] < seq[i]) lo = mid + 1; else hi = mid; }
+                                                tails[lo] = seq[i]; tailAt[lo] = i; prev[i] = lo > 0 ? tailAt[lo - 1] : -1;
+                                            }
+                                            const kept = new Set();
+                                            for (let i = tails.length ? tailAt[tails.length - 1] : -1; i >= 0; i = prev[i]) kept.add(seq[i]);
+                                            return kept;
+                                        }
+                                        Component.onCompleted: _syncGrid()
+                                        Connections {
+                                            target: GameLauncherService
+                                            function onFilteredGamesChanged() { gamesListView._syncGrid(); }
                                         }
                                         readonly property var _gameById: {
                                             const byId = {};
