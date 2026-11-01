@@ -17,6 +17,7 @@ Singleton {
     property real themeRevealY: 0
     property int themeRevealSerial: 0
     property bool gameLauncherOpen: false
+    property bool gameOverlayOpen: false // The in-game overlay (modules/gameOverlay, Super+Shift+G)
     property bool gameLauncherFilePickerActive: false
     property bool sidebarRightOpen: false
     property bool sysTrayOpen: false

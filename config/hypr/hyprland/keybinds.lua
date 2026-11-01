@@ -83,6 +83,8 @@ hl.define_submap("global", function()
 
     -- Crosshair overlay (services/Crosshair.qml): dont_inhibit, so it works while a game holds the keyboard
     bind("SUPER + G", global("crosshairToggle"), { dont_inhibit = true, description = "Shell: Show/hide crosshair" })
+    -- In-game overlay (modules/gameOverlay): clips, screenshot, crosshair, performance, sound
+    bind("SUPER + SHIFT + G", global("gameOverlayToggle"), { dont_inhibit = true, description = "Shell: In-game overlay" })
     bind("SUPER + E",       global("overviewToggle"), { description = "Shell: Toggle overview/launcher" })
     bind("SUPER + Super_R", global("overviewToggle"), { description = "[hidden] Toggle overview/launcher (alt)" })
     -- Use fallback launch logic when Quickshell is unavailable.

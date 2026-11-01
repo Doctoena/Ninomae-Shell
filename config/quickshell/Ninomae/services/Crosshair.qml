@@ -12,8 +12,8 @@ import Quickshell.Hyprland
  * crosshair button under Play on a game's page in the launcher) is running and its own window has the
  * focus, as GameClips' game watcher reports (windowed or fullscreen), so it's gone on alt-tab and never
  * over another fullscreen app.
- * Never over the launcher, overview, session or region screens. Super+G (crosshairToggle) shows or hides
- * it by hand, in any game or none, until the game changes. `qs -c Ninomae ipc call crosshair test` shows
+ * Never over the launcher, overview, session or region screens, or the in-game overlay. Super+G
+ * (crosshairToggle) shows or hides it by hand, in any game or none, until the game changes. `qs -c Ninomae ipc call crosshair test` shows
  * it for 3 s (Settings' Test button).
  */
 Singleton {
@@ -30,7 +30,7 @@ Singleton {
     readonly property bool gameFocused: GameClips.focusKnown ? GameClips.gameFocused
         : !!focused && (focused.fullscreen || /^steam_app_\d+$/.test(focused.appId ?? "") || focused.appId === "gamescope")
     readonly property bool blocked: GlobalStates.overviewOpen || GlobalStates.gameLauncherOpen || GlobalStates.sessionOpen
-        || GlobalStates.regionSelectorOpen || GlobalStates.screenLocked
+        || GlobalStates.regionSelectorOpen || GlobalStates.screenLocked || GlobalStates.gameOverlayOpen
 
     property var manual: null // null: automatic; true/false: Super+G's choice, until the game changes
     onGameIdChanged: manual = null
@@ -45,8 +45,14 @@ Singleton {
     // Back to what it would do on its own hands control back (so it hides on alt-tab again), rather than
     // pinning it on until the game changes
     function toggle() {
+        root._choose(!root.shown);
+    }
+    // From the in-game overlay, which hides it while open: flips what it'll do once the overlay closes
+    function toggleOutsideOverlay() {
+        root._choose(!(root.manual ?? root.automatic));
+    }
+    function _choose(want) {
         root.testing = false;
-        const want = !root.shown;
         root.manual = want === root.automatic ? null : want;
     }
     function test() {

@@ -36,6 +36,7 @@ import qs.modules.mediaControls
 // Utility modules
 import qs.modules.onScreenDisplay
 import qs.modules.crosshair
+import qs.modules.gameOverlay
 
 // ============================================================================
 // MAIN SHELL
@@ -109,6 +110,7 @@ ShellRoot {
     LazyLoader { active: enableOverview; component: Overview {} }
     LazyLoader { active: enableGameLauncher; component: GameLauncher {} }
     CrosshairOverlay {}
+    GameOverlay {}
     LazyLoader { active: enableMediaControls; component: MediaControls {} }
 
     // ------------------------------------------------------------------------

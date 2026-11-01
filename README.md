@@ -217,6 +217,7 @@ your own. These are the ones you'll use most.
 | `Super+Shift+C` | Colour picker |
 | `Super+-` / `Super+=` | Zoom out / in |
 | `` ` `` | Save a gameplay clip |
+| `Super+Shift+G` | In-game overlay |
 | `Super+Shift+L` | Sleep |
 | `Super+Ctrl+R` | Restart the shell |
 
@@ -258,6 +259,12 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
 - **Clips.** While a game runs, `` ` `` saves the last minute to `~/Videos/Clips/<game>/`. Nothing
   records outside games, or while Steam is only updating one. Change the key and length, or turn it off,
   in **Settings → Games**.
+- **In-game overlay.** `Super+Shift+G` over a game: the time and battery the hidden bar would show, quick
+  actions (save a clip, screenshot, crosshair, do not disturb, game mode, each with a letter key), the
+  game's art and hours, what came in while you played, live CPU and GPU graphs, and the sound: output
+  device, mic, and each app's volume with voice chat first.
+- **GE-Proton.** **Settings → Games** installs the latest GE-Proton in one click (checked before it's
+  unpacked) and removes old versions no game uses.
 - **Crosshair.** Design one in **Settings → Crosshair**, then turn it on per game with the crosshair
   button under Play on its page. `Super+G` shows or hides it.
 - **Captures.** Each game's page shows its screenshots (Steam's F12 and the game's own folder) and

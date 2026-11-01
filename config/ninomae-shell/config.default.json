@@ -147,6 +147,7 @@
     "clipMic": true,
     "clipSeconds": 60,
     "clipsEnabled": true,
+    "overlayEnabled": true,
     "clipsFolder": "~/Videos/Clips",
     "fallbackToIcons": false,
     "hidePartialBoxArt": true,

@@ -239,6 +239,7 @@ Singleton {
                 property string immichUrl: "" // Older setups only: the server URL is in the keyring with its key, out of the dotfiles
                 // Gameplay clips (services/GameClips.qml): a replay buffer while a game runs, saved with `
                 property bool clipsEnabled: true
+                property bool overlayEnabled: true // The in-game overlay (Super+Shift+G, modules/gameOverlay)
                 property int clipSeconds: 60
                 property bool clipMic: true // Your mic mixed in with the game audio
                 property string clipsFolder: "~/Videos/Clips"
