@@ -208,8 +208,8 @@ hl.define_submap("global", function()
 
 
     -- Misc Binds
-    bind("SUPER + SHIFT + S",       global("regionScreenshot"), { description = "Screen: Screenshot" })
-    bind("SUPER + SHIFT + A",       global("regionSearch"),     { description = "Screen: Google Lens" })
+    bind("SUPER + SHIFT + A",       global("regionScreenshot"), { description = "Screen: Screenshot" })
+    bind("SUPER + SHIFT + S",       global("regionSearch"),     { description = "Screen: Google Lens" })
     bind("SUPER + SHIFT + C",       exec("hyprpicker -a"),      { description = "Screen: Color picker" })
     bind("SUPER + Q",               hl.dsp.window.close(),      { description = "Window: Close active window" })
     bind("SUPER + SHIFT + ALT + Q", exec("hyprctl kill"),       { description = "Window: Forcefully kill active window" })

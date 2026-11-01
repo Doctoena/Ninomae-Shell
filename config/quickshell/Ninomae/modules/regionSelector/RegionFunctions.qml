@@ -18,51 +18,34 @@ Singleton {
         const unionArea = areaA + areaB - interArea;
         return unionArea > 0 ? interArea / unionArea : 0;
     }
+    // Of pictures that overlap, only the smallest stays (the most specific one to click)
     function filterOverlappingImageRegions(regions) {
-        let keep = [];
-        let removed = new Set();
+        const area = r => r.size[0] * r.size[1];
+        const removed = new Set();
         for (let i = 0; i < regions.length; ++i) {
-            if (removed.has(i)) continue;
-            let regionA = regions[i];
-            for (let j = i + 1; j < regions.length; ++j) {
-                if (removed.has(j)) continue;
-                let regionB = regions[j];
-                if (intersectionOverUnion(regionA, regionB) > 0) {
-                    // Compare areas
-                    let areaA = regionA.size[0] * regionA.size[1];
-                    let areaB = regionB.size[0] * regionB.size[1];
-                    if (areaA <= areaB) {
-                        removed.add(j);
-                    } else {
-                        removed.add(i);
-                    }
-                }
+            for (let j = i + 1; j < regions.length && !removed.has(i); ++j) {
+                if (removed.has(j) || intersectionOverUnion(regions[i], regions[j]) <= 0) continue;
+                removed.add(area(regions[i]) <= area(regions[j]) ? j : i);
             }
         }
-        for (let i = 0; i < regions.length; ++i) {
-            if (!removed.has(i)) keep.push(regions[i]);
-        }
-        return keep;
+        return regions.filter((_, i) => !removed.has(i));
     }
+    // Windows under a popup or the sidebar aren't offered: the popup is what shows there
     function filterWindowRegionsByLayers(windowRegions, layerRegions) {
-        return windowRegions.filter(windowRegion => {
-            for (let i = 0; i < layerRegions.length; ++i) {
-                if (intersectionOverUnion(windowRegion, layerRegions[i]) > 0)
-                    return false;
-            }
-            return true;
-        });
+        return windowRegions.filter(w => !layerRegions.some(l => intersectionOverUnion(w, l) > 0));
     }
-    function filterImageRegions(regions, windowRegions, threshold = 0.1) {
-        // Remove image regions that overlap too much with any window region
-        let filtered = regions.filter(region => {
-            for (let i = 0; i < windowRegions.length; ++i) {
-                if (intersectionOverUnion(region, windowRegions[i]) > threshold)
-                    return false;
-            }
-            return true;
+    function contains(region, x, y) {
+        return region.at[0] <= x && x <= region.at[0] + region.size[0] && region.at[1] <= y && y <= region.at[1] + region.size[1];
+    }
+    // Pictures found in the frame worth a click: inside a window or popup (on the bare wallpaper it finds
+    // shapes in the art), and not just the window itself again
+    function filterImageRegions(regions, windowRegions, layerRegions = [], threshold = 0.1) {
+        const surfaces = windowRegions.concat(layerRegions);
+        const filtered = regions.filter(region => {
+            const cx = region.at[0] + region.size[0] / 2, cy = region.at[1] + region.size[1] / 2;
+            if (!surfaces.some(s => contains(s, cx, cy))) return false;
+            return !windowRegions.some(w => intersectionOverUnion(region, w) > threshold);
         });
-        // Remove overlapping image regions, keep only the smaller one
         return filterOverlappingImageRegions(filtered);
     }
 }

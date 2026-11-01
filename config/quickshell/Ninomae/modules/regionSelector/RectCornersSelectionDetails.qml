@@ -11,6 +11,7 @@ Item {
     required property real mouseY
     required property color color
     required property color overlayColor
+    property real pixelRatio: 1 // The monitor's scale: the badge says the image's size in pixels
     property bool showAimLines: Config.options.regionSelector.rect.showAimLines
     // Overlay to darken screen
     // Base dark overlay around region
@@ -100,7 +101,7 @@ Item {
             font.pixelSize: Appearance.font.pixelSize.smaller
             font.weight: Font.Medium
             color: Appearance.colors.colOnLayer0
-            text: `${Math.round(root.regionWidth)} × ${Math.round(root.regionHeight)}`
+            text: `${Math.round(root.regionWidth * root.pixelRatio)} × ${Math.round(root.regionHeight * root.pixelRatio)}`
         }
     }
     // Aim lines

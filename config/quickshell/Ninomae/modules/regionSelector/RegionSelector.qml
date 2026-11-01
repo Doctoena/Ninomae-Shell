@@ -1,25 +1,42 @@
 pragma ComponentBehavior: Bound
 import qs
 import qs.modules.common
-import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import Quickshell.Hyprland
+
+/**
+ * The screenshot tool (Super+Shift+A; Super+Shift+S searches): a frozen frame on every screen to pick a
+ * region on (RegionSelection), then snip.sh does the picked action with it. The action and the shape are
+ * kept here, so a change on one screen's toolbar shows on all of them.
+ * IPC: `qs -c Ninomae ipc call region screenshot|edit|search|ocr|close`
+ */
 Scope {
     id: root
-    function dismiss() {
-        GlobalStates.regionSelectorOpen = false
-    }
     property var action: RegionSelection.SnipAction.Copy
     property var selectionMode: RegionSelection.SelectionMode.RectCorners
+
+    function open(action, mode) {
+        root.action = action;
+        root.selectionMode = mode ?? RegionSelection.SelectionMode.RectCorners;
+        GlobalStates.regionSelectorOpen = true;
+    }
+    function dismiss() { GlobalStates.regionSelectorOpen = false; }
+    function screenshot() { open(RegionSelection.SnipAction.Copy); }
+    function edit() { open(RegionSelection.SnipAction.Edit); }
+    function search() {
+        open(RegionSelection.SnipAction.Search, Config.options.search.imageSearch.useCircleSelection
+            ? RegionSelection.SelectionMode.Circle : RegionSelection.SelectionMode.RectCorners);
+    }
+    function ocr() { open(RegionSelection.SnipAction.CharRecognition); }
+
     // Layers and monitors aren't kept live (services/HyprlandData.qml): fetch them for this selection
     Connections {
         target: GlobalStates
         function onRegionSelectorOpenChanged() {
-            if (GlobalStates.regionSelectorOpen) HyprlandData.updateAll()
+            if (GlobalStates.regionSelectorOpen) HyprlandData.updateAll();
         }
     }
     Variants {
@@ -30,42 +47,22 @@ Scope {
             active: GlobalStates.regionSelectorOpen
             sourceComponent: RegionSelection {
                 screen: regionSelectorLoader.modelData
-                onDismiss: root.dismiss()
                 action: root.action
                 selectionMode: root.selectionMode
+                onActionRequested: a => root.action = a
+                onSelectionModeRequested: m => root.selectionMode = m
+                onDismiss: root.dismiss()
             }
         }
     }
-    function screenshot() {
-        root.action = RegionSelection.SnipAction.Copy
-        root.selectionMode = RegionSelection.SelectionMode.RectCorners
-        GlobalStates.regionSelectorOpen = true
-    }
-    function search() {
-        root.action = RegionSelection.SnipAction.Search
-        if (Config.options.search.imageSearch.useCircleSelection) {
-            root.selectionMode = RegionSelection.SelectionMode.Circle
-        } else {
-            root.selectionMode = RegionSelection.SelectionMode.RectCorners
-        }
-        GlobalStates.regionSelectorOpen = true
-    }
-    function ocr() {
-        root.action = RegionSelection.SnipAction.CharRecognition
-        root.selectionMode = RegionSelection.SelectionMode.RectCorners
-        GlobalStates.regionSelectorOpen = true
-    }
+
     IpcHandler {
         target: "region"
-        function screenshot() {
-            root.screenshot()
-        }
-        function search() {
-            root.search()
-        }
-        function ocr() {
-            root.ocr()
-        }
+        function screenshot(): void { root.screenshot(); }
+        function edit(): void { root.edit(); }
+        function search(): void { root.search(); }
+        function ocr(): void { root.ocr(); }
+        function close(): void { root.dismiss(); }
     }
     GlobalShortcut {
         name: "regionScreenshot"

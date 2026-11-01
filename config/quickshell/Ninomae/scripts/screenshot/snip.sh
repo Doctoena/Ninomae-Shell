@@ -24,7 +24,8 @@ search)
     exec xdg-open "$arg$url" ;;
 ocr)
     crop "$frame"
-    langs="$(tesseract --list-langs 2>/dev/null | tail -n +2 | paste -sd+)"
+    # Every installed language (osd is page layout, not a language)
+    langs="$(tesseract --list-langs 2>/dev/null | tail -n +2 | grep -vx osd | paste -sd+)"
     text="$(tesseract "$frame" stdout ${langs:+-l "$langs"} 2>/dev/null)"
     rm -f "$frame"
     if [[ -z ${text//[[:space:]]/} ]]; then

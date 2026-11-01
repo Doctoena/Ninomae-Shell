@@ -173,7 +173,7 @@ Turned it down? Run `themes/steam/install-theme.sh` any time.
 | **Overview** | `Super+E` | Launch apps and search |
 | **Game launcher** | `Super+Shift+O` | Your Steam and Lutris games |
 | **In-game overlay** | `Super+Shift+G` | Only while a game runs: clips, screenshots, the crosshair, performance and sound |
-| **Screenshot** | `Super+Shift+S` | A region, window or the whole screen, plus image search and text recognition |
+| **Screenshot** | `Super+Shift+A` | A region, window or the whole screen: save and copy, draw on it, search the web for it or copy its text |
 | **Settings** | `Super+I` | Every option, applied live. Also your own shortcuts and window rules |
 | **Lock** | `Super+L` | Also locks by itself after 5 minutes |
 | **Power menu** | `Ctrl+Alt+Delete` | Lock, sleep, reboot, shut down. Reboot and shut down count down for 5 seconds first, and apps are asked to close so they can save |

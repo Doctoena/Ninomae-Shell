@@ -3,11 +3,19 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.services
 import QtQuick
-import Qt.labs.synchronizer
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
+
+/**
+ * One screen's region selector: its frozen frame, dimmed, with the windows, popups and pictures in them to
+ * click (TargetRegion), or a rectangle to drag, or a shape to circle. Releasing does the action
+ * (snip.sh): Screenshot saves and copies, Edit opens it in swappy (releasing with the right button too),
+ * Search looks it up on the web, Text copies the text in it.
+ * The action and shape belong to RegionSelector (shared by every screen): changes go up through
+ * actionRequested and selectionModeRequested.
+ */
 PanelWindow {
     id: root
     visible: false
@@ -26,6 +34,8 @@ PanelWindow {
     enum SelectionMode { RectCorners, Circle }
     property var action: RegionSelection.SnipAction.Copy
     property var selectionMode: RegionSelection.SelectionMode.RectCorners
+    signal actionRequested(var action)
+    signal selectionModeRequested(var mode)
     signal dismiss()
     property string screenshotDir: Directories.screenshotTemp
     property string imageSearchEngineBaseUrl: Config.options.search.imageSearch.imageSearchEngineBaseUrl
@@ -35,11 +45,8 @@ PanelWindow {
     property color windowFillColor: ColorUtils.transparentize(Appearance.colors.colSubtext, 0.92)
     property color imageBorderColor: Appearance.colors.colTertiary
     property color imageFillColor: ColorUtils.transparentize(Appearance.colors.colTertiary, 0.92)
-    readonly property var windows: [...HyprlandData.windowList].sort((a, b) => {
-        // Sort floating=true windows before others
-        if (a.floating === b.floating) return 0;
-        return a.floating ? -1 : 1;
-    })
+    // Floating windows first: they're on top, so a click picks them over a tiled one under them
+    readonly property var windows: [...HyprlandData.windowList].sort((a, b) => (b.floating ? 1 : 0) - (a.floating ? 1 : 0))
     readonly property var layers: HyprlandData.layers
     readonly property real falsePositivePreventionRatio: 0.5
     readonly property HyprlandMonitor hyprlandMonitor: Hyprland.monitorFor(screen)
@@ -47,7 +54,7 @@ PanelWindow {
     readonly property real monitorOffsetX: hyprlandMonitor.x
     readonly property real monitorOffsetY: hyprlandMonitor.y
     property int activeWorkspaceId: hyprlandMonitor.activeWorkspace?.id ?? 0
-    property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
+    readonly property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
     property real dragStartX: 0
     property real dragStartY: 0
     property real draggingX: 0
@@ -88,9 +95,6 @@ PanelWindow {
     property real regionY: 0
     property real regionWidth: 0
     property real regionHeight: 0
-    function contains(region, x, y) {
-        return region.at[0] <= x && x <= region.at[0] + region.size[0] && region.at[1] <= y && y <= region.at[1] + region.size[1];
-    }
     function isTargeted(region) {
         const t = root.targetedRegion;
         return !root.draggedAway && !!t && t.at[0] === region.at[0] && t.at[1] === region.at[1]
@@ -103,7 +107,7 @@ PanelWindow {
             ...(root.enableLayerRegions ? root.layerRegions : []),
             ...(root.enableWindowRegions ? root.windowRegions : []),
         ];
-        root.targetedRegion = candidates.find(region => root.contains(region, x, y)) ?? null;
+        root.targetedRegion = candidates.find(region => RegionFunctions.contains(region, x, y)) ?? null;
     }
     function setRegion(x, y, width, height) {
         root.regionX = x;
@@ -121,26 +125,32 @@ PanelWindow {
         root.setRegion(0, 0, root.screen.width, root.screen.height);
         root.snip(); // With whatever action is picked: a whole-screen search or OCR works too
     }
+    // The frame for snip.sh to crop, uncompressed: it's a scratch file in the runtime dir, and grim writes it
+    // ~8x faster that way, which is how long the selector takes to show
     Process {
         id: screenshotProc
         running: true
-        command: ["bash", "-c", `mkdir -p '${StringUtils.shellSingleQuoteEscape(root.screenshotDir)}' && grim -o '${StringUtils.shellSingleQuoteEscape(root.screen.name)}' '${StringUtils.shellSingleQuoteEscape(root.screenshotPath)}'`]
+        command: ["sh", "-c", 'mkdir -p -- "$1" && grim -l 0 -o "$2" -- "$3"', "grab", root.screenshotDir, root.screen.name, root.screenshotPath]
         onExited: (exitCode, exitStatus) => {
             if (root.enableContentRegions) imageDetectionProcess.running = true;
             root.visible = true;
         }
     }
+    // Pictures and panels in the frame (scripts/images/find_regions.py). It works in the frame's pixels: the
+    // screen's, times its scale
     Process {
         id: imageDetectionProcess
         command: [`${Directories.scriptPath}/images/find-regions-venv.sh`, "--hyprctl",
             "--image", root.screenshotPath,
-            "--max-width", `${Math.round(root.screen.width * root.falsePositivePreventionRatio)}`,
-            "--max-height", `${Math.round(root.screen.height * root.falsePositivePreventionRatio)}`]
+            "--max-width", `${Math.round(root.screen.width * root.monitorScale * root.falsePositivePreventionRatio)}`,
+            "--max-height", `${Math.round(root.screen.height * root.monitorScale * root.falsePositivePreventionRatio)}`]
         stdout: StdioCollector {
-            id: imageDimensionCollector
             onStreamFinished: {
                 try {
-                    root.imageRegions = RegionFunctions.filterImageRegions(JSON.parse(imageDimensionCollector.text), root.windowRegions);
+                    const s = root.monitorScale;
+                    const found = JSON.parse(text).map(r => ({ at: [r.at[0] / s, r.at[1] / s], size: [r.size[0] / s, r.size[1] / s] }));
+                    // Only pictures inside a window or popup: on the bare wallpaper it finds shapes in the art
+                    root.imageRegions = RegionFunctions.filterImageRegions(found, root.windowRegions, root.layerRegions);
                 } catch (e) {
                     console.warn("[Region Selector] Content detection gave no usable output");
                 }
@@ -170,8 +180,8 @@ PanelWindow {
         let args;
         switch (root.action) {
             case RegionSelection.SnipAction.Copy:
-            case RegionSelection.SnipAction.Edit:
-                args = [root.mouseButton === Qt.RightButton ? "edit" : "copy",
+            case RegionSelection.SnipAction.Edit: // Or a screenshot released with the right button
+                args = [root.action === RegionSelection.SnipAction.Edit || root.mouseButton === Qt.RightButton ? "edit" : "copy",
                     Config.options.regionSelector.save ? Config.options.regionSelector.saveDir : ""];
                 break;
             case RegionSelection.SnipAction.Search:
@@ -194,12 +204,13 @@ PanelWindow {
             switch (event.key) {
                 case Qt.Key_Escape: root.dismiss(); break;
                 case Qt.Key_Return: case Qt.Key_Enter: root.captureScreen(); break;
-                case Qt.Key_S: root.action = RegionSelection.SnipAction.Copy; break;
-                case Qt.Key_F: root.action = RegionSelection.SnipAction.Search; break;
-                case Qt.Key_T: root.action = RegionSelection.SnipAction.CharRecognition; break;
+                case Qt.Key_S: root.actionRequested(RegionSelection.SnipAction.Copy); break;
+                case Qt.Key_E: root.actionRequested(RegionSelection.SnipAction.Edit); break;
+                case Qt.Key_F: root.actionRequested(RegionSelection.SnipAction.Search); break;
+                case Qt.Key_T: root.actionRequested(RegionSelection.SnipAction.CharRecognition); break;
                 case Qt.Key_Tab:
-                    root.selectionMode = root.isCircleSelection ? RegionSelection.SelectionMode.RectCorners
-                        : RegionSelection.SelectionMode.Circle;
+                    root.selectionModeRequested(root.isCircleSelection ? RegionSelection.SelectionMode.RectCorners
+                        : RegionSelection.SelectionMode.Circle);
                     break;
                 default: return;
             }
@@ -265,6 +276,7 @@ PanelWindow {
                     mouseY: mouseArea.mouseY
                     color: root.selectionBorderColor
                     overlayColor: root.overlayColor
+                    pixelRatio: root.monitorScale
                 }
             }
             Loader {
@@ -329,39 +341,19 @@ PanelWindow {
                 }
             }
             // Controls
-            Row {
-                id: regionSelectionControls
+            OptionsToolbar { // Slides up once the frame is up
                 z: 9999
-                anchors {
-                    horizontalCenter: parent.horizontalCenter
-                    bottom: parent.bottom
-                    bottomMargin: -height
-                }
-                opacity: 0
-                Connections {
-                    target: root
-                    function onVisibleChanged() {
-                        if (!visible) return;
-                        regionSelectionControls.anchors.bottomMargin = 16;
-                        regionSelectionControls.opacity = 1;
-                    }
-                }
-                Behavior on opacity {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
-                Behavior on anchors.bottomMargin {
-                    animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-                }
-                OptionsToolbar {
-                    Synchronizer on action {
-                        property alias source: root.action
-                    }
-                    Synchronizer on selectionMode {
-                        property alias source: root.selectionMode
-                    }
-                    onDismiss: root.dismiss();
-                    onCaptureScreen: root.captureScreen();
-                }
+                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom }
+                anchors.bottomMargin: root.visible ? 16 : -height
+                opacity: root.visible ? 1 : 0
+                Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+                Behavior on anchors.bottomMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                action: root.action
+                selectionMode: root.selectionMode
+                onActionPicked: a => root.actionRequested(a)
+                onSelectionModePicked: m => root.selectionModeRequested(m)
+                onDismiss: root.dismiss()
+                onCaptureScreen: root.captureScreen()
             }
         }
     }
