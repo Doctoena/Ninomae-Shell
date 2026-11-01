@@ -20,5 +20,5 @@ cliphist -db-path "$db" list | cut -f1 | tac | while read -r id; do
 done
 before=$(stat -c %s "$db"); after=$(stat -c %s "$new")
 mv -f "$new" "$db"
-rm -rf /tmp/quickshell/media/cliphist/* 2>/dev/null || true
+rm -rf "${XDG_RUNTIME_DIR:-/tmp}"/quickshell/media/cliphist/* 2>/dev/null || true
 echo "cliphist: $((before / 1024 / 1024)) MB -> $((after / 1024 / 1024)) MB"

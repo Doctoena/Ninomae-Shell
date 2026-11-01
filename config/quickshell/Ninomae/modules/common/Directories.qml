@@ -23,8 +23,11 @@ Singleton {
     property string displaysPath: `${Directories.shellConfig}/displays.json`
     property string notificationsPath: FileUtils.trimFileProtocol(`${Directories.cache}/notifications/notifications.json`)
     property string generatedMaterialThemePath: FileUtils.trimFileProtocol(`${Directories.state}/user/generated/colors.json`)
-    property string cliphistDecode: FileUtils.trimFileProtocol(`/tmp/quickshell/media/cliphist`)
-    property string screenshotTemp: "/tmp/quickshell/media/screenshot"
+    // Clipboard images and the frozen screen while a region is picked: in the user's own runtime folder
+    // (only they can read it, and it's emptied at logout), not /tmp, where every account can
+    readonly property string runtime: Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+    property string cliphistDecode: `${runtime}/quickshell/media/cliphist`
+    property string screenshotTemp: `${runtime}/quickshell/media/screenshot`
     property string wallpaperSwitchScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/colors/switchwall.sh`)
     // Cleanup on init
     Component.onCompleted: {

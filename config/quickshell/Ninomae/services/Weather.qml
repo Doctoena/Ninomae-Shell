@@ -246,13 +246,20 @@ Singleton {
         updateInterval: root.fetchInterval
         onPositionChanged: {
             if (position.latitudeValid && position.longitudeValid) {
-                root.lat = position.coordinate.latitude;
-                root.lon = position.coordinate.longitude;
-                root.locationValid = true;
-                reverseGeoProc.command = ["curl", "-sf", "--max-time", "15", "-A", "Ninomae-Shell/1.0",
-                    `https://nominatim.openstreetmap.org/reverse?lat=${root.lat}&lon=${root.lon}&format=json`];
-                reverseGeoProc.running = true;
-                root.getData();
+                // To about 1 km: plenty for the weather and the town's name, without sending (or keeping) the
+                // exact spot to Open-Meteo and OpenStreetMap
+                const lat = Math.round(position.coordinate.latitude * 100) / 100;
+                const lon = Math.round(position.coordinate.longitude * 100) / 100;
+                // Moved: the town's name again (not for every update in the same spot, GPS mode's only refresh)
+                if (!root.locationValid || lat !== root.lat || lon !== root.lon) {
+                    root.lat = lat;
+                    root.lon = lon;
+                    root.locationValid = true;
+                    reverseGeoProc.command = ["curl", "-sf", "--max-time", "15", "-A", "Ninomae-Shell/1.0",
+                        `https://nominatim.openstreetmap.org/reverse?lat=${root.lat}&lon=${root.lon}&format=json`];
+                    reverseGeoProc.running = true;
+                }
+                root.getData(); // Throttled by its own fetchInterval
             } else {
                 // Keep using the last valid location; give up on GPS if there never was one
                 root.gpsActive = root.locationValid;
