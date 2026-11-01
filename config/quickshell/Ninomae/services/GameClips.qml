@@ -161,8 +161,15 @@ Singleton {
         const safe = (name ?? "").replace(/[\x00-\x1f]/g, "").replace(/\//g, "-").replace(/^[. ]*/, "").replace(/[. ]*$/, "");
         return `${root.clipsDir}/${safe || "Game"}`;
     }
+    // A second press within a few seconds is ignored: it would save the same moments again as another
+    // clip (twice in a second on 10-27, ~96 MB of the same footage)
+    readonly property int saveCooldown: 5000 // ms
+    property real _lastSave: 0
     function save() {
         if (!recorder.running) return;
+        const now = Date.now();
+        if (now - _lastSave < saveCooldown) return;
+        _lastSave = now;
         recorder.signal(10); // SIGUSR1: save the replay (on_save.sh moves it and notifies)
     }
 
