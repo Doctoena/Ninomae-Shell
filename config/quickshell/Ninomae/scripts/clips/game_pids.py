@@ -10,7 +10,8 @@ import os
 import sys
 
 
-def main(appid):
+def game_pids(appid):
+    """Sorted pids of everything under the game's SteamLaunch process ([] when it isn't running)"""
     tag = f"AppId={appid}".encode()
     children, roots = {}, []
     for name in os.listdir("/proc"):
@@ -33,8 +34,8 @@ def main(appid):
         if pid not in pids:
             pids.add(pid)
             todo.extend(children.get(pid, []))
-    print(json.dumps(sorted(pids)))
+    return sorted(pids)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].isdigit() else "")
+    print(json.dumps(game_pids(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else []))

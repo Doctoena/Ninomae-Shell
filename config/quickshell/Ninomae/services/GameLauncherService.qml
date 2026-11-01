@@ -1150,11 +1150,18 @@ Singleton {
         detectGamesProc.running = true;
     }
     signal gameLaunching(var game) // For the launch splash (modules/gameLauncher/LaunchSplash.qml)
-    function launchGame(game) {
+    // option: which of a Steam game's launch options (its index, scripts/game-launcher/steam_launch_options.py),
+    // picked on its page, so Steam starts that one without asking; -1 for its usual command
+    property var lastLaunchOption: ({}) // id → the option last launched, for the splash's Retry
+    function launchGame(game, option = -1) {
         if (game.launchCommand) {
             root.markBuildSeen(game); // Playing it is seeing the update
             startSession(game);
-            Quickshell.execDetached(game.launchCommand);
+            root.lastLaunchOption = Object.assign({}, root.lastLaunchOption, { [game.id]: option });
+            // Any word between the id and the index works ("x"); without one Steam ignores the index
+            Quickshell.execDetached(option >= 0 && game.id.startsWith("steam_")
+                ? ["steam", "-silent", `steam://launch/${game.id.substring(6)}/x/${option}`]
+                : game.launchCommand);
             root.gameLaunching(game);
             // Toast confirming the launch, unless the splash already shows it
             if (Config.options?.gameLauncher?.launchAnimation ?? true) return;

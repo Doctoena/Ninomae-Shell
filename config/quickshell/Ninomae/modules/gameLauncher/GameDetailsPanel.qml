@@ -1,3 +1,4 @@
+import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -11,7 +12,7 @@ Item {
     id: root
     required property var game
     signal backPressed()
-    signal playPressed(var game)
+    signal playPressed(var game, int option) // option: one of its Steam launch options (launchChoices), or -1
     focus: true
     property bool animationReady: false
     // Live install state (GameLauncherService.installState), and download progress 0–1 (-1 = unknown)
@@ -363,7 +364,9 @@ Item {
             out.push({ icon: root._runsNatively ? "terminal" : "wine_bar", label: Translation.tr("Runs on"), value: root._runnerLabel, accent: Appearance.colors.colPrimary });
         const st = root.installState;
         const pct = root.downloadProgress >= 0 ? ` ${Math.floor(root.downloadProgress * 100)}%` : "";
-        if (st === "installing")
+        if (GameClips.gameId === game.id) // Running now
+            out.push({ icon: "sports_esports", label: Translation.tr("Status"), value: Translation.tr("Playing"), accent: Appearance.colors.colPrimary });
+        else if (st === "installing")
             out.push({ icon: "download", label: Translation.tr("Status"), value: Translation.tr("Installing") + pct, accent: Appearance.colors.colTertiary });
         else if (st === "updating")
             out.push({ icon: "downloading", label: Translation.tr("Status"), value: Translation.tr("Updating") + pct, accent: Appearance.colors.colTertiary });
@@ -714,9 +717,9 @@ Item {
     // The ⋯, tags and install-where menus and the info pane: one at a time
     function _sideMenuOpened(menu) {
         root.metadataPaneOpen = false;
-        for (const m of [moreMenu, tagMenuPopup, libraryMenu]) if (m !== menu) m.open = false;
+        for (const m of [moreMenu, tagMenuPopup, libraryMenu, launchMenu]) if (m !== menu) m.open = false;
     }
-    onMetadataPaneOpenChanged: if (metadataPaneOpen) { moreMenu.open = false; tagMenuPopup.open = false; libraryMenu.open = false; }
+    onMetadataPaneOpenChanged: if (metadataPaneOpen) { moreMenu.open = false; tagMenuPopup.open = false; libraryMenu.open = false; launchMenu.open = false; }
     SideDrawer {
         id: moreMenu
         paneW: 260 // Same as the tags menu; room for Uninstall's confirm note
@@ -825,6 +828,53 @@ Item {
         z: 29
         visible: tagMenuPopup.open
         onClicked: tagMenuPopup.open = false
+    }
+    // ── A Steam game's launch options, when it has more than one: Play asks which, here, so Steam doesn't
+    // (scripts/game-launcher/steam_launch_options.py, read when the page opens) ──
+    property var launchChoices: []
+    Process {
+        id: launchChoicesProc
+        stdout: StdioCollector {
+            onStreamFinished: { try { root.launchChoices = JSON.parse(text); } catch (e) { root.launchChoices = []; } }
+        }
+    }
+    readonly property string _steamAppId: (game?.id ?? "").startsWith("steam_") ? game.id.substring(6) : ""
+    function _loadLaunchChoices() {
+        if (_steamAppId === "") return;
+        launchChoicesProc.running = false;
+        launchChoicesProc.command = ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_launch_options.py"), _steamAppId];
+        launchChoicesProc.running = true;
+    }
+    on_SteamAppIdChanged: {
+        root.launchChoices = [];
+        launchMenu.open = false;
+        _loadLaunchChoices();
+    }
+    // Installed while its page was open: Steam has its launch options now
+    onInstallStateChanged: if (installState === "installed") _loadLaunchChoices()
+    SideDrawer { // Which way to start it: one row per launch option, as Steam's dialog but here
+        id: launchMenu
+        paneW: 280
+        paneH: launchCol.implicitHeight + 16
+        anchorCenterY: sidebarContent.y + playButton.y + playButton.height / 2
+        opener: playButton; exclusive: true
+        Column {
+            id: launchCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+            spacing: 2
+            Repeater {
+                model: root.launchChoices
+                MoreItem {
+                    required property var modelData
+                    // The first, unnamed one is the game itself; the others say what they are
+                    iconName: modelData.index === 0 ? "play_arrow" : "tune"
+                    filled: modelData.index === 0
+                    label: modelData.label || (modelData.index === 0 ? Translation.tr("Play") : Translation.tr("Option %1").arg(modelData.index + 1))
+                    detail: modelData.detail
+                    onTriggered: { launchMenu.open = false; root.playPressed(root.game, modelData.index); }
+                }
+            }
+        }
     }
     SideDrawer { // Install where? One row per Steam library, with its free space
         id: libraryMenu
@@ -1058,19 +1108,28 @@ Item {
             horizontalPadding: 0
             enabled: root.installState !== "uninstalling"
             opacity: enabled ? 1 : 0.6
+            // Running now (GameClips' watcher): the button says so and goes back to it, instead of starting it again
+            readonly property bool playing: !!game && GameClips.gameId === game.id
             function activate() {
+                if (playing) {
+                    if (root._steamAppId !== "")
+                        Quickshell.execDetached(["python3", "-I", Quickshell.shellPath("scripts/game-launcher/focus_game.py"), root._steamAppId]);
+                    GlobalStates.gameLauncherOpen = false;
+                }
                 // While a download runs, the button opens Steam's downloads instead of starting it again
-                if (root._downloading || root.installState === "updatePaused") GameLauncherService.openDownloads();
+                else if (root._downloading || root.installState === "updatePaused") GameLauncherService.openDownloads();
                 // More than one Steam library: ask which here, instead of Steam's install dialog
                 else if (root.installState === "notInstalled" && (game?.id ?? "").startsWith("steam_")
                          && GameLauncherService.steamLibraries.length > 1) libraryMenu.open = !libraryMenu.open;
-                else root.playPressed(game);
+                // More than one way to start it (Project Zomboid: Play or Compatibility Mode): ask here, not in Steam
+                else if (root.installState === "installed" && root.launchChoices.length > 1) launchMenu.open = !launchMenu.open;
+                else root.playPressed(game, -1);
             }
             onClicked: activate()
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { activate(); event.accepted = true; }
             }
-            readonly property var _look: ({
+            readonly property var _look: playing ? { icon: "", text: Translation.tr("Playing") } : ({
                 "notInstalled":   { icon: "download",    text: Translation.tr("Install") },
                 "installing":     { icon: "downloading", text: Translation.tr("Installing") },
                 "updating":       { icon: "downloading", text: Translation.tr("Updating") },
@@ -1093,8 +1152,15 @@ Item {
                     anchors.centerIn: parent
                     anchors.horizontalCenterOffset: -4
                     spacing: 8
+                    PlayingDot { // Playing: where the icon goes (as the grid's badge)
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: playButton.playing && root.visible
+                        size: 9
+                        color: Appearance.colors.colOnPrimary
+                    }
                     MaterialSymbol {
                         anchors.verticalCenter: parent.verticalCenter
+                        visible: !playButton.playing
                         text: playButton._look.icon
                         iconSize: 20
                         color: Appearance.colors.colOnPrimary
@@ -1103,6 +1169,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: {
                             const pct = root.downloadProgress >= 0 ? ` ${Math.floor(root.downloadProgress * 100)}%` : "";
+                            if (playButton.playing) return playButton._look.text;
                             if (root._downloading || root._paused) return playButton._look.text + (pct ? " " + pct : "");
                             if (root._modsOnly) return playButton._look.text + "  ·  " + Translation.tr("mods") + pct;
                             return playButton._look.text;

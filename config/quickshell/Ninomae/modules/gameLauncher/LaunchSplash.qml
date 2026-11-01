@@ -382,7 +382,7 @@ Scope {
                             DialogButton {
                                 buttonText: Translation.tr("Retry")
                                 primary: true
-                                onClicked: GameLauncherService.launchGame(root.game)
+                                onClicked: GameLauncherService.launchGame(root.game, GameLauncherService.lastLaunchOption[root.game?.id] ?? -1)
                             }
                             DialogButton {
                                 buttonText: Translation.tr("Dismiss")

@@ -179,7 +179,7 @@ Item {
                 }
             }
         }
-        Rectangle { // Install state badge: an update waiting, a download running, or mods downloading
+        Rectangle { // State badge: playing now, an update waiting, a download running, or mods downloading
             id: stateBadge
             anchors { top: parent.top; left: parent.left; topMargin: 6; leftMargin: 6 }
             z: 10
@@ -187,7 +187,11 @@ Item {
             height: 24
             radius: Appearance.rounding.verysmall
             readonly property string _state: { const _ = GameLauncherService.games; return GameLauncherService.installState(game); }
+            // Running now (GameClips' watcher: however it was started, once its window is up): over the rest
+            readonly property bool _playing: !!game && GameClips.gameId === game.id
             readonly property var _look: {
+                if (_playing)
+                    return { icon: "", text: Translation.tr("Playing"), tip: Translation.tr("Running now · Super+Shift+G for the overlay"), color: Appearance.colors.colPrimary };
                 switch (_state) {
                 case "updateRequired": return { icon: "downloading", text: Translation.tr("Update"), tip: Translation.tr("Update available"), color: Appearance.colors.colPrimary };
                 case "updatePaused":   return { icon: "downloading", text: Translation.tr("Update"), tip: Translation.tr("Update paused"), color: Appearance.colors.colPrimary };
@@ -209,8 +213,13 @@ Item {
                 id: _stateRow
                 anchors.centerIn: parent
                 spacing: 4
+                PlayingDot { // Playing: where the icon goes
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: stateBadge._playing && stateBadge.visible
+                }
                 MaterialSymbol {
                     anchors.verticalCenter: parent.verticalCenter
+                    visible: !stateBadge._playing
                     text: stateBadge._look?.icon ?? ""
                     iconSize: 13; fill: 1
                     color: stateBadge._look?.color ?? Appearance.colors.colSecondary

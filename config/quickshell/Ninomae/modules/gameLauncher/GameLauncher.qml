@@ -1134,13 +1134,13 @@ Scope {
                                     root.showingDetails = false;
                                     root.selectedGame = null;
                                 }
-                                onPlayPressed: (game) => {
+                                onPlayPressed: (game, option) => {
                                     if (!GameLauncherService.isGameInstalled(game.id)) {
                                         // Install: stay on the page, it shows the download once Steam starts it
                                         GameLauncherService.installGame(game);
                                         return;
                                     }
-                                    GameLauncherService.launchGame(game);
+                                    GameLauncherService.launchGame(game, option);
                                     GlobalStates.gameLauncherOpen = false;
                                     root.showingDetails = false;
                                     root.selectedGame = null;
