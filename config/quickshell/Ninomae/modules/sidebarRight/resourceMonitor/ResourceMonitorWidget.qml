@@ -6,9 +6,13 @@ import qs.services
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
+import Quickshell
+import Quickshell.Io
+import Quickshell.Widgets
 // Three tiles styled like the quick toggles, usage as a ring around each icon. Clicking one selects it
 // and opens a panel underneath with just that component: name and temperature, a usage graph of the
-// last couple of minutes, and a few stats. Clicking it again (or the panel) closes it
+// last couple of minutes, a few stats, and (CPU and RAM) the apps using the most of it, each with End.
+// Clicking it again (or the panel) closes it
 Item {
     id: root
     property string selected: "" // "", "ram", "cpu" or "gpu"
@@ -68,6 +72,43 @@ Item {
             root.cpuHistory = root.pushSample(root.cpuHistory, ResourceUsage.cpuUsage);
             if (ResourceUsage.gpuDetected) root.gpuHistory = root.pushSample(root.gpuHistory, ResourceUsage.gpuUsage);
         }
+    }
+
+    // ── The apps using the most CPU or RAM: scripts/top_apps.py, while the sidebar is open (a scan takes
+    // ~5 ms), so the list is already there when a tile is clicked ──
+    readonly property int topAppRows: 4
+    property var topApps: ({ cpu: [], mem: [] })
+    readonly property var shownApps: shownKey === "ram" ? topApps.mem : shownKey === "cpu" ? topApps.cpu : []
+    Process {
+        running: root._watching
+        command: ["python3", "-I", Quickshell.shellPath("scripts/top_apps.py"), String(root.sampleInterval / 1000), String(root.topAppRows)]
+        stdout: SplitParser {
+            onRead: line => {
+                try { root.topApps = JSON.parse(line); } catch (e) { return; }
+                // Forget End presses for apps that have gone
+                const listed = new Set([...root.topApps.cpu, ...root.topApps.mem].map(a => a.pid));
+                const gone = Object.keys(root._ending).filter(pid => !listed.has(Number(pid)));
+                if (gone.length === 0) return;
+                const ending = Object.assign({}, root._ending);
+                for (const pid of gone) delete ending[pid];
+                root._ending = ending;
+            }
+        }
+        onRunningChanged: if (!running) root.topApps = { cpu: [], mem: [] }
+    }
+    // End asks the app to quit (SIGTERM, as closing it would). Still running 3 s later, the button offers
+    // Force quit (SIGKILL)
+    property var _ending: ({}) // pid → when End was pressed
+    function canForce(pid) {
+        return root._ending[pid] !== undefined && Date.now() - root._ending[pid] >= 3000;
+    }
+    function endApp(pid) {
+        const force = root.canForce(pid);
+        Quickshell.execDetached(["kill", force ? "-KILL" : "-TERM", String(pid)]);
+        if (!force) root._ending = Object.assign({}, root._ending, { [pid]: Date.now() });
+    }
+    function formatBytes(bytes) {
+        return bytes >= 1e9 ? (bytes / 1073741824).toFixed(1) + " GB" : Math.round(bytes / 1048576) + " MB";
     }
 
     // Warning thresholds, shared by the tiles and the panel
@@ -309,6 +350,62 @@ Item {
                             elide: Text.ElideRight
                             font.pixelSize: Appearance.font.pixelSize.smallest
                             color: Appearance.colors.colSubtext
+                        }
+                    }
+                }
+            }
+
+            // The apps using the most of it (CPU and RAM), heaviest first
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: root.shownApps.length > 0
+                spacing: 4
+                StyledText {
+                    text: Translation.tr("Using the most")
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    color: Appearance.colors.colSubtext
+                }
+                // A fixed count of rows, not the list itself: a new list every few seconds would rebuild them
+                // (a hovered button flickering, a click landing mid-rebuild lost); this way only their text changes
+                Repeater {
+                    model: root.topAppRows
+                    RowLayout {
+                        id: appRow
+                        required property int index
+                        readonly property var modelData: root.shownApps[index] ?? { name: "", appId: "", pid: 0, cpu: 0, mem: 0 }
+                        readonly property string key: modelData.appId || modelData.name
+                        // Re-read with each update (every few seconds), so Force quit turns up on its own
+                        readonly property bool forceable: { root.topApps; return root.canForce(modelData.pid); }
+                        visible: index < root.shownApps.length
+                        Layout.fillWidth: true
+                        spacing: 8
+                        IconImage {
+                            implicitSize: 18
+                            source: Quickshell.iconPath(AppSearch.guessIcon(appRow.key), "application-x-executable")
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: DesktopEntries.heuristicLookup(appRow.key)?.name ?? appRow.modelData.name
+                            elide: Text.ElideRight
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colOnLayer2
+                        }
+                        StyledText {
+                            text: root.shownKey === "ram" ? root.formatBytes(appRow.modelData.mem)
+                                : appRow.modelData.cpu < 0.01 ? "<1%" : root.percent(appRow.modelData.cpu)
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.family: Appearance.font.family.numbers
+                            color: Appearance.colors.colSubtext
+                        }
+                        DialogButton {
+                            implicitHeight: 26
+                            padding: 10
+                            buttonText: appRow.forceable ? Translation.tr("Force quit") : Translation.tr("End")
+                            colBackground: appRow.forceable ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer3
+                            colBackgroundHover: Appearance.colors.colLayer3Hover
+                            colRipple: Appearance.colors.colLayer3Active
+                            colText: appRow.forceable ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnLayer2
+                            onClicked: root.endApp(appRow.modelData.pid)
                         }
                     }
                 }
