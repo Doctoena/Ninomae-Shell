@@ -7,3 +7,13 @@
 .OINnOU8K5HzPe2nzczpZi ._1cMXIpc5BRVY11dIrWKMNW .DialogButton {
     border-radius: var(--corner-radius-full) !important;
 }
+
+/* Steam's own notification pop-ups: invisible, as the shell shows them (the notifications plugin).
+   The plugin closes Steam's copy itself, except in games: it doesn't expect the "_uid<pid>" ending of
+   an in-game toast's window name. Transparent, not hidden, as the plugin reads the toast's text, and
+   click-through, so an unseen toast can't be clicked. Steam's readable class name, then its hashed one */
+body.DesktopToastContainer,
+body.zXrpABNQHpWKgSzqnGlL {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
