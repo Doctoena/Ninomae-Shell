@@ -79,3 +79,5 @@ fi
 
 # Icons: the folders (Ninomae-Icons-accent) and GNOME's accent-color follow the new accent
 python3 -I "$SCRIPT_DIR/recolor_icons.py" &
+# The cursor too (Ninomae-Cursor-accent)
+python3 -I "$SCRIPT_DIR/recolor_cursor.py" &

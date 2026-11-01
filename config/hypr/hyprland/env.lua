@@ -60,10 +60,13 @@ hl.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false;quickshell.desktopent
 -- User QML modules (Ninomae.Blobs for the launcher, see config/quickshell/plugins)
 hl.env("QML_IMPORT_PATH", os.getenv("HOME") .. "/.local/lib/qt6/qml")
 
--- Cursor
-hl.env("XCURSOR_THEME", "BreezeX-RosePine-Linux")
+-- Cursor: Rosé Pine in the wallpaper's accent (recolor_cursor.py makes Ninomae-Cursor-accent, both formats
+-- in one folder); the plain Rosé Pine one until it has been made
+local accentCursor = io.open(os.getenv("HOME") .. "/.local/share/icons/Ninomae-Cursor-accent/manifest.hl")
+if accentCursor then accentCursor:close() end
+hl.env("XCURSOR_THEME", accentCursor and "Ninomae-Cursor-accent" or "BreezeX-RosePine-Linux")
 hl.env("XCURSOR_SIZE", "24")
-hl.env("HYPRCURSOR_THEME", "rose-pine-hyprcursor")
+hl.env("HYPRCURSOR_THEME", accentCursor and "Ninomae-Cursor-accent" or "rose-pine-hyprcursor")
 hl.env("HYPRCURSOR_SIZE", "24")
 
 -- Quickshell virtual environment

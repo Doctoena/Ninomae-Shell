@@ -26,11 +26,14 @@ hl.on("hyprland.start", function()
 
     -- GTK theme (needs the adw-gtk3-theme package). Set here so a fresh install is themed
     -- without nwg-look. Colours come from matugen's gtk.css; light/dark is set by switchwall.sh.
+    local accentCursor = io.open(os.getenv("HOME") .. "/.local/share/icons/Ninomae-Cursor-accent/manifest.hl")
+    if accentCursor then accentCursor:close() end
     local gtk = {
         ["gtk-theme"]    = "adw-gtk3-dark",
         -- Ninomae-Icons-purple with its accent recoloured to the wallpaper's (recolor_icons.py)
         ["icon-theme"]   = "Ninomae-Icons-accent",
-        ["cursor-theme"] = "BreezeX-RosePine-Linux",
+        -- Rosé Pine in the accent once recolor_cursor.py has made it (see env.lua)
+        ["cursor-theme"] = accentCursor and "Ninomae-Cursor-accent" or "BreezeX-RosePine-Linux",
         ["cursor-size"]  = "24",
     }
     for key, value in pairs(gtk) do
@@ -39,6 +42,8 @@ hl.on("hyprland.start", function()
     -- accent-color (Flatpak/libadwaita apps): the preset closest to the wallpaper's accent; also makes the
     -- accent icon theme on a fresh install. gtk.css sets the exact colour for GTK apps
     hl.exec_cmd("python3 -I ~/.config/quickshell/" .. qs .. "/scripts/colors/recolor_icons.py")
+    -- The cursor in the accent (a fresh install gets it here, and switches to it at once)
+    hl.exec_cmd("python3 -I ~/.config/quickshell/" .. qs .. "/scripts/colors/recolor_cursor.py")
 
     -- Shell
     hl.exec_cmd("qs -c " .. qs)

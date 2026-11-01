@@ -25,9 +25,10 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 
 |  |  |
 |---|---|
-| 🎨 **Wallpaper theming** | One wallpaper recolours the shell, borders, terminal, Steam, Discord, VS Code and the login screen. Video wallpapers work too. |
+| 🎨 **Wallpaper theming** | One wallpaper recolours the shell, borders, cursor, folder icons, terminal, Steam, Discord, VS Code and the login screen. Video wallpapers work too. |
 | 🎮 **Game launcher** | Steam and Lutris games with cover art, launch progress, captures and per-game launch options. |
 | 🎬 **Gameplay clips** | Press `` ` `` in a game to save the last minute, with game audio, voice chat and your mic. |
+| 🎯 **Crosshair** | Your own crosshair over the games you pick, drawn part by part with a live preview. |
 | ⚙️ **Live settings** | Every option in one searchable window, applied the moment you change it. |
 | 💻 **One folder, many machines** | The same setup on a desktop and a laptop. Hardware you don't have is hidden. |
 
@@ -77,6 +78,16 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <td width="50%" align="center">
 <img src="assets/readme/power-menu.jpg" alt="Power menu with lock, sleep, reboot, shut down and the battery level"><br>
 <sub><b>Power menu</b> · a countdown before anything closes your apps</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+<img src="assets/readme/crosshair.jpg" alt="Settings on the Crosshair page: colour picker, outline and line sizes, and a live preview on dark and light"><br>
+<sub><b>Crosshair</b> · built part by part, previewed live</sub>
+</td>
+<td width="50%" align="center">
+<img src="assets/readme/cursor-accent.jpg" alt="The cursor in four accents: lavender, teal, coral and grey"><br>
+<sub><b>Cursor</b> · takes the wallpaper's accent, like the folder icons</sub>
 </td>
 </tr>
 </table>
@@ -151,7 +162,7 @@ Turned it down? Run `themes/steam/install-theme.sh` any time.
 | | Open with | What's in it |
 |---|---|---|
 | **Bar** | Always on top | Click the clock, battery, media or tray icons to open their drawers |
-| **Sidebar** | `Super+O` | Quick toggles, notifications and system stats |
+| **Sidebar** | `Super+O` | Quick toggles, notifications and system stats. Click CPU or RAM to see the apps using the most, and end one |
 | **Overview** | `Super+E` | Launch apps and search |
 | **Game launcher** | `Super+Shift+O` | Your Steam and Lutris games |
 | **Screenshot** | `Super+Shift+S` | A region, window or the whole screen, plus image search and text recognition |
@@ -226,7 +237,7 @@ desktop recolours to match, with colours made by [matugen](https://github.com/In
 
 | When | What updates |
 |---|---|
-| **Straight away** | The shell, window borders, kitty, Steam, Discord (Vesktop), VS Code, the login screen |
+| **Straight away** | The shell, window borders, the cursor, folder icons, kitty, Steam, Discord (Vesktop), VS Code, the login screen |
 | **Next time you open them** | GTK and Qt apps, Zen |
 | **When you run** `sudo themes/boot/install-boot-theme.sh` | The boot splash |
 
@@ -245,7 +256,10 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
 - **Launch options.** On a game's page, **… → Launch options** turns GameMode, MangoHud and
   gamescope on or off and picks the Proton version. Steam uses the same settings.
 - **Clips.** While a game runs, `` ` `` saves the last minute to `~/Videos/Clips/<game>/`. Nothing
-  records outside games. Change the key and length, or turn it off, in **Settings → Games**.
+  records outside games, or while Steam is only updating one. Change the key and length, or turn it off,
+  in **Settings → Games**.
+- **Crosshair.** Design one in **Settings → Crosshair**, then turn it on per game with the crosshair
+  button under Play on its page. `Super+G` shows or hides it.
 - **Captures.** Each game's page shows its screenshots (Steam's F12 and the game's own folder) and
   clips. Clips play right there. `T` trims one into a new clip, and `Ctrl+C` copies it, ready to
   paste into Discord. With an Immich server set in **Settings → Games**, the cloud button backs
