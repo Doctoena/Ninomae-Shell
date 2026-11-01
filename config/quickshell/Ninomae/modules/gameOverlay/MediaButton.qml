@@ -14,7 +14,7 @@ Rectangle {
     signal clicked()
     implicitWidth: main ? 48 : 40
     implicitHeight: implicitWidth
-    radius: main ? 16 : 13
+    radius: main ? Appearance.rounding.normal : Appearance.rounding.container
     opacity: available ? 1 : 0.4
     color: main ? (mouse.containsMouse ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary)
         : mouse.containsMouse ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2

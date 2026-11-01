@@ -23,34 +23,41 @@ OverlayPanel {
         OverlayPanelTitle { icon: "notifications"; text: Translation.tr("While you played") }
         Repeater {
             model: root.items
-            RowLayout {
+            Rectangle { // One notification, on a neutral tile
                 id: row
                 required property var modelData
                 Layout.fillWidth: true
-                spacing: 10
-                MaterialSymbol {
-                    Layout.alignment: Qt.AlignTop
-                    text: "chat_bubble"
-                    iconSize: 16
-                    color: Appearance.colors.colSubtext
-                }
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-                    StyledText {
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        text: row.modelData.appName ? `${row.modelData.appName} · ${row.modelData.summary}` : row.modelData.summary
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colOnLayer1
+                implicitHeight: rowContent.implicitHeight + 16
+                radius: Appearance.rounding.normal
+                color: Appearance.colors.colLayer2
+                RowLayout {
+                    id: rowContent
+                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 10; rightMargin: 12 }
+                    spacing: 10
+                    QuickDialogIcon { // Its app's
+                        Layout.alignment: Qt.AlignTop
+                        implicitWidth: 28; implicitHeight: 28
+                        radius: Appearance.rounding.chip + 1
+                        icon: "chat_bubble"
                     }
-                    StyledText {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        visible: text !== ""
-                        elide: Text.ElideRight
-                        text: row.modelData.body.replace(/<[^>]*>/g, "").split("\n")[0]
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtext
+                        spacing: 0
+                        StyledText {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            text: row.modelData.appName ? `${row.modelData.appName} · ${row.modelData.summary}` : row.modelData.summary
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colOnLayer1
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            visible: text !== ""
+                            elide: Text.ElideRight
+                            text: row.modelData.body.replace(/<[^>]*>/g, "").split("\n")[0]
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colSubtext
+                        }
                     }
                 }
             }

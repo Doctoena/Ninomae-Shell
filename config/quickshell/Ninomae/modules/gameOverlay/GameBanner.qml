@@ -6,7 +6,7 @@ import QtQuick
 import QtQuick.Layouts
 
 // The in-game overlay's game card: its banner art (a faint controller without), its name, and this session's
-// and all-time hours (sessionText)
+// and all-time hours
 OverlayPanel {
     id: root
     property string art: ""
@@ -34,7 +34,7 @@ OverlayPanel {
         radius: parent.radius
         gradient: Gradient {
             GradientStop { position: 0.3; color: "transparent" }
-            GradientStop { position: 1.0; color: ColorUtils.transparentize(Appearance.m3colors.m3surfaceContainerLow, 0.05) }
+            GradientStop { position: 1.0; color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.05) }
         }
     }
     ColumnLayout {
@@ -43,7 +43,7 @@ OverlayPanel {
         StyledText {
             Layout.fillWidth: true
             elide: Text.ElideRight
-            text: root.gameName || Translation.tr("No game running")
+            text: root.gameName
             font.pixelSize: Appearance.font.pixelSize.larger
             font.weight: Font.DemiBold
             color: Appearance.colors.colOnLayer0
@@ -51,7 +51,8 @@ OverlayPanel {
         StyledText {
             Layout.fillWidth: true
             elide: Text.ElideRight
-            text: root.sessionText || Translation.tr("Clips, the crosshair and the sound still work here")
+            visible: text !== ""
+            text: root.sessionText
             font.pixelSize: Appearance.font.pixelSize.small
             color: Appearance.colors.colSubtext
         }

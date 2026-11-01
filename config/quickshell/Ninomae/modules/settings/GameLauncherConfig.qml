@@ -58,7 +58,7 @@ ContentPage {
             Layout.leftMargin: 8
             Layout.rightMargin: 8
             wrapMode: Text.Wrap
-            text: Translation.tr("Super+Shift+G over a game: save a clip or screenshot, the crosshair, do not disturb, game mode, performance and each app's volume")
+            text: Translation.tr("Super+Shift+G while a game runs: save a clip or screenshot, the crosshair, do not disturb, game mode, performance and each app's volume")
             font.pixelSize: Appearance.font.pixelSize.small
             color: Appearance.colors.colSubtext
         }

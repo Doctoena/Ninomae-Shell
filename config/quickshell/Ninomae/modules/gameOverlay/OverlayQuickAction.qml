@@ -24,7 +24,7 @@ Item {
         id: squircle
         anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
         width: 52; height: 52
-        radius: mouse.containsPress ? 26 : 16
+        radius: mouse.containsPress ? height / 2 : Appearance.rounding.normal // Toward a pill while held, as the toggles
         Behavior on radius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
         color: root.active ? (mouse.containsMouse ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary)
             : mouse.containsMouse && root.available ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2
@@ -38,7 +38,7 @@ Item {
         }
         Rectangle { // Its key
             anchors { right: parent.right; bottom: parent.bottom; margins: -4 }
-            width: 18; height: 18; radius: 6
+            width: 18; height: 18; radius: Appearance.rounding.chip - 2
             color: Appearance.colors.colLayer3
             StyledText {
                 anchors.centerIn: parent

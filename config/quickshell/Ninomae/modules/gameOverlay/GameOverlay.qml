@@ -22,15 +22,17 @@ import Quickshell.Hyprland
  * Both columns are the same width (narrower on a small screen) and run from under the actions to the bottom.
  * On the overlay layer of the focused screen, with the keyboard: Esc or the key again closes it, as does a
  * click on the backdrop. Clip and screenshot close it first, so they show the game. Only exists while open,
- * apart from the graphs' history, kept for the next time it opens during the same game. Settings → Games
- * turns it off (gameLauncher.overlayEnabled): the key then does nothing.
+ * apart from the graphs' history, kept for the next time it opens during the same game. It only opens while
+ * a game runs (GameClips' watcher), and closes if the game does. Settings → Games turns it off
+ * (gameLauncher.overlayEnabled): the key then does nothing.
  */
 Scope {
     id: root
     readonly property bool enabled: Config.options.gameLauncher.overlayEnabled ?? true
-    readonly property bool open: enabled && GlobalStates.gameOverlayOpen
-    onEnabledChanged: if (!enabled) close()
-    function toggle() { GlobalStates.gameOverlayOpen = root.enabled && !GlobalStates.gameOverlayOpen; }
+    readonly property bool available: enabled && GameClips.game !== "" // Over a game only
+    readonly property bool open: available && GlobalStates.gameOverlayOpen
+    onAvailableChanged: if (!available) close() // Turned off, or the game closed
+    function toggle() { GlobalStates.gameOverlayOpen = root.available && !GlobalStates.gameOverlayOpen; }
     function close() { GlobalStates.gameOverlayOpen = false; }
 
     // The launcher's entry for the running game (art, hours, folders), when it has one
@@ -216,14 +218,14 @@ Scope {
                         Layout.alignment: Qt.AlignHCenter
                         implicitWidth: statusRow.implicitWidth + 32
                         implicitHeight: 48
-                        radius: height / 2
+                        radius: Appearance.rounding.normal // A rounded rectangle, not a pill
                         RowLayout {
                             id: statusRow
                             anchors.centerIn: parent
                             spacing: 14
                             MaterialSymbol { text: "sports_esports"; iconSize: 20; color: Appearance.colors.colPrimary }
                             StyledText {
-                                text: GameClips.game || Translation.tr("No game running")
+                                text: GameClips.game
                                 font.weight: Font.DemiBold
                                 color: Appearance.colors.colOnLayer0
                             }
@@ -333,7 +335,7 @@ Scope {
                     CapturesPanel {
                         Layout.fillWidth: true
                         captures: window.captures
-                        clipsFolder: GameClips.game !== "" ? GameClips.folderFor(GameClips.game) : ""
+                        clipsFolder: GameClips.folderFor(GameClips.game)
                         shotsFolder: window.shotsFolder
                         recording: GameClips.recording
                         onOpenCapture: index => window.viewerIndex = index
@@ -412,7 +414,7 @@ Scope {
     IpcHandler {
         target: "gameOverlay"
         function toggle(): void { root.toggle(); }
-        function open(): void { GlobalStates.gameOverlayOpen = root.enabled; }
+        function open(): void { GlobalStates.gameOverlayOpen = root.available; }
         function close(): void { root.close(); }
     }
     GlobalShortcut {

@@ -26,7 +26,7 @@ RowLayout {
     Rectangle {
         Layout.preferredWidth: 30; Layout.preferredHeight: 30
         Layout.alignment: Qt.AlignVCenter
-        radius: 9
+        radius: Appearance.rounding.segment
         color: Appearance.colors.colLayer2
         clip: true
         Image { // The game's art

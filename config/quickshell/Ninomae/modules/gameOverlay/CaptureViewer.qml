@@ -178,7 +178,7 @@ Item {
         width: detailsRow.implicitWidth + 24
         height: 44
         radius: Appearance.rounding.container
-        color: Appearance.m3colors.m3surfaceContainerLow
+        color: Appearance.colors.colLayer0
         border.width: 1
         border.color: Appearance.colors.colLayer0Border
         MouseArea { anchors.fill: parent } // Not back to the overlay
@@ -303,7 +303,7 @@ Item {
         property bool danger: false
         signal clicked()
         anchors.verticalCenter: parent.verticalCenter
-        width: 32; height: 32; radius: 10
+        width: 32; height: 32; radius: Appearance.rounding.segment
         color: actionMouse.containsMouse ? (danger ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer2Hover) : Appearance.colors.colLayer2
         MaterialSymbol {
             anchors.centerIn: parent

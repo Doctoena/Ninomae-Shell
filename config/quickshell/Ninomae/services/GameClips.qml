@@ -49,8 +49,10 @@ Singleton {
     // ── Which game is running ──
     Process {
         id: watcher
-        // For the clips, and for the crosshair while any game has it on (services/Crosshair.qml)
+        // For the clips, the crosshair while any game has it on (services/Crosshair.qml), and the in-game
+        // overlay, which only opens over a game
         running: root.enabled || (Config.options.crosshair?.games?.length ?? 0) > 0
+            || (Config.ready && (Config.options.gameLauncher.overlayEnabled ?? true))
         // With the launcher's hand-added games, so their clips record too
         command: ["python3", "-I", Quickshell.shellPath("scripts/clips/game_watch.py"), `${GameLauncherService.cacheDir}/custom_games.json`]
         stdout: SplitParser {

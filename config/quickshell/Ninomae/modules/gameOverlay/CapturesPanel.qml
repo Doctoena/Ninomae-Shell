@@ -10,7 +10,7 @@ import QtQuick.Layouts
 OverlayPanel {
     id: root
     property var captures: [] // [{ kind: "clip" | "shot", path, thumb (clips), duration (clips), … }], newest first
-    property string clipsFolder: "" // "" when there's no game
+    property string clipsFolder: ""
     property string shotsFolder: ""
     property bool recording: false
     signal openCapture(int index)
@@ -46,7 +46,7 @@ OverlayPanel {
                    root.shotCount === 1 ? Translation.tr("1 screenshot") : root.shotCount > 1 ? Translation.tr("%1 screenshots").arg(root.shotCount) : ""]
                     .filter(t => t).join("  ·  ")
                 : root.recording ? Translation.tr("None yet. C saves a clip and S a screenshot, here or with %1 for a clip in the game").arg(GameClips.keyLabel)
-                : Translation.tr("Clips and screenshots you take while playing show here")
+                : Translation.tr("None yet. S saves a screenshot")
             font.pixelSize: Appearance.font.pixelSize.small
             color: Appearance.colors.colSubtext
         }
@@ -62,7 +62,7 @@ OverlayPanel {
                     required property int index
                     Layout.preferredWidth: (column.width - 16) / 3
                     Layout.preferredHeight: Math.round(Layout.preferredWidth * 9 / 16)
-                    radius: Appearance.rounding.small
+                    radius: Appearance.rounding.container
                     color: Appearance.colors.colLayer2
                     clip: true
                     Image { // A clip's thumbnail, or the screenshot itself

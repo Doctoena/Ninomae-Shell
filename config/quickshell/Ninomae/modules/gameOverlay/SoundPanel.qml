@@ -57,46 +57,57 @@ OverlayPanel {
                 }
             }
         }
-        RowLayout {
+        QuickDialogGroup { // The output's volume; its squircle mutes, as the shell's Sound menu
             Layout.fillWidth: true
-            spacing: 10
-            MaterialSymbol {
-                text: Audio.sink?.audio?.muted ? "volume_off" : "volume_up"
-                iconSize: 22
-                color: Appearance.colors.colOnLayer1
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: if (Audio.sink?.audio) Audio.sink.audio.muted = !Audio.sink.audio.muted
+            padding: 8
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                QuickDialogIcon {
+                    readonly property bool muted: Audio.sink?.audio?.muted ?? false
+                    icon: muted ? "volume_off" : "volume_up"
+                    active: !muted
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: if (Audio.sink?.audio) Audio.sink.audio.muted = !Audio.sink.audio.muted
+                    }
+                }
+                StyledSlider {
+                    Layout.fillWidth: true
+                    value: Audio.sink?.audio?.volume ?? 0
+                    onMoved: if (Audio.sink?.audio) Audio.sink.audio.volume = value
+                    configuration: StyledSlider.Configuration.S
+                    stopIndicatorValues: []
                 }
             }
-            StyledSlider {
-                Layout.fillWidth: true
-                value: Audio.sink?.audio?.volume ?? 0
-                onMoved: if (Audio.sink?.audio) Audio.sink.audio.volume = value
-                configuration: StyledSlider.Configuration.S
-                stopIndicatorValues: []
-            }
         }
-        StyledFlickable {
+        StyledFlickable { // The apps on a neutral group, scrolling when there are more than fit
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.apps.length > 0
             clip: true
-            contentHeight: apps.implicitHeight
-            ColumnLayout {
-                id: apps
+            contentHeight: appsGroup.height
+            Rectangle {
+                id: appsGroup
                 width: parent.width
-                spacing: 10
-                Repeater {
-                    model: ScriptModel { values: root.apps }
-                    AppVolume {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        node: modelData
-                        game: root.isGame(modelData)
-                        gameName: root.gameName
-                        gameArt: root.gameArt
+                height: apps.implicitHeight + 20
+                radius: Appearance.rounding.normal
+                color: Appearance.colors.colLayer2
+                ColumnLayout {
+                    id: apps
+                    anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 10; leftMargin: 10; rightMargin: 12 }
+                    spacing: 10
+                    Repeater {
+                        model: ScriptModel { values: root.apps }
+                        AppVolume {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            node: modelData
+                            game: root.isGame(modelData)
+                            gameName: root.gameName
+                            gameArt: root.gameArt
+                        }
                     }
                 }
             }
