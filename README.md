@@ -264,7 +264,10 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
 - **Launching.** A drawer under the bar shows what Steam is doing (updating, compiling shaders…)
   until the game opens.
 - **Launch options.** On a game's page, **… → Launch options** turns GameMode, MangoHud and
-  gamescope on or off and picks the Proton version. Steam uses the same settings.
+  gamescope (with its resolution and refresh rate) on or off, and picks the Proton version and how
+  the game updates. Steam uses the same settings.
+- **Customize.** **… → Customize** changes a game's background, cover and logo (from SteamGridDB or
+  a file) and its particle effect, with a preview: hover one to see it before you pick it.
 - **Clips.** While a game runs, `` ` `` saves the last minute to `~/Videos/Clips/<game>/`. Nothing
   records outside games, or while Steam is only updating one. Change the key and length, or turn it off,
   in **Settings → Games**.

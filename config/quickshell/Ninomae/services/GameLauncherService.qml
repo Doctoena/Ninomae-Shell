@@ -32,6 +32,7 @@ Singleton {
     readonly property alias sessionDataRevision: _sessionStore.revision
     readonly property alias tagsRevision: _tagsStore.revision
     readonly property alias particleOverridesRevision: _particleOverrideStore.revision
+    readonly property alias particleTweaksRevision: _particleTweakStore.revision
     // Optimization: Pre-computed Set of favorite IDs for O(1) lookup
     readonly property var favoritesSet: {
         const _ = root.favoritesRevision;
@@ -226,6 +227,10 @@ Singleton {
         id: _particleOverrideStore
         filePath: `${root.cacheDir}/particle_overrides.json`
     }
+    JsonStore { // { gameId: { density, opacity } }: the effect's strength, when not the preset's own
+        id: _particleTweakStore
+        filePath: `${root.cacheDir}/particle_tweaks.json`
+    }
     JsonStore {
         id: _seenBuildsStore
         filePath: `${root.cacheDir}/seen_builds.json`
@@ -251,10 +256,22 @@ Singleton {
     property var sgdbResults: []
     property bool sgdbLoading: false
     property string sgdbArtType: "grid" // grid, hero, logo
+    property string sgdbQuery: ""       // A name searched instead of the game's own, "" for the game
+    property string sgdbMatchedName: "" // The game SteamGridDB matched a name search to
+    property bool sgdbHasMore: false    // A full page came back: there may be another
+    readonly property int _sgdbPageSize: 24
+    property int _sgdbPage: 0
+    property string _sgdbId: ""         // The matched id, and whether it's Steam's or SteamGridDB's, for the next page
+    property string _sgdbIdType: ""
     property int _sgdbGeneration: 0
     property string screenshotsPage: "shots" // The Screenshots sheet's last page ("shots"/"clips"), for the session
-    function fetchSteamGridDbArt(game, artType) {
+    // query: a name to search instead of the game's own (any game, Steam ones too: art from another game)
+    function fetchSteamGridDbArt(game, artType, query) {
         if (!game || root.steamGridDbApiKey.length === 0) return;
+        root.sgdbQuery = (query ?? "").trim();
+        root.sgdbMatchedName = "";
+        root.sgdbHasMore = false;
+        root._sgdbPage = 0;
         // Bump generation to invalidate any in-flight requests
         root._sgdbGeneration++;
         const gen = root._sgdbGeneration;
@@ -268,12 +285,12 @@ Singleton {
         _sgdbSearchProc._generation = gen;
         _sgdbFetchProc._generation = gen;
         const appid = game.id.startsWith("steam_") ? game.id.substring(6) : "";
-        if (appid.length > 0) {
+        if (appid.length > 0 && root.sgdbQuery === "") {
             // Steam game: query directly by appid
             _sgdbFetchByType(appid, "steam");
         } else {
-            // Non-Steam: search by name first to get SGDB game ID
-            const term = encodeURIComponent(game.name || "");
+            // Non-Steam, or another name: search by name first to get SGDB game ID
+            const term = encodeURIComponent(root.sgdbQuery || game.name || "");
             if (term.length === 0) { root.sgdbLoading = false; return; }
             _sgdbSearchProc.command = ["curl", "-sL", "--max-time", "10",
                 "--variable", "%SGDB_KEY", "--expand-header", "Authorization: Bearer {{SGDB_KEY}}",
@@ -283,7 +300,16 @@ Singleton {
         }
     }
     property var _sgdbPendingGame: null
+    // The next page of the same search, added to the results
+    function fetchMoreSteamGridDbArt() {
+        if (root.sgdbLoading || !root.sgdbHasMore || root._sgdbId === "") return;
+        root._sgdbPage++;
+        root.sgdbLoading = true;
+        _sgdbFetchByType(root._sgdbId, root._sgdbIdType);
+    }
     function _sgdbFetchByType(gameId, idType) {
+        root._sgdbId = String(gameId);
+        root._sgdbIdType = idType;
         const endpoint = root.sgdbArtType === "hero" ? "heroes" : root.sgdbArtType === "logo" ? "logos" : "grids";
         const dims = root.sgdbArtType === "grid" ? "&dimensions=600x900" : "";
         const prefix = idType === "steam" ? "steam/" : "game/";
@@ -291,7 +317,7 @@ Singleton {
         _sgdbFetchProc._generation = root._sgdbGeneration;
         _sgdbFetchProc.command = ["curl", "-sL", "--max-time", "10",
             "--variable", "%SGDB_KEY", "--expand-header", "Authorization: Bearer {{SGDB_KEY}}",
-            "https://www.steamgriddb.com/api/v2/" + endpoint + "/" + prefix + gameId + "?limit=24" + dims];
+            "https://www.steamgriddb.com/api/v2/" + endpoint + "/" + prefix + gameId + "?limit=" + root._sgdbPageSize + "&page=" + root._sgdbPage + dims];
         _sgdbFetchProc._started++;
         _sgdbFetchProc.running = true;
     }
@@ -312,12 +338,13 @@ Singleton {
                 try {
                     const resp = JSON.parse(text);
                     if (resp.success && Array.isArray(resp.data) && resp.data.length > 0) {
+                        root.sgdbMatchedName = resp.data[0].name ?? "";
                         root._sgdbFetchByType(resp.data[0].id, "game");
                         return;
                     }
                 } catch(e) { console.error("SGDB search error:", e); }
-                root.sgdbLoading = false;
                 root.sgdbResults = [];
+                root.sgdbLoading = false; // After the results, as below
             }
         }
     }
@@ -335,11 +362,11 @@ Singleton {
                 _sgdbFetchProc._finished++;
                 if (_sgdbFetchProc._finished < _sgdbFetchProc._started) return;
                 if (_sgdbFetchProc._generation !== root._sgdbGeneration) return;
-                root.sgdbLoading = false;
                 try {
                     const resp = JSON.parse(text);
                     if (resp.success && Array.isArray(resp.data)) {
-                        root.sgdbResults = resp.data.map(item => ({
+                        root.sgdbHasMore = resp.data.length >= root._sgdbPageSize;
+                        const page = resp.data.map(item => ({
                             id: item.id,
                             url: item.url,
                             thumb: item.thumb,
@@ -348,8 +375,13 @@ Singleton {
                             author: item.author?.name || "",
                             style: item.style || ""
                         }));
-                    }
-                } catch(e) { console.error("SteamGridDB parse error:", e); }
+                        root.sgdbResults = root._sgdbPage > 0 ? root.sgdbResults.concat(page) : page;
+                    } else root.sgdbHasMore = false;
+                } catch(e) {
+                    console.error("SteamGridDB parse error:", e);
+                    if (root._sgdbPage > 0) root._sgdbPage--; // A failed Load more: the same page next time
+                }
+                root.sgdbLoading = false; // After the results: whoever waits for it reads them then
             }
         }
     }
@@ -1594,6 +1626,18 @@ Singleton {
     // ── Particle override ────────────────────────────────────
     function getParticleOverride(gameId) {
         return root.particleOverrides[gameId] || "";
+    }
+    // How many particles and how strong (1 = the preset's own)
+    function getParticleTweak(gameId) {
+        const t = (gameId && _particleTweakStore.value?.[gameId]) || {};
+        return { density: t.density ?? 1, opacity: t.opacity ?? 1 };
+    }
+    function setParticleTweak(gameId, density, opacity) {
+        if (!gameId) return;
+        const data = Object.assign({}, _particleTweakStore.value ?? {});
+        if (Math.abs(density - 1) < 0.01 && Math.abs(opacity - 1) < 0.01) delete data[gameId];
+        else data[gameId] = { density: Math.round(density * 100) / 100, opacity: Math.round(opacity * 100) / 100 };
+        _particleTweakStore.commit(data);
     }
     function setParticleOverride(gameId, preset) {
         if (!gameId) return;

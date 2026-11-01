@@ -14,6 +14,9 @@ Item {
     property string imageSource: ""
     property bool active: true
     property real particleOpacity: 0.85
+    // How many and how strong, as picked on the Customize panel's Effect tab (1 = the preset's own)
+    property real densityScale: 1
+    property real opacityScale: 1
     property string forcePreset: ""
 
     // ─── Particle SoA buffers (fixed capacity) ───────────
@@ -73,7 +76,7 @@ Item {
     property real _gTimer: 0; property real _gx: 0; property real _gyF: 0; property real _gStr: 0 // gusts
     property var _connGrid: null
 
-    opacity: (_ready && active) ? particleOpacity : 0
+    opacity: (_ready && active) ? Math.min(1, particleOpacity * opacityScale) : 0
     Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
 
     // ═════════════════════════════════════════════════════════
@@ -649,6 +652,13 @@ Item {
     onGameNameChanged: _initDelay.restart()
     onImageSourceChanged: _initDelay.restart()
     onForcePresetChanged: _initDelay.restart()
+    // Density changes live: the spawner fills up to the new count, or the extra ones go
+    property real _areaScale: 1
+    function _retarget() {
+        _target = Math.min(_cap, Math.round((_cfg?.n || 0) * _areaScale * densityScale));
+        if (_count > _target) _count = _target;
+    }
+    onDensityScaleChanged: _retarget()
     Connections {
         target: GameLauncherService
         function onParticleOverridesRevisionChanged() {
@@ -693,7 +703,8 @@ Item {
         // Scale the count with the canvas area
         const cw = _mainCanvas.width || width, ch = _mainCanvas.height || height;
         const scale = (cw > 0 && ch > 0) ? Math.sqrt((cw * ch) / 240000) : 1;
-        _target = Math.min(_cap, Math.round((_cfg.n || 0) * Math.max(0.5, Math.min(1.8, scale))));
+        _areaScale = Math.max(0.5, Math.min(1.8, scale));
+        _retarget();
 
         if (cw > 0 && ch > 0) {
             for (let i = 0; i < _target; i++) _spawnAt(i, true);

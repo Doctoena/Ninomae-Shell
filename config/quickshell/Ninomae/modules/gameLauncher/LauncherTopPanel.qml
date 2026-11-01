@@ -4,7 +4,7 @@ import QtQuick
 /**
  * A panel that grows up out of the game launcher's top edge, on the same blob and drawer curves as
  * the details page's side menus (flipped, so its "bar" edge is the launcher's top). Base of the
- * details page's Screenshots, Achievements and News; children go inside it. Keys come from the details
+ * details page's Screenshots, Achievements, News, Customize and Launch options; children go inside it. Keys come from the details
  * page while it's open, through the panel's handleKey(key, modifiers) (returns whether it used the key).
  *
  * Placed by GameLauncher.qml (one at a time): as wide as the launcher, its bottom a few px behind the

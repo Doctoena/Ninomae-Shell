@@ -35,6 +35,7 @@ Scope {
         function showAchievements(query: string): void { gameLauncherScope.show(query, "achievements"); }
         function showNews(query: string): void { gameLauncherScope.show(query, "news"); }
         function showLaunchOptions(query: string): void { gameLauncherScope.show(query, "launchOptions"); }
+        function showCustomize(query: string): void { gameLauncherScope.show(query, "customize"); }
         // The grid's Tags panel: `qs -c Ninomae ipc call gameLauncher showTags`
         function showTags(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("tags"); }
         // The launch drawer for a game, without starting it
@@ -185,7 +186,7 @@ Scope {
                     root.gridPanel = panel;
                 }
             }
-            property string openOnShow: "" // From the IPC calls: a panel ("screenshots", "achievements", "news") or "launchOptions"
+            property string openOnShow: "" // From the IPC calls: one of the page's panelTypes
             Connections {
                 target: GameLauncherService
                 function _refocusSearchBar() {
@@ -248,8 +249,8 @@ Scope {
                     fallbackRadius: root.drawerRadius
                 }
             }
-            // ── The game page's Screenshots / Achievements / News: a panel growing up out of the launcher's
-            //    top edge (LauncherTopPanel), one at a time, named by the page's openPanel ──
+            // ── The game page's Screenshots / Achievements / News / Customize / Launch options: a panel growing
+            //    up out of the launcher's top edge (LauncherTopPanel), one at a time, named by the page's openPanel ──
             // A game's panel on its details page; on the grid, Add a game (the search bar's button)
             property string gridPanel: "" // "addGame" or "tags": the grid's panel open (from the search bar / tag buttons)
             readonly property string wantedTopPanel: root.showingDetails ? (detailsLoader.item?.openPanel ?? "")
@@ -288,6 +289,7 @@ Scope {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: -(item?.overlap ?? 0) }
                     active: root._topPanelLoaded !== ""
                     sourceComponent: ({ screenshots: screenshotsPanelComp, achievements: achievementsPanelComp, news: newsPanelComp,
+                                       customize: customizePanelComp, launchOptions: launchOptionsPanelComp,
                                        addGame: addGamePanelComp, tags: tagsPanelComp })[root._topPanelLoaded] ?? null
                     onLoaded: {
                         // As much of the space above the launcher as there is, clear of the bar
@@ -303,7 +305,8 @@ Scope {
                 Connections {
                     target: topPanelLoader.item
                     function onCloseRequested() {
-                        if (detailsLoader.item) detailsLoader.item.openPanel = "";
+                        // The page's keys again (a box in the panel, as Launch options', may have taken them)
+                        if (detailsLoader.item) { detailsLoader.item.openPanel = ""; if (root.showingDetails) detailsLoader.item.forceActiveFocus(); }
                         if (root._topPanelLoaded === "addGame" || root._topPanelLoaded === "tags") { root.gridPanel = ""; visibleSearchBar.forceActiveFocus(); }
                     }
                     function onVisibleChanged() { if (!topPanelLoader.item.visible && !topPanelLoader.item.shown) root._topPanelLoaded = ""; }
@@ -311,6 +314,8 @@ Scope {
                 Component { id: screenshotsPanelComp; ScreenshotsPanel { game: root._topPanelGame } }
                 Component { id: achievementsPanelComp; AchievementsPanel { game: root._topPanelGame } }
                 Component { id: newsPanelComp; NewsPanel { game: root._topPanelGame } }
+                Component { id: customizePanelComp; CustomizePanel { game: root._topPanelGame } }
+                Component { id: launchOptionsPanelComp; LaunchOptionsPanel { game: root._topPanelGame } }
                 Component { id: addGamePanelComp; AddGamePanel {} }
                 Component { id: tagsPanelComp; TagsPanel {} }
             }
@@ -1125,9 +1130,7 @@ Scope {
                                 shown: root.showingDetails
                                 topPanelItem: topPanelLoader.item
                                 onArrived: {
-                                    // Launch options is its own overlay on the page, not one of the panels
-                                    if (root.openOnShow === "launchOptions") launchOptionsVisible = true;
-                                    else openPanel = root.openOnShow;
+                                    openPanel = root.openOnShow;
                                     root.openOnShow = "";
                                 }
                                 onBackPressed: {
@@ -1144,10 +1147,6 @@ Scope {
                                     GlobalStates.gameLauncherOpen = false;
                                     root.showingDetails = false;
                                     root.selectedGame = null;
-                                }
-                                onRequestFilePicker: (mode) => {
-                                    const gameId = root.selectedGame ? root.selectedGame.id : "";
-                                    GameLauncherService.launchFilePicker(gameId, mode);
                                 }
                             }
                         }

@@ -172,7 +172,6 @@ Item {
         repeat: false
         onTriggered: root.animationReady = true
     }
-    signal requestFilePicker(string mode)
     Keys.onPressed: event => {
         if (root.openPanel !== "" && root.topPanelItem?.handleKey(event.key, event.modifiers)) {
             event.accepted = true;
@@ -184,12 +183,6 @@ Item {
             if (moreMenu.open || tagMenuPopup.open) {
                 moreMenu.open = false;
                 tagMenuPopup.open = false;
-            } else if (root.sgdbOverlayVisible) {
-                root.sgdbOverlayVisible = false;
-            } else if (root.particleOverlayVisible) {
-                root.particleOverlayVisible = false;
-            } else if (root.launchOptionsVisible) {
-                root.launchOptionsVisible = false;
             } else {
                 root.backPressed();
             }
@@ -283,6 +276,10 @@ Item {
             sourceComponent: GameParticles {
                 anchors.fill: parent
                 gameId: root.game ? (root.game.id || "") : ""
+                // Its strength, from the Customize panel's Effect tab
+                readonly property var tweak: { const _ = GameLauncherService.particleTweaksRevision; return GameLauncherService.getParticleTweak(gameId); }
+                densityScale: tweak.density
+                opacityScale: tweak.opacity
                 gameName: root.game ? (root.game.name || "") : ""
                 imageSource: {
                     if (bannerImage.source && bannerImage.source.toString() !== "") return bannerImage.source.toString();
@@ -738,19 +735,11 @@ Item {
             MoreItem {
                 iconName: "tune"; label: Translation.tr("Launch options")
                 visible: game?.id?.startsWith("steam_") ?? false
-                onTriggered: { moreMenu.open = false; root.launchOptionsVisible = true; }
+                onTriggered: { moreMenu.open = false; root.openPanel = "launchOptions"; }
             }
-            MoreItem {
-                iconName: "image_search"; label: Translation.tr("Browse art")
-                onTriggered: {
-                    root._sgdbBrowseMode = "hero";
-                    if (GameLauncherService.steamGridDbApiKey.length > 0) GameLauncherService.fetchSteamGridDbArt(game, "hero");
-                    root.sgdbOverlayVisible = true;
-                }
-            }
-            MoreItem {
-                iconName: "auto_awesome"; label: Translation.tr("Particle effect")
-                onTriggered: root.particleOverlayVisible = true
+            MoreItem { // The game's art and particle effect: a panel out of the launcher's top (CustomizePanel)
+                iconName: "palette"; label: Translation.tr("Customize")
+                onTriggered: { moreMenu.open = false; root.openPanel = "customize"; }
             }
             Rectangle {
                 visible: uninstallItem.visible || removeItem.visible
@@ -1332,130 +1321,7 @@ Item {
             }
         }
     }
-    property bool particleOverlayVisible: false
-    property bool launchOptionsVisible: false
-    LaunchOptionsOverlay {
-        game: root.game
-        shown: root.launchOptionsVisible
-        onCloseRequested: root.launchOptionsVisible = false
-    }
-    property bool sgdbOverlayVisible: false
-    // A key added in Settings (its own process) is picked up on the next open, and fetched right away
-    onSgdbOverlayVisibleChanged: if (sgdbOverlayVisible) KeyringStorage.fetchKeyringData()
-    Connections {
-        target: GameLauncherService
-        function onSteamGridDbApiKeyChanged() {
-            if (root.sgdbOverlayVisible && root.game && GameLauncherService.steamGridDbApiKey.length > 0)
-                GameLauncherService.fetchSteamGridDbArt(root.game, root._sgdbBrowseMode);
-        }
-    }
-    property string _sgdbBrowseMode: "hero"  // hero, logo, grid
     property bool metadataPaneOpen: false
-    // ─── Particle Effect Overlay (centered horizontal grid) ────────
-    readonly property var _particlePresetList: [
-        { key: "auto", label: qsTr("Auto"), icon: "hdr_auto" },
-        { key: "ambient", label: qsTr("Ambient"), icon: "blur_on" },
-        { key: "fog", label: qsTr("Fog"), icon: "foggy" },
-        { key: "ash", label: qsTr("Ash"), icon: "volcano" },
-        { key: "snow", label: qsTr("Snow"), icon: "ac_unit" },
-        { key: "rain", label: qsTr("Rain"), icon: "rainy" },
-        { key: "storm", label: qsTr("Storm"), icon: "thunderstorm" },
-        { key: "sakura", label: qsTr("Sakura"), icon: "filter_vintage" },
-        { key: "leaves", label: qsTr("Leaves"), icon: "eco" },
-        { key: "fireflies", label: qsTr("Fireflies"), icon: "flare" },
-        { key: "bubbles", label: qsTr("Bubbles"), icon: "bubble_chart" },
-        { key: "embers", label: qsTr("Embers"), icon: "whatshot" },
-        { key: "tracers", label: qsTr("Tracers"), icon: "trending_flat" },
-        { key: "wasteland", label: qsTr("Dust storm"), icon: "air" },
-        { key: "magic", label: qsTr("Magic"), icon: "auto_fix_high" },
-        { key: "cavern", label: qsTr("Cavern"), icon: "diamond" },
-        { key: "stars", label: qsTr("Stars"), icon: "star" },
-        { key: "warp", label: qsTr("Warp"), icon: "rocket_launch" },
-        { key: "arcs", label: qsTr("Arcs"), icon: "bolt" },
-        { key: "neon", label: qsTr("Neon"), icon: "nightlife" },
-        { key: "circuit", label: qsTr("Circuit"), icon: "memory" },
-        { key: "pixel", label: qsTr("Pixel"), icon: "grid_view" },
-        { key: "none", label: qsTr("None"), icon: "visibility_off" }
-    ]
-    BottomSheet {
-        id: particleOverlay
-        shown: root.particleOverlayVisible
-        onCloseRequested: root.particleOverlayVisible = false
-        sheetWidth: 880
-        sheetHeight: _particleCol.implicitHeight + 48
-        ColumnLayout {
-            id: _particleCol
-            x: 24; y: 24
-            width: parent.width - 48
-            spacing: 16
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-                StyledText {
-                    text: Translation.tr("Particle effect")
-                    font.pixelSize: Appearance.font.pixelSize.large
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer0
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    elide: Text.ElideRight
-                    text: root.game?.name ?? ""
-                    color: Appearance.colors.colSubtext
-                }
-                RippleButton {
-                    implicitWidth: 32; implicitHeight: 32; buttonRadius: 11; padding: 0
-                    colBackgroundHover: Appearance.colors.colLayer1Hover
-                    colRipple: Appearance.colors.colLayer1Active
-                    contentItem: Item { MaterialSymbol { anchors.centerIn: parent; text: "close"; iconSize: 18; color: Appearance.colors.colSubtext } }
-                    onClicked: root.particleOverlayVisible = false
-                }
-            }
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 6
-                rowSpacing: 6
-                columnSpacing: 6
-                Repeater {
-                    model: root._particlePresetList
-                    RippleButton {
-                        id: _particleTile
-                        required property var modelData
-                        readonly property bool isActive: modelData.key === "auto" ? root.particleOverride === "" : root.particleOverride === modelData.key
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 1 // Equal columns
-                        implicitHeight: 40
-                        buttonRadius: 13
-                        colBackground: isActive ? Appearance.colors.colPrimary : Appearance.colors.colLayer1
-                        colBackgroundHover: isActive ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer1Hover
-                        colRipple: isActive ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer1Active
-                        onClicked: {
-                            if (root.game) GameLauncherService.setParticleOverride(root.game.id, modelData.key);
-                            root.particleOverlayVisible = false;
-                        }
-                        contentItem: RowLayout {
-                            anchors { fill: parent; leftMargin: 14; rightMargin: 12 }
-                            spacing: 8
-                            MaterialSymbol {
-                                text: _particleTile.modelData.icon
-                                iconSize: 18
-                                fill: _particleTile.isActive ? 1 : 0
-                                color: _particleTile.isActive ? Appearance.colors.colOnPrimary : Appearance.colors.colPrimary
-                            }
-                            StyledText {
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                                text: _particleTile.modelData.label
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                font.weight: _particleTile.isActive ? Font.DemiBold : Font.Normal
-                                color: _particleTile.isActive ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
     // ─── Metadata Hover Panel (right side of sidebar) ────────────
     readonly property var _currentMetadata: {
         const _ = GameLauncherService.metadataCacheRevision;
@@ -1582,320 +1448,10 @@ Item {
             }
         }
     }
-    // ─── SteamGridDB Art Browser Overlay ───────────────────────
-    BottomSheet {
-        id: sgdbOverlay
-        z: 51
-        shown: root.sgdbOverlayVisible
-        onCloseRequested: root.sgdbOverlayVisible = false
-        sheetWidth: 800
-        sheetHeight: 560
-        clipContent: true
-        readonly property bool _noKey: GameLauncherService.steamGridDbApiKey.length === 0
-        // ── Header: badge + title, segmented type switch, close ──
-        Item {
-            id: _sgdbHeader
-            anchors { top: parent.top; topMargin: 20; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 16 }
-            height: 40
-            Row {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 12
-                Rectangle {
-                    width: 40; height: 40; radius: Appearance.rounding.container
-                    color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
-                    MaterialSymbol {
-                        anchors.centerIn: parent; iconSize: 20; color: Appearance.colors.colPrimary
-                        text: root._sgdbBrowseMode === "hero" ? "panorama" : root._sgdbBrowseMode === "logo" ? "title" : "photo_library"
-                    }
-                }
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 1
-                    StyledText {
-                        text: root._sgdbBrowseMode === "hero" ? "Hero art" : root._sgdbBrowseMode === "logo" ? "Logos" : "Covers"
-                        font.pixelSize: Appearance.font.pixelSize.normal; font.weight: Font.DemiBold
-                        color: Appearance.colors.colOnLayer0
-                    }
-                    StyledText {
-                        text: (game?.name ?? "") + " · SteamGridDB"
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtext
-                    }
-                }
-            }
-            // Segmented pill switch
-            Rectangle {
-                anchors { right: _sgdbClose.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                width: _sgdbTabs.width + 8; height: 36; radius: 12
-                color: Appearance.colors.colLayer1
-                Row {
-                    id: _sgdbTabs
-                    anchors.centerIn: parent
-                    Repeater {
-                        model: [
-                            { key: "hero", label: "Hero", icon: "panorama" },
-                            { key: "grid", label: "Cover", icon: "photo_library" },
-                            { key: "logo", label: "Logo", icon: "title" }
-                        ]
-                        Rectangle {
-                            id: _sgdbTab
-                            required property var modelData
-                            readonly property bool active: root._sgdbBrowseMode === modelData.key
-                            width: _sgdbTabRow.implicitWidth + 28; height: 28; radius: Appearance.rounding.segment
-                            color: active ? Appearance.colors.colPrimary
-                                : _sgdbTabMa.containsMouse ? Appearance.colors.colLayer1Hover : "transparent"
-                            Behavior on color { ColorAnimation { duration: 140 } }
-                            Row {
-                                id: _sgdbTabRow
-                                anchors.centerIn: parent; spacing: 6
-                                MaterialSymbol {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: _sgdbTab.modelData.icon; iconSize: 16
-                                    color: _sgdbTab.active ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
-                                }
-                                StyledText {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: _sgdbTab.modelData.label
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    font.weight: _sgdbTab.active ? Font.DemiBold : Font.Medium
-                                    color: _sgdbTab.active ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-                                }
-                            }
-                            MouseArea {
-                                id: _sgdbTabMa
-                                anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (_sgdbTab.active) return;
-                                    root._sgdbBrowseMode = _sgdbTab.modelData.key;
-                                    GameLauncherService.fetchSteamGridDbArt(root.game, _sgdbTab.modelData.key);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            RippleButton {
-                id: _sgdbClose
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                width: 32; height: 32; buttonRadius: 11; padding: 0
-                colBackground: Appearance.colors.colLayer1
-                colBackgroundHover: Appearance.colors.colLayer1Hover
-                colRipple: Appearance.colors.colLayer1Active
-                contentItem: Item { MaterialSymbol { anchors.centerIn: parent; text: "close"; iconSize: 18; color: Appearance.colors.colOnLayer1 } }
-                onClicked: root.sgdbOverlayVisible = false
-            }
-        }
-        // ── Loading / empty states ──────────────────
-        Column { // No API key: nothing can be fetched, so say how to get one instead of "No results"
-            anchors.centerIn: sgdbGrid; spacing: 12
-            visible: sgdbOverlay._noKey
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: 56; height: 56; radius: Appearance.rounding.normal
-                color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.85)
-                MaterialSymbol { anchors.centerIn: parent; iconSize: 26; color: Appearance.colors.colPrimary; text: "key" }
-            }
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: Translation.tr("Needs a SteamGridDB API key")
-                font.pixelSize: Appearance.font.pixelSize.normal; font.weight: Font.Medium
-                color: Appearance.colors.colOnLayer0
-            }
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: Translation.tr("It's free: make one on SteamGridDB, then paste it in Settings → Launcher")
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: Appearance.colors.colSubtext
-            }
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                topPadding: 4
-                spacing: 8
-                RippleButton {
-                    implicitHeight: 36; implicitWidth: _getKeyLabel.implicitWidth + 32; buttonRadius: 12
-                    colBackground: Appearance.colors.colLayer1
-                    colBackgroundHover: Appearance.colors.colLayer1Hover
-                    colRipple: Appearance.colors.colLayer1Active
-                    onClicked: Qt.openUrlExternally("https://www.steamgriddb.com/profile/preferences/api")
-                    contentItem: Item { StyledText { id: _getKeyLabel; anchors.centerIn: parent; text: Translation.tr("Get a free key"); color: Appearance.colors.colOnLayer1; font.weight: Font.Medium } }
-                }
-                RippleButton {
-                    implicitHeight: 36; implicitWidth: _openSettingsLabel.implicitWidth + 32; buttonRadius: 12
-                    colBackground: Appearance.colors.colPrimary
-                    colBackgroundHover: Appearance.colors.colPrimaryHover
-                    colRipple: Appearance.colors.colPrimaryActive
-                    onClicked: Quickshell.execDetached([Quickshell.shellPath("scripts/open-settings.sh"), "games"])
-                    contentItem: Item { StyledText { id: _openSettingsLabel; anchors.centerIn: parent; text: Translation.tr("Open settings"); color: Appearance.colors.colOnPrimary; font.weight: Font.Medium } }
-                }
-            }
-        }
-        Column {
-            anchors.centerIn: sgdbGrid; spacing: 12
-            visible: !sgdbOverlay._noKey && (GameLauncherService.sgdbLoading || GameLauncherService.sgdbResults.length === 0)
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: 56; height: 56; radius: Appearance.rounding.normal
-                color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.85)
-                MaterialSymbol {
-                    anchors.centerIn: parent; iconSize: 26; color: Appearance.colors.colPrimary
-                    text: GameLauncherService.sgdbLoading ? "hourglass_empty" : "image_not_supported"
-                }
-            }
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: GameLauncherService.sgdbLoading ? "Fetching art…" : "No results found"
-                font.pixelSize: Appearance.font.pixelSize.normal; font.weight: Font.Medium
-                color: Appearance.colors.colOnLayer0
-            }
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                visible: !GameLauncherService.sgdbLoading
-                text: "Try another type, or pick a local file"
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: Appearance.colors.colSubtext
-            }
-        }
-        // ── Results grid ────────────────────────────
-        GridView {
-            id: sgdbGrid
-            readonly property real _availW: sgdbOverlay.sheet.width - 28
-            anchors { top: _sgdbHeader.bottom; topMargin: 12; bottom: _sgdbFooter.top; bottomMargin: 4; horizontalCenter: parent.horizontalCenter }
-            width: Math.max(1, Math.floor(_availW / cellWidth)) * cellWidth
-            cellWidth: root._sgdbBrowseMode === "grid" ? 140 : root._sgdbBrowseMode === "logo" ? 190 : 230
-            cellHeight: root._sgdbBrowseMode === "grid" ? 210 : root._sgdbBrowseMode === "logo" ? 110 : 96
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            opacity: !GameLauncherService.sgdbLoading && GameLauncherService.sgdbResults.length > 0 ? 1 : 0
-            visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: 180 } }
-            model: GameLauncherService.sgdbResults
-            delegate: Item {
-                id: _sgdbCell
-                required property var modelData
-                required property int index
-                width: sgdbGrid.cellWidth
-                height: sgdbGrid.cellHeight
-                Rectangle {
-                    anchors { fill: parent; margins: 6 }
-                    radius: Appearance.rounding.small
-                    color: _sgdbItemMa.containsMouse ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    scale: _sgdbItemMa.pressed ? 0.97 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Image {
-                        id: _sgdbThumb
-                        anchors { fill: parent; margins: 6 }
-                        source: _sgdbCell.modelData.thumb
-                        fillMode: Image.PreserveAspectFit
-                        asynchronous: true
-                        sourceSize.width: sgdbGrid.cellWidth * 2
-                        opacity: status === Image.Ready ? 1.0 : 0.0
-                        Behavior on opacity { NumberAnimation { duration: 200 } }
-                    }
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "hourglass_empty"
-                        iconSize: 20
-                        color: Appearance.colors.colSubtext
-                        visible: _sgdbThumb.status === Image.Loading
-                    }
-                    // Lavender hover ring, same as the library tiles
-                    Rectangle {
-                        anchors { fill: parent; margins: -3 }
-                        radius: parent.radius + 3
-                        color: "transparent"
-                        border.width: 2
-                        border.color: Appearance.colors.colPrimary
-                        opacity: _sgdbItemMa.containsMouse ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 150 } }
-                    }
-                    MouseArea {
-                        id: _sgdbItemMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            GameLauncherService.applySteamGridDbArt(root.game, _sgdbCell.modelData.url, root._sgdbBrowseMode);
-                            root.sgdbOverlayVisible = false;
-                        }
-                    }
-                    StyledToolTip {
-                        text: _sgdbCell.modelData.author || _sgdbCell.modelData.style || ""
-                        visible: _sgdbItemMa.containsMouse && (_sgdbCell.modelData.author || _sgdbCell.modelData.style)
-                    }
-                }
-            }
-        }
-        // ── Footer: result count, reset, local file ──
-        Item {
-            id: _sgdbFooter
-            anchors { bottom: parent.bottom; bottomMargin: 14; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 16 }
-            height: 36
-            StyledText {
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                text: GameLauncherService.sgdbResults.length > 0 ? GameLauncherService.sgdbResults.length + " results · click one to apply" : ""
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: Appearance.colors.colSubtext
-            }
-            Row {
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                spacing: 8
-                RippleButton {
-                    readonly property bool _hasCustom: {
-                        const d = root.customArtData;
-                        if (root._sgdbBrowseMode === "hero") return (d?.heroArt ?? "").length > 0;
-                        if (root._sgdbBrowseMode === "logo") return (d?.logo ?? "").length > 0;
-                        return (d?.boxArt ?? "").length > 0;
-                    }
-                    visible: _hasCustom
-                    width: _resetRow.implicitWidth + 28; height: 36
-                    buttonRadius: 12; padding: 0
-                    colBackground: ColorUtils.transparentize(Appearance.colors.colError, 0.88)
-                    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colError, 0.8)
-                    colRipple: ColorUtils.transparentize(Appearance.colors.colError, 0.65)
-                    contentItem: Item {
-                        Row {
-                            id: _resetRow
-                            anchors.centerIn: parent; spacing: 6
-                            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "restart_alt"; iconSize: 17; color: Appearance.colors.colError }
-                            StyledText { anchors.verticalCenter: parent.verticalCenter; text: "Reset"; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium; color: Appearance.colors.colError }
-                        }
-                    }
-                    onClicked: {
-                        if (!root.game) return;
-                        if (root._sgdbBrowseMode === "hero") GameLauncherService.clearCustomHeroArt(root.game.id);
-                        else if (root._sgdbBrowseMode === "logo") GameLauncherService.clearCustomLogo(root.game.id);
-                        else GameLauncherService.clearCustomBoxArt(root.game.id);
-                        root.sgdbOverlayVisible = false;
-                    }
-                }
-                RippleButton {
-                    width: _localRow.implicitWidth + 28; height: 36
-                    buttonRadius: 12; padding: 0
-                    colBackground: Appearance.colors.colPrimary
-                    colBackgroundHover: ColorUtils.mix(Appearance.colors.colPrimary, Appearance.colors.colOnPrimary, 0.88)
-                    colRipple: ColorUtils.mix(Appearance.colors.colPrimary, Appearance.colors.colOnPrimary, 0.75)
-                    contentItem: Item {
-                        Row {
-                            id: _localRow
-                            anchors.centerIn: parent; spacing: 6
-                            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "folder_open"; iconSize: 17; color: Appearance.colors.colOnPrimary }
-                            StyledText { anchors.verticalCenter: parent.verticalCenter; text: "Local file"; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.DemiBold; color: Appearance.colors.colOnPrimary }
-                        }
-                    }
-                    onClicked: {
-                        root.sgdbOverlayVisible = false;
-                        root.requestFilePicker(root._sgdbBrowseMode === "logo" ? "logo" : root._sgdbBrowseMode === "grid" ? "boxart" : "hero");
-                    }
-                }
-            }
-        }
-    }
-    // ─── Screenshots / Achievements / News: panels growing up out of the launcher's top edge ───
+    // ─── Screenshots / Achievements / News / Customize / Launch options: panels out of the launcher's top edge ───
     // One at a time. GameLauncher.qml shows the one named here, and sets topPanelItem, which gets the
     // keys while it's open. The buttons and the launcher's show… IPC calls set it
-    readonly property var panelTypes: ["screenshots", "achievements", "news"]
+    readonly property var panelTypes: ["screenshots", "achievements", "news", "customize", "launchOptions"]
     property string openPanel: ""     // One of panelTypes, "" when none
     property Item topPanelItem: null
     // ─── Inline Components ────────────────────────────────────
