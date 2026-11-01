@@ -34,7 +34,7 @@ ApplicationWindow {
         { name: Translation.tr("Lock & power"), group: Translation.tr("Devices"), icon: "lock", component: "modules/settings/LockPowerConfig.qml",
             description: Battery.available ? Translation.tr("The lock screen and the battery") : Translation.tr("The lock screen") },
         { name: Translation.tr("Games"), group: Translation.tr("Gaming"), icon: "sports_esports", component: "modules/settings/GameLauncherConfig.qml",
-            description: Translation.tr("The launcher, clips, Immich backup and API keys") },
+            description: Translation.tr("The launcher, clips, GE-Proton, Immich backup and API keys") },
         { name: Translation.tr("Crosshair"), group: Translation.tr("Gaming"), icon: "my_location", component: "modules/settings/CrosshairConfig.qml",
             description: Translation.tr("Its look, part by part, with a live preview") },
         { name: Translation.tr("Keybinds"), group: Translation.tr("System"), icon: "keyboard", component: "modules/settings/KeybindsConfig.qml",

@@ -49,6 +49,20 @@ ContentPage {
             }
         }
     }
+    ContentSection { // The in-game overlay (modules/gameOverlay), on and off from its title
+        icon: "sports_esports"
+        title: Translation.tr("In-game overlay")
+        toggleOption: "gameLauncher.overlayEnabled"
+        StyledText {
+            Layout.fillWidth: true
+            Layout.leftMargin: 8
+            Layout.rightMargin: 8
+            wrapMode: Text.Wrap
+            text: Translation.tr("Super+Shift+G over a game: save a clip or screenshot, the crosshair, do not disturb, game mode, performance and each app's volume")
+            font.pixelSize: Appearance.font.pixelSize.small
+            color: Appearance.colors.colSubtext
+        }
+    }
     ContentSection {
         icon: "movie"
         title: Translation.tr("Clips")
@@ -225,6 +239,7 @@ ContentPage {
             ]
         }
     }
+    ProtonGeSection {}
     ContentSection {
         icon: "cloud_upload"
         title: Translation.tr("Immich backup")
