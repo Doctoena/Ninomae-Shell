@@ -29,6 +29,7 @@ Singleton {
     property bool available: false // gpu-screen-recorder installed
     property string game: ""       // Name of the running game, "" when none
     property string gameId: ""     // Its launcher id (steam_<appid>, lutris_…, a custom one), "" when none or unknown
+    property real gameStarted: 0   // When it was first seen running (ms), for the in-game overlay's play time
     // Whether the focused window is the game's own (the watcher's "focus" lines; for the crosshair).
     // focusKnown stays false if the watcher can't read Hyprland's events
     property bool gameFocused: false
@@ -91,7 +92,25 @@ Singleton {
     // Another game straight after one (the watcher saw no gap): a fresh recorder, so its clips get the new
     // name and folder, and the last game's moments aren't saved as this one's
     property bool _restarting: false
-    onGameChanged: if (recorder.running) { _restarting = true; Qt.callLater(() => root._restarting = false); }
+    onGameChanged: {
+        if (root.game === "") root.gameStarted = 0;
+        else if (root.gameStarted === 0) root.gameStarted = Date.now();
+        if (recorder.running) { _restarting = true; Qt.callLater(() => root._restarting = false); }
+    }
+    // Another game straight after one: its own play time (a rename below keeps the id, and the time)
+    onGameIdChanged: if (root.gameId !== "") root.gameStarted = Date.now()
+    // A Steam game seen before the launcher had read its games (the shell starting mid-game) got a
+    // stand-in name: the real one once they're in, so its clips go in the right folder
+    Connections {
+        target: GameLauncherService
+        function onGamesChanged() {
+            if (root.gameAppId === "" || root.game !== `Steam game ${root.gameAppId}`) return;
+            const g = GameLauncherService.games.find(x => x.id === `steam_${root.gameAppId}`);
+            if (!g?.name) return;
+            root.gameArt = g.boxArt ?? "";
+            root.game = g.name;
+        }
+    }
     Process {
         id: recorder
         running: root.enabled && root.game !== "" && !root._restarting
