@@ -1296,6 +1296,21 @@ Singleton {
     property var _watchers: ({}) // gameId → watcher Process
     readonly property var _genericPrograms: ["sh", "bash", "dash", "zsh", "fish", "env", "python", "python3", "java", "wine", "wine64",
         "flatpak", "gamemoderun", "prime-run", "gtk-launch", "xdg-open", "steam", "lutris", "mangohud", "gamescope"]
+    // How to find a running game's processes, for scripts/clips/game_pids.py and focus_game.py (the overlay's
+    // game sound, the Playing button): steam:<id>, lutris:<name>, flatpak:<app id> (a Lutris game can run one,
+    // as Hytale does), exe:<program> for one added by hand
+    function processMatchers(game) {
+        if (!game?.id) return [];
+        const out = [];
+        if (game.id.startsWith("steam_")) out.push("steam:" + game.id.substring(6));
+        else if (game.id.startsWith("lutris_") && game.name) out.push("lutris:" + game.name);
+        else if (game.id.startsWith("custom_") && !game.flatpakId) {
+            const exe = (game.launchCommand?.[0] ?? "").replace(/^.*\//, "");
+            if (exe && !root._genericPrograms.includes(exe)) out.push("exe:" + exe);
+        }
+        if (game.flatpakId) out.push("flatpak:" + game.flatpakId);
+        return out;
+    }
     function startSession(game) {
         // Steam runs the game under its reaper with the app id, Lutris under lutris-wrapper with the name
         // A game added by hand: its Flatpak's sandbox, or its program

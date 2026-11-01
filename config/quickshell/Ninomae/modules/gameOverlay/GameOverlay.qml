@@ -17,7 +17,8 @@ import Quickshell.Hyprland
  *  - on the left, the game (GameBanner), this session's clips and screenshots (CapturesPanel: one opens in
  *    CaptureViewer, over everything), and what came in while playing (MissedNotifications)
  *  - on the right, live CPU and GPU graphs (PerformancePanel), and the sound (SoundPanel): the game's own
- *    first, matched by process (scripts/clips/game_pids.py), then voice chat
+ *    first, matched by process (scripts/clips/game_pids.py: Steam, Lutris, Flatpak or its program) or, for
+ *    a Flatpak, its app id, then voice chat
  *  - between them at the bottom, what's playing (NowPlaying)
  * Both columns are the same width (narrower on a small screen) and run from under the actions to the bottom.
  * On the overlay layer of the focused screen, with the keyboard: Esc or the key again closes it, as does a
@@ -116,11 +117,13 @@ Scope {
             readonly property int sessionMinutes: GameClips.gameStarted > 0 ? Math.max(0, Math.floor((now - GameClips.gameStarted) / 60000)) : -1
 
             // ── Loaded on opening ──
-            // The game's processes, to tell its sound from other apps' (Steam games)
+            // The game's processes, to tell its sound from other apps'. Without a launcher entry: a Steam game by its id
+            readonly property var gameMatchers: root.game ? GameLauncherService.processMatchers(root.game)
+                : GameClips.gameAppId !== "" ? ["steam:" + GameClips.gameAppId] : []
             property var gamePids: []
             Process {
-                running: GameClips.gameAppId !== ""
-                command: ["python3", "-I", Quickshell.shellPath("scripts/clips/game_pids.py"), GameClips.gameAppId]
+                running: window.gameMatchers.length > 0
+                command: ["python3", "-I", Quickshell.shellPath("scripts/clips/game_pids.py"), ...window.gameMatchers]
                 stdout: StdioCollector {
                     onStreamFinished: { try { window.gamePids = JSON.parse(text); } catch (e) {} }
                 }
@@ -366,6 +369,7 @@ Scope {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         gamePids: window.gamePids
+                        gameFlatpak: root.game?.flatpakId ?? ""
                         gameName: GameClips.game
                         gameArt: root.game?.icon || GameClips.gameArt || ""
                     }

@@ -1112,8 +1112,9 @@ Item {
             readonly property bool playing: !!game && GameClips.gameId === game.id
             function activate() {
                 if (playing) {
-                    if (root._steamAppId !== "")
-                        Quickshell.execDetached(["python3", "-I", Quickshell.shellPath("scripts/game-launcher/focus_game.py"), root._steamAppId]);
+                    const matchers = GameLauncherService.processMatchers(game);
+                    if (matchers.length > 0)
+                        Quickshell.execDetached(["python3", "-I", Quickshell.shellPath("scripts/game-launcher/focus_game.py"), ...matchers]);
                     GlobalStates.gameLauncherOpen = false;
                 }
                 // While a download runs, the button opens Steam's downloads instead of starting it again

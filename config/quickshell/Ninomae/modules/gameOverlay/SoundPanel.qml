@@ -8,17 +8,20 @@ import Quickshell
 import Quickshell.Services.Pipewire
 
 // The in-game overlay's Sound: the mic, where the sound goes (with more than one output), its volume, then each
-// app playing sound: the game first (its streams' processes are among gamePids), voice chat next, the rest after.
+// app playing sound: the game first (its streams' processes are among gamePids, or for a Flatpak game its app id is
+// gameFlatpak: inside the sandbox its process ids are its own), voice chat next, the rest after.
 // The apps scroll when there are more than fit
 OverlayPanel {
     id: root
     property var gamePids: []
+    property string gameFlatpak: ""
     property string gameName: ""
     property string gameArt: ""
     readonly property var outputs: Pipewire.nodes.values.filter(n => n.isSink && n.audio && !n.isStream)
     readonly property var apps: Pipewire.nodes.values.filter(n => n.isSink && n.audio && n.isStream)
         .sort((a, b) => rank(b) - rank(a))
     function isGame(node) {
+        if (root.gameFlatpak !== "" && node.properties["pipewire.access.portal.app_id"] === root.gameFlatpak) return true;
         const pid = Number(node.properties["application.process.id"] ?? 0);
         return pid > 0 && root.gamePids.includes(pid);
     }
