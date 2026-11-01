@@ -126,7 +126,7 @@ OverlayPanel {
                     }
                     Rectangle { // Hover ring
                         anchors.fill: parent
-                        radius: parent.radius
+                        radius: tile.radius
                         color: "transparent"
                         border.width: 2
                         border.color: Appearance.colors.colPrimary
