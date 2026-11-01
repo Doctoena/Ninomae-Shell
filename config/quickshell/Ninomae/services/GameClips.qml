@@ -113,6 +113,12 @@ Singleton {
             root.game = g.name;
         }
     }
+    // Bitrate for the screen's size: 16 Mbps for 1080p, more for bigger screens, up to 50 Mbps
+    // (a 5120×1440 ultrawide, ~375 MB a minute)
+    readonly property int bitrateKbps: {
+        const w = Hyprland.focusedMonitor?.width ?? 1920, h = Hyprland.focusedMonitor?.height ?? 1080;
+        return Math.round(Math.max(16000, Math.min(50000, 16000 * w * h / (1920 * 1080))));
+    }
     Process {
         id: recorder
         running: root.enabled && root.game !== "" && !root._restarting
@@ -121,8 +127,10 @@ Singleton {
             "sh", "-c", 'mkdir -p -- "$1" && shift && exec gpu-screen-recorder "$@"', "clip-recorder", root.clipsDir,
             "-w", Hyprland.focusedMonitor?.name || "screen", // The monitor in focus when the game started
             "-f", "60",
-            "-c", "mp4", "-k", "h264", "-ac", "aac", // Plays everywhere, Discord included
-            "-bm", "cbr", "-q", "12000",             // 12 Mbps: steady quality, ~90 MB a minute
+            // HEVC: sharper than h264 at the same size, and records ultrawides at full width (h264
+            // stops at 4096 px). Discord's in-chat player may not play it
+            "-c", "mp4", "-k", "hevc", "-ac", "aac",
+            "-bm", "cbr", "-q", String(root.bitrateKbps),
             "-a", root.withMic ? "default_output|default_input" : "default_output", // One mixed track
             "-r", String(root.seconds),
             "-o", root.clipsDir,

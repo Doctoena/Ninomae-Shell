@@ -5,8 +5,8 @@ Usage: export_clip.py trim <clip> <start s> <end s>
 Writes "<name> (trim).mp4" next to the clip (then "(trim 2)"…), at the clip's own bitrate: looks the
 same and isn't bigger. Prints "progress <0-1>" as it goes, then "done <bytes> <path>" or "error <message>".
 
-Encodes on the GPU: VA-API (Intel/AMD) first, then NVENC, then libopenh264 in software. Fedora's
-ffmpeg-free decodes H.264 in software only (libopenh264), which is most of the time it takes.
+Keeps the clip's format: HEVC clips (what the recorder makes) stay HEVC, older H.264 ones stay H.264.
+Encodes on the GPU: VA-API (Intel/AMD) first, then NVENC, then in software (libx265, libopenh264).
 """
 import json
 import os
@@ -20,7 +20,7 @@ def say(*parts):
 
 
 def probe(path):
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,bit_rate:format=duration",
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,bit_rate:format=duration",
                           "-of", "json", path], capture_output=True, text=True).stdout
     j = json.loads(out or "{}")
     streams = j.get("streams", [])
@@ -28,6 +28,7 @@ def probe(path):
     return {
         "duration": float(j.get("format", {}).get("duration") or 0),
         "bitrate": int(video.get("bit_rate") or 0),
+        "codec": "hevc" if video.get("codec_name") == "hevc" else "h264",
         "audio": any(s.get("codec_type") == "audio" for s in streams),
     }
 
@@ -60,19 +61,21 @@ def unique(path):
     return candidate
 
 
-def trim(src, dst, start, end, video_kbps, audio):
+def trim(src, dst, start, end, video_kbps, audio, codec):
     have = video_encoders()
-    dev = vaapi_device() if "h264_vaapi" in have else None
+    dev = vaapi_device() if f"{codec}_vaapi" in have else None
     cmd = ["ffmpeg", "-v", "error", "-y", "-nostats", "-progress", "pipe:1"]
     if dev:
         cmd += ["-vaapi_device", dev]
     cmd += ["-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", src]  # Before -i: frame-accurate when re-encoding
     if dev:
-        cmd += ["-vf", "format=nv12,hwupload", "-c:v", "h264_vaapi", "-rc_mode", "VBR"]
-    elif "h264_nvenc" in have:
-        cmd += ["-c:v", "h264_nvenc", "-rc", "vbr"]
+        cmd += ["-vf", "format=nv12,hwupload", "-c:v", f"{codec}_vaapi", "-rc_mode", "VBR"]
+    elif f"{codec}_nvenc" in have:
+        cmd += ["-c:v", f"{codec}_nvenc", "-rc", "vbr"]
     else:
-        cmd += ["-c:v", "libopenh264"]
+        cmd += ["-c:v", "libx265" if codec == "hevc" else "libopenh264"]
+    if codec == "hevc":
+        cmd += ["-tag:v", "hvc1"]  # The HEVC tag browsers and phones expect in an MP4
     cmd += ["-b:v", f"{video_kbps}k", "-maxrate", f"{int(video_kbps * 1.5)}k", "-bufsize", f"{video_kbps * 2}k"]
     cmd += ["-c:a", "aac", "-b:a", "192k"] if audio else ["-an"]
     # Made under a hidden name and renamed when done: the Clips page (list_clips.py) only lists finished ones
@@ -108,7 +111,7 @@ def main():
     stem = os.path.splitext(os.path.basename(src))[0]
     dst = unique(os.path.join(os.path.dirname(src), f"{stem} (trim).mp4"))
     kbps = max(2000, (info["bitrate"] or 12_000_000) // 1000)
-    trim(src, dst, start, end, kbps, info["audio"])
+    trim(src, dst, start, end, kbps, info["audio"], info["codec"])
     say("done", os.path.getsize(dst), dst)
 
 
