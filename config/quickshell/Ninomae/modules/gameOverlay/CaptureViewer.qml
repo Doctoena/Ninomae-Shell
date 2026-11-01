@@ -12,10 +12,11 @@ import Quickshell.Widgets
 
 /**
  * The in-game overlay's viewer for this session's captures, as the launcher's: the screenshot large (a clip
- * plays, click to pause), previous and next at its sides, when it was taken and its size under it with
- * Copy, Open and Trash, and a filmstrip of all of them. Keys (from the overlay, handleKey): ←/→ (Home/End)
- * step through, Ctrl+C copies, Delete trashes (to the Trash, so it can be got back), Esc goes back.
- * Copy puts a screenshot on the clipboard as PNG and a clip as its file, ready to paste into Discord.
+ * plays with a seek bar, click to pause), previous and next at its sides, when it was taken and its size
+ * under it with Copy, Open and Trash, and a filmstrip of all of them. Keys (from the overlay, handleKey):
+ * ←/→ (Home/End) step through, Space plays or pauses a clip and Shift+←/→ seeks it 5 s, Ctrl+C copies,
+ * Delete trashes (to the Trash, so it can be got back), Esc goes back.
+ * Copy puts a screenshot on the clipboard as PNG and a clip as its file.
  */
 Item {
     id: root
@@ -65,13 +66,22 @@ Item {
         if (v.playbackState === MediaPlayer.PlayingState) v.pause();
         else { if (v.duration > 0 && v.position >= v.duration - 50) v.position = 0; v.play(); }
     }
+    // A clip's player, moved by ms (Shift+Left/Right)
+    function seekBy(ms) {
+        const v = videoLoader.item;
+        if (v && v.duration > 0) v.position = Math.max(0, Math.min(v.duration, v.position + ms));
+    }
     // Keys from the overlay; returns whether it used the key
     function handleKey(event) {
         const n = captures.length;
         switch (event.key) {
         case Qt.Key_Escape: backRequested(); return true;
-        case Qt.Key_Left: goTo(Math.max(0, index - 1)); return true;
-        case Qt.Key_Right: goTo(Math.min(n - 1, index + 1)); return true;
+        case Qt.Key_Left:
+            if (isClip && (event.modifiers & Qt.ShiftModifier)) seekBy(-5000); else goTo(Math.max(0, index - 1));
+            return true;
+        case Qt.Key_Right:
+            if (isClip && (event.modifiers & Qt.ShiftModifier)) seekBy(5000); else goTo(Math.min(n - 1, index + 1));
+            return true;
         case Qt.Key_Home: goTo(0); return true;
         case Qt.Key_End: goTo(n - 1); return true;
         case Qt.Key_Delete: trashCurrent(); return true;
@@ -85,7 +95,8 @@ Item {
         return d.toLocaleTimeString(Qt.locale(), Locale.ShortFormat);
     }
     function lengthLabel(s) {
-        return `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+        const t = Math.floor(s); // 59.6 s is 0:59, not 0:60
+        return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
     }
 
     Rectangle { // Darker than the overlay's own backdrop; a click here goes back to the overlay
@@ -151,12 +162,53 @@ Item {
                     color: Appearance.colors.colOnLayer0
                 }
             }
-            Rectangle { // A clip's progress, along the bottom
-                visible: root.isClip && (videoLoader.item?.duration ?? 0) > 0
-                anchors { left: parent.left; bottom: parent.bottom }
-                height: 4
-                width: parent.width * ((videoLoader.item?.position ?? 0) / Math.max(1, videoLoader.item?.duration ?? 1))
-                color: Appearance.colors.colPrimary
+            HoverHandler { id: pictureHover }
+            Rectangle { // A clip's controls along the bottom: play, time, and a bar to seek with
+                id: controls
+                readonly property var video: videoLoader.item
+                readonly property real duration: video?.duration ?? 0 // ms
+                readonly property bool playing: video?.playbackState === MediaPlayer.PlayingState
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: 52
+                visible: root.isClip && duration > 0
+                // While the mouse is over the clip, or it's paused; always while seeking
+                opacity: !playing || pictureHover.hovered || seek.pressed ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                MouseArea { anchors.fill: parent } // A click beside the controls doesn't pause
+                gradient: Gradient {
+                    GradientStop { position: 0; color: "transparent" }
+                    GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 0.6) }
+                }
+                MaterialSymbol {
+                    id: playIcon
+                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    text: controls.playing ? "pause" : "play_arrow"
+                    fill: 1; iconSize: 24
+                    color: "white"
+                    MouseArea {
+                        anchors { fill: parent; margins: -8 }
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.togglePlay()
+                    }
+                }
+                StyledText {
+                    id: timeText
+                    anchors { left: playIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: `${root.lengthLabel((controls.video?.position ?? 0) / 1000)} / ${root.lengthLabel(controls.duration / 1000)}`
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.features: { "tnum": 1 } // Digits keep their width as it counts
+                    color: "white"
+                }
+                StyledSlider {
+                    id: seek
+                    anchors { left: timeText.right; leftMargin: 12; right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                    from: 0; to: 1
+                    value: controls.duration > 0 ? (controls.video?.position ?? 0) / controls.duration : 0
+                    stopIndicatorValues: []
+                    tooltipContent: root.lengthLabel(value * controls.duration / 1000)
+                    focusPolicy: Qt.NoFocus
+                    onMoved: if (controls.video) controls.video.position = value * controls.duration
+                }
             }
         }
         SheetNavButton {
@@ -206,7 +258,7 @@ Item {
             Item { width: 6; height: 1 }
             ViewerAction {
                 icon: root.copiedPath !== "" && root.copiedPath === root.current?.path ? "check" : "content_copy"
-                tip: root.isClip ? Translation.tr("Copy the clip (Ctrl+C), ready to paste into Discord")
+                tip: root.isClip ? Translation.tr("Copy the clip (Ctrl+C)")
                     : Translation.tr("Copy the screenshot (Ctrl+C)")
                 onClicked: root.copyCurrent()
             }

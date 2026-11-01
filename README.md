@@ -271,7 +271,7 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
 - **In-game overlay.** `Super+Shift+G` while a game runs (it closes if the game does): the time and battery
   the hidden bar would show, quick actions with a letter key each (save a clip, screenshot, crosshair, do not
   disturb, game mode), the game's art and hours, this session's clips and screenshots (one opens right
-  there: clips play, `Ctrl+C` copies for Discord), what came in while you played, live CPU and GPU graphs,
+  there: clips play with a seek bar, `Shift+←/→` skips 5 s, `Ctrl+C` copies), what came in while you played, live CPU and GPU graphs,
   and the sound: output device, mic, and each app's volume, the game's own first. Turn it off in
   **Settings → Games**.
 - **GE-Proton.** **Settings → Games** installs the latest GE-Proton in one click (checked before it's
