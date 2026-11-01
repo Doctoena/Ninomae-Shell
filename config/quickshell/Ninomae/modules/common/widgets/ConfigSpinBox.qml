@@ -48,10 +48,20 @@ RowLayout {
         }
         StyledText {
             id: labelWidget
-            Layout.fillWidth: !infoTip.visible
+            // Wraps in a narrow card rather than pushing the box out; with a tip, no wider than its text, so
+            // the tip stays right after it. Measured unwrapped: a wrapped label's implicitWidth shrinks with it
+            Layout.fillWidth: true
+            Layout.preferredWidth: Math.ceil(labelMetrics.advanceWidth)
+            Layout.maximumWidth: infoTip.visible ? Math.ceil(labelMetrics.advanceWidth) : Number.POSITIVE_INFINITY
+            wrapMode: Text.Wrap
             text: root.suffix !== "" ? `${root.text} (${root.suffix})` : root.text
             color: Appearance.colors.colOnLayer1
             opacity: root.enabled ? 1 : 0.4
+        }
+        TextMetrics {
+            id: labelMetrics
+            font: labelWidget.font
+            text: labelWidget.text
         }
         InfoTip { // Right after the label, like ConfigComboBox's
             id: infoTip

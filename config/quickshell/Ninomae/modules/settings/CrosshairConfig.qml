@@ -30,6 +30,7 @@ Item {
 
     // The same width as the other pages' cards (ContentPage's maxWidth), centred under the header
     RowLayout {
+        id: columns
         anchors { top: parent.top; bottom: parent.bottom; topMargin: 20 }
         width: Math.min(parent.width - 40, 1260)
         x: (parent.width - width) / 2
@@ -125,7 +126,8 @@ Item {
 
         ColumnLayout { // The preview: fixed on the right, on dark and on light, at 3× (drawn 1:1 in games)
             Layout.fillWidth: false // A layout fills by default: the settings get the room
-            Layout.preferredWidth: 320
+            // 320, down to 240 in a narrow (tiled) window, so the settings keep 420 for their labels
+            Layout.preferredWidth: Math.max(240, Math.min(320, columns.width - columns.spacing - 420))
             Layout.fillHeight: true
             spacing: 0
             ContentSection {

@@ -26,10 +26,20 @@ RowLayout {
             icon: root.icon
             opacity: root.enabled ? 1 : 0.4
         }
-        StyledText {
+        StyledText { // Wraps like ConfigSpinBox's label
+            id: labelWidget
+            Layout.fillWidth: true
+            Layout.preferredWidth: Math.ceil(labelMetrics.advanceWidth)
+            Layout.maximumWidth: Math.ceil(labelMetrics.advanceWidth)
+            wrapMode: Text.Wrap
             text: root.text
             color: Appearance.colors.colOnLayer1
             opacity: root.enabled ? 1 : 0.4
+        }
+        TextMetrics {
+            id: labelMetrics
+            font: labelWidget.font
+            text: labelWidget.text
         }
         InfoTip {
             tip: root.tooltip

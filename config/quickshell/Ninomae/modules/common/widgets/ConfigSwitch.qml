@@ -32,6 +32,7 @@ RippleButton {
         StyledText {
             id: labelWidget
             Layout.fillWidth: true
+            wrapMode: Text.Wrap // In a narrow card, rather than running under the switch
             text: root.text
             font: root.font
             color: Appearance.colors.colOnLayer1
