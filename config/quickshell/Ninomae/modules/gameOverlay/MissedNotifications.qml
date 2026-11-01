@@ -1,44 +1,87 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Services.Notifications
 
 // The in-game overlay's "While you played": notifications since the game started (since, ms), newest first,
-// as many as fit
+// with their app's icon. As tall as they are; when the overlay gives it less, they scroll. One with something
+// to open (its app's default action, as a Discord message's, or the click command it brought) opens it on a
+// click, and the overlay closes (activated). Clear dismisses them (from the sidebar too)
 OverlayPanel {
     id: root
     property real since: 0
-    readonly property var items: since > 0 ? Notifications.list.filter(n => n.time >= since).slice(-8).reverse() : []
-    clip: true
-    OverlayEmptyState {
-        visible: root.items.length === 0
-        icon: "notifications_none"
-        text: Translation.tr("Nothing new")
+    readonly property var items: since > 0 ? Notifications.list.filter(n => n.time >= since).reverse() : []
+    signal activated()
+    function hasDefault(n) { return n.actions.some(a => a.identifier === "default"); }
+    function open(n) {
+        if (hasDefault(n)) Notifications.attemptInvokeAction(n.notificationId, "default");
+        else {
+            Quickshell.execDetached(n.execArgv);
+            Notifications.discardNotification(n.notificationId);
+        }
+        root.activated();
     }
+    implicitHeight: column.implicitHeight + 28
     ColumnLayout {
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
-        spacing: 8
-        OverlayPanelTitle { icon: "notifications"; text: Translation.tr("While you played") }
-        Repeater {
+        id: column
+        anchors { fill: parent; margins: 14 }
+        spacing: 10
+        RowLayout {
+            Layout.fillWidth: true
+            OverlayPanelTitle { Layout.fillWidth: true; icon: "notifications"; text: Translation.tr("While you played") }
+            OverlayChip {
+                visible: root.items.length > 0
+                icon: "clear_all"
+                text: Translation.tr("Clear")
+                onClicked: root.items.forEach(n => Notifications.discardNotification(n.notificationId))
+            }
+        }
+        StyledText {
+            visible: root.items.length === 0
+            text: Translation.tr("Nothing new")
+            font.pixelSize: Appearance.font.pixelSize.small
+            color: Appearance.colors.colSubtext
+        }
+        StyledListView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            implicitHeight: contentHeight
+            visible: root.items.length > 0
+            clip: true
+            spacing: 8
             model: root.items
-            Rectangle { // One notification, on a neutral tile
+            delegate: Rectangle { // One notification, on a neutral tile
                 id: row
                 required property var modelData
-                Layout.fillWidth: true
+                width: ListView.view.width
                 implicitHeight: rowContent.implicitHeight + 16
+                readonly property bool openable: root.hasDefault(modelData) || !!modelData.execArgv
                 radius: Appearance.rounding.normal
-                color: Appearance.colors.colLayer2
+                color: openable && rowMouse.containsMouse ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2
+                MouseArea {
+                    id: rowMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: row.openable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: if (row.openable) root.open(row.modelData)
+                }
                 RowLayout {
                     id: rowContent
                     anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 10; rightMargin: 12 }
                     spacing: 10
-                    QuickDialogIcon { // Its app's
+                    NotificationAppIcon {
                         Layout.alignment: Qt.AlignTop
-                        implicitWidth: 28; implicitHeight: 28
+                        implicitSize: 28
                         radius: Appearance.rounding.chip + 1
-                        icon: "chat_bubble"
+                        appIcon: row.modelData.appIcon
+                        appName: row.modelData.appName
+                        summary: row.modelData.summary
+                        body: row.modelData.body
+                        image: row.modelData.image
+                        urgency: row.modelData.urgency === NotificationUrgency.Critical.toString() ? NotificationUrgency.Critical : NotificationUrgency.Normal
                     }
                     ColumnLayout {
                         Layout.fillWidth: true

@@ -1,9 +1,6 @@
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
-import QtQuick.Layouts
 
 // Previous, play/pause or next in the overlay's Now playing: the main one filled in the accent
 Rectangle {

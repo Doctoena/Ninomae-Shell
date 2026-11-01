@@ -12,20 +12,25 @@ import Quickshell.Hyprland
 
 /**
  * The in-game overlay (Super+Shift+G), like Xbox Game Bar: the game stays in view in the middle, with
- *  - at the top, what the bar would say in fullscreen (the game, play time, clock, battery), and quick actions
- *    under it: save a clip, screenshot, crosshair, do not disturb, game mode (accent when on; a letter each)
+ *  - at the top, the clock and battery when the game is fullscreen (the bar is hidden then; in a window it
+ *    stays above the overlay), and the quick actions: save a clip, screenshot, crosshair, do not disturb,
+ *    game mode (accent when on; a letter each)
  *  - on the left, the game (GameBanner), this session's clips and screenshots (CapturesPanel: one opens in
  *    CaptureViewer, over everything), and what came in while playing (MissedNotifications)
  *  - on the right, live CPU and GPU graphs (PerformancePanel), and the sound (SoundPanel): the game's own
  *    first, matched by process (scripts/clips/game_pids.py: Steam, Lutris, Flatpak or its program) or, for
  *    a Flatpak, its app id, then voice chat
  *  - between them at the bottom, what's playing (NowPlaying)
- * Both columns are the same width (narrower on a small screen) and run from under the actions to the bottom.
- * On the overlay layer of the focused screen, with the keyboard: Esc or the key again closes it, as does a
- * click on the backdrop. Clip and screenshot close it first, so they show the game. Only exists while open,
- * apart from the graphs' history, kept for the next time it opens during the same game. It only opens while
- * a game runs (GameClips' watcher), and closes if the game does. Settings → Games turns it off
- * (gameLauncher.overlayEnabled): the key then does nothing.
+ * Both columns are the same width (narrower on a small screen). Cards are as tall as what they hold, and the
+ * last of each column scrolls when the screen is short.
+ * On the overlay layer of the game's screen, with the keyboard: Esc or the key again closes it, as does a
+ * click on the backdrop or opening a notification. It fades out with the keyboard and clicks already back with
+ * the game. Clip and screenshot close it at once, then capture, so they show the game.
+ * Only exists while open. The CPU and GPU are sampled the whole time a game runs, so the graphs and their
+ * average and peak cover the session (ResourceUsage reads files, or an nvidia-smi that's already running, and
+ * leaves a sleeping NVIDIA GPU asleep).
+ * It only opens while a game runs (GameClips' watcher), and closes if the game does. Settings → Games turns it
+ * off (gameLauncher.overlayEnabled): the key then does nothing.
  */
 Scope {
     id: root
@@ -36,6 +41,28 @@ Scope {
     function toggle() { GlobalStates.gameOverlayOpen = root.available && !GlobalStates.gameOverlayOpen; }
     function close() { GlobalStates.gameOverlayOpen = false; }
 
+    // The window exists while open and while it fades out. Its screen is chosen on opening (the game's
+    // window's, else the focused one), so it doesn't jump when the pointer crosses to another screen
+    property bool loaded: false
+    property string screenName: ""
+    property bool gameFullscreen: true
+    onOpenChanged: {
+        if (open) {
+            unloadTimer.stop();
+            const focused = ToplevelManager.activeToplevel;
+            screenName = focused?.screens?.[0]?.name ?? Hyprland.focusedMonitor?.name ?? "";
+            gameFullscreen = focused?.fullscreen ?? true;
+            loaded = true;
+        } else if (loaded) {
+            unloadTimer.restart();
+        }
+    }
+    Timer {
+        id: unloadTimer
+        interval: Appearance.animation.elementMoveFast.duration + 50
+        onTriggered: root.loaded = false
+    }
+
     // The launcher's entry for the running game (art, hours, folders), when it has one
     readonly property var game: GameClips.gameId ? GameLauncherService.games.find(g => g.id === GameClips.gameId) ?? null : null
     readonly property string bannerArt: {
@@ -45,21 +72,23 @@ Scope {
         return "";
     }
 
-    // ── Capture: done once the overlay has gone, so they show the game ──
+    // ── Capture: the overlay goes at once (no fade), then a frame later the capture, so it shows the game ──
     property string _pendingCapture: ""
     function capture(kind) {
         root._pendingCapture = kind;
         root.close();
+        unloadTimer.stop();
+        root.loaded = false;
         captureTimer.restart();
     }
     Timer {
         id: captureTimer
-        interval: 350
+        interval: 150
         onTriggered: {
             if (root._pendingCapture === "clip") GameClips.save();
             else if (root._pendingCapture === "screenshot") Quickshell.execDetached([
                 Quickshell.shellPath("scripts/game-launcher/game_screenshot.sh"),
-                Hyprland.focusedMonitor?.name ?? "", GameClips.game || "Game",
+                root.screenName || (Hyprland.focusedMonitor?.name ?? ""), GameClips.game || "Game",
                 GameClips.gameAppId, root.game?.gameDir ?? "", root.game?.flatpakId ?? ""]);
             root._pendingCapture = "";
         }
@@ -69,51 +98,75 @@ Scope {
         root.close();
     }
 
-    // ── Graph history: sampled while open, kept between openings during one game ──
-    readonly property int historyLength: 40
+    // ── CPU and GPU, sampled the whole session: the last 5 minutes for the graphs, average and peak over all of it ──
+    readonly property bool sampling: enabled && GameClips.gameStarted > 0
+    onSamplingChanged: ResourceUsage.watchers += sampling ? 1 : -1
+    Component.onCompleted: if (sampling) ResourceUsage.watchers++
+    Component.onDestruction: if (sampling) ResourceUsage.watchers--
+    readonly property int historyLength: 100
     property var cpuHistory: []
     property var gpuHistory: []
+    property var cpuStats: ({ sum: 0, count: 0, peak: 0 })
+    property var gpuStats: ({ sum: 0, count: 0, peak: 0 })
     Connections {
         target: GameClips
-        function onGameChanged() { root.cpuHistory = []; root.gpuHistory = []; }
+        function onGameChanged() {
+            root.cpuHistory = []; root.gpuHistory = [];
+            root.cpuStats = { sum: 0, count: 0, peak: 0 }; root.gpuStats = { sum: 0, count: 0, peak: 0 };
+        }
+    }
+    Timer {
+        // ResourceUsage's first CPU number comes half a second after it starts polling (it's a difference
+        // between two reads): the first sample just after that, then at its pace
+        running: root.sampling
+        repeat: true
+        interval: 800
+        onRunningChanged: if (running) interval = 800
+        onTriggered: {
+            interval = Config.options?.resources?.updateInterval ?? 3000;
+            root.cpuHistory = root.pushSample(root.cpuHistory, ResourceUsage.cpuUsage);
+            root.cpuStats = root.addStat(root.cpuStats, ResourceUsage.cpuUsage);
+            if (ResourceUsage.gpuDetected) {
+                const gpu = ResourceUsage.gpuAsleep ? 0 : ResourceUsage.gpuUsage;
+                root.gpuHistory = root.pushSample(root.gpuHistory, gpu);
+                root.gpuStats = root.addStat(root.gpuStats, gpu);
+            }
+        }
     }
     function pushSample(list, value) {
         const next = list.concat([Math.min(1, Math.max(0, value))]);
         return next.length > historyLength ? next.slice(next.length - historyLength) : next;
     }
+    function addStat(stats, value) {
+        return { sum: stats.sum + value, count: stats.count + 1, peak: Math.max(stats.peak, value) };
+    }
     function duration(minutes) {
-        return minutes < 60 ? Translation.tr("%1 min").arg(minutes)
+        return minutes < 1 ? Translation.tr("just started")
+            : minutes < 60 ? Translation.tr("%1 min").arg(minutes)
             : Translation.tr("%1 h %2 min").arg(Math.floor(minutes / 60)).arg(minutes % 60);
     }
 
     LazyLoader {
-        active: root.open
+        active: root.loaded
         component: PanelWindow {
             id: window
-            screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0]
+            screen: Quickshell.screens.find(s => s.name === root.screenName) ?? Quickshell.screens[0]
             anchors { top: true; bottom: true; left: true; right: true }
-            exclusionMode: ExclusionMode.Ignore
+            // Over a fullscreen game, the whole screen; over a window, below the bar
+            exclusionMode: root.gameFullscreen ? ExclusionMode.Ignore : ExclusionMode.Normal
             WlrLayershell.namespace: "quickshell:gameOverlay"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            // Fading out: the keyboard and clicks are the game's again
+            WlrLayershell.keyboardFocus: root.open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            mask: root.open ? null : clickThrough
+            Region { id: clickThrough }
             color: "transparent"
 
-            // The numbers only update while something shows them
-            Component.onCompleted: { ResourceUsage.watchers++; shown = true; }
-            Component.onDestruction: ResourceUsage.watchers--
-            property bool shown: false
+            Component.onCompleted: ready = true // Then animates in
+            property bool ready: false
+            readonly property bool shown: ready && root.open
             property real now: Date.now()
             Timer { running: true; repeat: true; interval: 15000; onTriggered: window.now = Date.now() }
-            Timer {
-                running: true
-                repeat: true
-                interval: Config.options?.resources?.updateInterval ?? 3000
-                // Not on start: CPU use is a difference between two polls, so right after opening it's stale
-                onTriggered: {
-                    root.cpuHistory = root.pushSample(root.cpuHistory, ResourceUsage.cpuUsage);
-                    if (ResourceUsage.gpuDetected) root.gpuHistory = root.pushSample(root.gpuHistory, ResourceUsage.gpuAsleep ? 0 : ResourceUsage.gpuUsage);
-                }
-            }
             readonly property int sessionMinutes: GameClips.gameStarted > 0 ? Math.max(0, Math.floor((now - GameClips.gameStarted) / 60000)) : -1
 
             // ── Loaded on opening ──
@@ -131,7 +184,7 @@ Scope {
             // Clips saved since the game started, with thumbnails (made and cached by list_clips.py)
             property var sessionClips: []
             Process {
-                running: GameClips.game !== "" && GameClips.gameStarted > 0
+                running: GameClips.gameStarted > 0
                 command: ["python3", "-I", Quickshell.shellPath("scripts/clips/list_clips.py"), GameClips.folderFor(GameClips.game),
                           `${GameLauncherService.cacheDir}/clip-thumbs`]
                 stdout: StdioCollector {
@@ -149,7 +202,7 @@ Scope {
             property var sessionShots: []
             property string shotsFolder: ""
             Process {
-                running: GameClips.game !== "" && GameClips.gameStarted > 0
+                running: GameClips.gameStarted > 0
                 command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/find_screenshots.py"),
                           GameClips.gameAppId, root.game?.gameDir ?? "", root.game?.flatpakId ?? ""]
                 stdout: StdioCollector {
@@ -207,7 +260,7 @@ Scope {
                     }
                 }
 
-                // ── Top: what the bar would say, then the quick actions ──
+                // ── Top: the clock and battery (fullscreen only), then the quick actions ──
                 ColumnLayout {
                     id: top
                     anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
@@ -217,34 +270,27 @@ Scope {
                     Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
                     spacing: 12
 
-                    OverlayPanel {
+                    OverlayPanel { // What the hidden bar would say
+                        visible: root.gameFullscreen
                         Layout.alignment: Qt.AlignHCenter
                         implicitWidth: statusRow.implicitWidth + 32
-                        implicitHeight: 48
+                        implicitHeight: 40
                         radius: Appearance.rounding.normal // A rounded rectangle, not a pill
                         RowLayout {
                             id: statusRow
                             anchors.centerIn: parent
                             spacing: 14
-                            MaterialSymbol { text: "sports_esports"; iconSize: 20; color: Appearance.colors.colPrimary }
-                            StyledText {
-                                text: GameClips.game
-                                font.weight: Font.DemiBold
-                                color: Appearance.colors.colOnLayer0
-                            }
-                            Dot { visible: window.sessionMinutes >= 0 }
-                            StyledText {
-                                visible: window.sessionMinutes >= 0
-                                text: root.duration(window.sessionMinutes)
-                                color: Appearance.colors.colSubtext
-                            }
-                            Dot {}
                             StyledText {
                                 text: DateTime.time
                                 font.family: Appearance.font.family.numbers
+                                font.weight: Font.DemiBold
                                 color: Appearance.colors.colOnLayer0
                             }
-                            Dot { visible: Battery.available }
+                            Rectangle { // Between the clock and the battery
+                                visible: Battery.available
+                                implicitWidth: 4; implicitHeight: 4; radius: 2
+                                color: Appearance.colors.colSubtext
+                            }
                             Row {
                                 visible: Battery.available
                                 spacing: 4
@@ -259,7 +305,7 @@ Scope {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: Battery.percent + "%"
                                     font.family: Appearance.font.family.numbers
-                                    color: Appearance.colors.colOnLayer0
+                                    color: parent.low ? Appearance.colors.colError : Appearance.colors.colOnLayer0
                                 }
                             }
                         }
@@ -318,24 +364,25 @@ Scope {
                 }
 
                 // ── Left: the game, this session's captures, what came in ──
-                ColumnLayout {
+                SideColumn {
+                    id: leftColumn
                     anchors { left: parent.left; top: top.bottom; topMargin: 24; bottom: hint.top; bottomMargin: 16 }
                     anchors.leftMargin: window.shown ? 0 : -40
                     Behavior on anchors.leftMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
-                    opacity: layout.panelsOpacity
-                    Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
                     width: layout.columnWidth
-                    spacing: 12
+                    opacity: layout.panelsOpacity
                     GameBanner {
+                        id: banner
                         Layout.fillWidth: true
                         art: root.bannerArt
                         gameName: GameClips.game
                         sessionText: window.sessionMinutes < 0 ? ""
-                            : Translation.tr("This session %1").arg(root.duration(window.sessionMinutes))
+                            : Translation.tr("This session: %1").arg(root.duration(window.sessionMinutes))
                               // Steam adds this session to its hours when it ends
                               + (root.game?.playtime ? "  ·  " + Translation.tr("%1 h in all").arg(Math.floor((root.game.playtime + window.sessionMinutes) / 60)) : "")
                     }
                     CapturesPanel {
+                        id: capturesPanel
                         Layout.fillWidth: true
                         captures: window.captures
                         clipsFolder: GameClips.folderFor(GameClips.game)
@@ -346,28 +393,31 @@ Scope {
                     }
                     MissedNotifications {
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.preferredHeight: Math.min(implicitHeight, leftColumn.height - banner.height - capturesPanel.height - 2 * leftColumn.spacing)
                         since: GameClips.gameStarted
+                        onActivated: root.close()
                     }
                 }
 
                 // ── Right: how hard the computer is working, and the sound ──
-                ColumnLayout {
+                SideColumn {
+                    id: rightColumn
                     anchors { right: parent.right; top: top.bottom; topMargin: 24; bottom: hint.top; bottomMargin: 16 }
                     anchors.rightMargin: window.shown ? 0 : -40
                     Behavior on anchors.rightMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
-                    opacity: layout.panelsOpacity
-                    Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
                     width: layout.columnWidth
-                    spacing: 12
+                    opacity: layout.panelsOpacity
                     PerformancePanel {
+                        id: performancePanel
                         Layout.fillWidth: true
                         cpuHistory: root.cpuHistory
                         gpuHistory: root.gpuHistory
+                        cpuStats: root.cpuStats
+                        gpuStats: root.gpuStats
                     }
                     SoundPanel {
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.preferredHeight: Math.min(implicitHeight, rightColumn.height - performancePanel.height - rightColumn.spacing)
                         gamePids: window.gamePids
                         gameFlatpak: root.game?.flatpakId ?? ""
                         gameName: GameClips.game
@@ -410,9 +460,17 @@ Scope {
         }
     }
 
-    component Dot: Rectangle { // Between the status strip's parts
-        implicitWidth: 4; implicitHeight: 4; radius: 2
-        color: Appearance.colors.colSubtext
+    // A side column: its cards stack from the top, each as tall as what it holds (the last one is given a
+    // height that fits what's left)
+    component SideColumn: Item {
+        default property alias cards: cards.data
+        readonly property int spacing: 12
+        Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        ColumnLayout {
+            id: cards
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            spacing: parent.spacing
+        }
     }
 
     IpcHandler {

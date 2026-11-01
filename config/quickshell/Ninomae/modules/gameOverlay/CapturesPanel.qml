@@ -1,7 +1,6 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 
@@ -38,17 +37,36 @@ OverlayPanel {
                 onClicked: root.openFolder(root.shotsFolder)
             }
         }
-        StyledText {
-            Layout.fillWidth: true
-            wrapMode: Text.Wrap
-            text: root.captures.length > 0
-                ? [root.clipCount === 1 ? Translation.tr("1 clip") : root.clipCount > 1 ? Translation.tr("%1 clips").arg(root.clipCount) : "",
+        StyledText { // How many of each
+            visible: root.captures.length > 0
+            text: [root.clipCount === 1 ? Translation.tr("1 clip") : root.clipCount > 1 ? Translation.tr("%1 clips").arg(root.clipCount) : "",
                    root.shotCount === 1 ? Translation.tr("1 screenshot") : root.shotCount > 1 ? Translation.tr("%1 screenshots").arg(root.shotCount) : ""]
-                    .filter(t => t).join("  ·  ")
-                : root.recording ? Translation.tr("None yet. C saves a clip and S a screenshot, here or with %1 for a clip in the game").arg(GameClips.keyLabel)
-                : Translation.tr("None yet. S saves a screenshot")
+                .filter(t => t).join("  ·  ")
             font.pixelSize: Appearance.font.pixelSize.small
             color: Appearance.colors.colSubtext
+        }
+        RowLayout { // None yet: how to save one in the game
+            visible: root.captures.length === 0
+            spacing: 6
+            StyledText {
+                text: root.recording ? Translation.tr("None yet. In the game, save a clip with") : Translation.tr("None yet")
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colSubtext
+            }
+            Rectangle { // The clip key, as a key
+                visible: root.recording
+                implicitWidth: Math.max(20, keyText.implicitWidth + 10); implicitHeight: 20
+                radius: Appearance.rounding.chip - 2
+                color: Appearance.colors.colLayer3
+                StyledText {
+                    id: keyText
+                    anchors.centerIn: parent
+                    text: GameClips.keyLabel
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    color: Appearance.colors.colOnLayer2
+                }
+            }
         }
         RowLayout { // The newest three, sharing the width
             Layout.fillWidth: true

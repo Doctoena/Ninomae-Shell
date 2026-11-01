@@ -1,15 +1,17 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 
-// The in-game overlay's Performance: live CPU and GPU graphs (histories kept by the overlay), RAM and VRAM
+// The in-game overlay's Performance: live CPU and GPU graphs with this session's average and peak (kept by the
+// overlay), RAM and VRAM
 OverlayPanel {
     id: root
     property var cpuHistory: []
     property var gpuHistory: []
+    property var cpuStats: null // { sum, count, peak } over the session
+    property var gpuStats: null
     function gb(kb) { return (kb / 1048576).toFixed(1) + " GB"; }
     implicitHeight: column.implicitHeight + 28
     ColumnLayout {
@@ -22,6 +24,7 @@ OverlayPanel {
             usage: ResourceUsage.cpuUsage
             temp: ResourceUsage.cpuTemp
             history: root.cpuHistory
+            stats: root.cpuStats
             warning: ResourceUsage.cpuUsage >= 0.9
         }
         UsageGraph {
@@ -30,7 +33,8 @@ OverlayPanel {
             usage: ResourceUsage.gpuAsleep ? 0 : ResourceUsage.gpuUsage
             temp: ResourceUsage.gpuAsleep ? 0 : ResourceUsage.gpuTemp
             history: root.gpuHistory
-            warning: ResourceUsage.gpuUsage >= 0.95
+            stats: root.gpuStats
+            warning: !ResourceUsage.gpuAsleep && ResourceUsage.gpuUsage >= 0.95
         }
         StyledText {
             text: Translation.tr("RAM %1 of %2").arg(root.gb(ResourceUsage.memoryUsed)).arg(root.gb(ResourceUsage.memoryTotal))

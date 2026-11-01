@@ -20,7 +20,7 @@ hl.workspace_rule({ workspace = "special:special", gaps_out = 30 })
 -- Hyprland's layer pop-in on top of that made them look detached.
 hl.layer_rule({
     name    = "drawers-no-anim",
-    match   = { namespace = [[^quickshell:(overview|barDrawer|sidebarRight|gamelauncher|mediaControls|notificationPopup|onScreenDisplay|trayMenu|reloadPopup|session)$]] },
+    match   = { namespace = [[^quickshell:(overview|barDrawer|sidebarRight|gamelauncher|mediaControls|notificationPopup|onScreenDisplay|trayMenu|reloadPopup|session|gameOverlay)$]] },
     no_anim = true,
 })
 

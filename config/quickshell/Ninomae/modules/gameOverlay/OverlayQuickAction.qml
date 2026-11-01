@@ -1,9 +1,6 @@
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
-import QtQuick.Layouts
 
 // One of the in-game overlay's quick actions: a squircle in the accent when on, its key at its corner, its name
 // under it, a tooltip. Unavailable: dimmed and does nothing, but still shows its tooltip (which says why)
