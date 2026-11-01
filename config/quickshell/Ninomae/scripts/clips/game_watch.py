@@ -12,6 +12,9 @@ Prints a line whenever it changes:
                       its size. Only printed while Hyprland's event socket can be read
 It looks every second (reading /proc takes ~2 ms) and catches games however they were started: from the
 launcher, Steam or Lutris. Focus follows Hyprland's events at once.
+A game only counts once one of its windows has opened: Steam also runs a game's install scripts and shader
+processing under its launch wrapper while it updates, and those have none. Without Hyprland it can't tell,
+so a game counts from its first process.
 """
 import json
 import os
@@ -165,25 +168,35 @@ class Hyprland:
         self.request_path = f"{base}/.socket.sock"
         self.events = None
         self.buf = b""
+        self.opened = False  # A window opened since the last look (window_owned clears it)
         try:
             self.events = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.events.connect(f"{base}/.socket2.sock")
         except OSError:
             self.events = None
 
-    def active(self):
-        """(pid, class) of the focused window"""
+    def request(self, what):
+        """Hyprland's JSON answer to a request, or None if it can't be asked"""
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
                 s.connect(self.request_path)
-                s.sendall(b"j/activewindow")
+                s.sendall(b"j/" + what)
                 data = b""
                 while chunk := s.recv(65536):
                     data += chunk
-            w = json.loads(data or b"{}")
-            return int(w.get("pid") or 0), w.get("class") or ""
+            return json.loads(data)
         except (OSError, ValueError):
-            return 0, ""
+            return None
+
+    def active(self):
+        """(pid, class) of the focused window"""
+        w = self.request(b"activewindow")
+        return window(w) if isinstance(w, dict) else (0, "")
+
+    def windows(self):
+        """[(pid, class)] of every window, or None if Hyprland can't be asked"""
+        ws = self.request(b"clients")
+        return [window(w) for w in ws if isinstance(w, dict)] if isinstance(ws, list) else None
 
     def focus_changed(self):
         """Reads what's waiting; whether the focus moved"""
@@ -196,13 +209,33 @@ class Hyprland:
             return False
         self.buf += chunk
         *lines, self.buf = self.buf.split(b"\n")
+        self.opened |= any(l.startswith(b"openwindow>>") for l in lines)
         return any(l.startswith((b"activewindowv2>>", b"closewindow>>", b"openwindow>>")) for l in lines)
+
+
+def window(w):
+    return int(w.get("pid") or 0), w.get("class") or ""
+
+
+def games_window(pid, cls, owns, appid):
+    """Whether a window is the game's: one of its processes', or (no pid, as some X11 windows) Steam's
+    steam_app_<id> class"""
+    return (appid != "" and cls == f"steam_app_{appid}") or (pid > 0 and owns(pid))
+
+
+def window_owned(hypr, owns, appid):
+    """Whether the game has a window open (True when Hyprland can't say)"""
+    hypr.opened = False
+    windows = hypr.windows()
+    return windows is None or any(games_window(pid, cls, owns, appid) for pid, cls in windows)
 
 
 def main():
     custom = Custom(sys.argv[1] if len(sys.argv) > 1 else "")
     hypr = Hyprland()
     last, owns, appid, last_focus = None, None, "", None
+    confirmed = None  # The game seen with a window: it counts until its processes end, windows or not
+    waiting = None    # One seen without a window yet: looked at again when a window opens
     next_scan = 0.0
     while True:
         now = time.monotonic()
@@ -210,6 +243,15 @@ def main():
         if now >= next_scan:
             custom.refresh()
             current, owns, appid = find_game(custom)
+            if current == "none":
+                confirmed = waiting = None
+            elif current != confirmed:
+                # Without the event socket there's no "a window opened", so it looks every time
+                if (current != waiting or hypr.opened or hypr.events is None) and window_owned(hypr, owns, appid):
+                    confirmed, waiting = current, None
+                else:  # Only its updater, installer or shader job so far
+                    waiting = current
+                    current, owns, appid = "none", None, ""
             if current != last:
                 print(current, flush=True)
                 last, changed = current, True
@@ -221,9 +263,7 @@ def main():
             if changed or last_focus is None:
                 focus = False
                 if owns is not None:  # Only asked while a game runs: no request per focus change otherwise
-                    pid, cls = hypr.active()
-                    # Its window: one of its processes, or (no pid, as some X11 windows) Steam's steam_app_<id> class
-                    focus = (pid > 0 and owns(pid)) or (appid != "" and cls == f"steam_app_{appid}")
+                    focus = games_window(*hypr.active(), owns, appid)
                 if focus != last_focus:
                     print(f"focus {1 if focus else 0}", flush=True)
                     last_focus = focus
