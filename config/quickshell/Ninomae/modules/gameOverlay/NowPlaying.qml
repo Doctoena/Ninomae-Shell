@@ -3,6 +3,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Widgets
 
 // The in-game overlay's Now playing: the music or video playing (MprisController's player), its art, title and
 // artist, previous, play/pause, next. Hidden with nothing playing
@@ -14,11 +15,10 @@ OverlayPanel {
     RowLayout {
         anchors { fill: parent; margins: 12 }
         spacing: 14
-        Rectangle {
+        ClippingRectangle { // The cover art, cut to round corners
             Layout.preferredWidth: 64; Layout.preferredHeight: 64
             radius: Appearance.rounding.small
             color: Appearance.colors.colLayer2
-            clip: true
             MaterialSymbol { anchors.centerIn: parent; text: "music_note"; iconSize: 28; color: Appearance.colors.colSubtext }
             Image {
                 anchors.fill: parent

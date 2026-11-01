@@ -3,6 +3,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Widgets
 
 // The in-game overlay's clips and screenshots from this session: how many of each, the newest three (the third
 // says how many more), buttons to their folders. A tile opens the overlay's viewer (openCapture)
@@ -74,7 +75,7 @@ OverlayPanel {
             spacing: 8
             Repeater {
                 model: root.captures.slice(0, 3)
-                Rectangle {
+                ClippingRectangle { // Its picture and the "+N" shade cut to the round corners
                     id: tile
                     required property var modelData
                     required property int index
@@ -82,7 +83,6 @@ OverlayPanel {
                     Layout.preferredHeight: Math.round(Layout.preferredWidth * 9 / 16)
                     radius: Appearance.rounding.container
                     color: Appearance.colors.colLayer2
-                    clip: true
                     Image { // A clip's thumbnail, or the screenshot itself
                         anchors.fill: parent
                         source: tile.modelData.kind === "shot" ? "file://" + tile.modelData.path
@@ -106,7 +106,7 @@ OverlayPanel {
                             id: badge
                             anchors.centerIn: parent
                             visible: tile.modelData.kind === "clip"
-                            text: visible ? `${Math.floor(tile.modelData.duration / 60)}:${String(Math.round(tile.modelData.duration % 60)).padStart(2, "0")}` : " "
+                            text: visible ? `${Math.floor(tile.modelData.duration / 60)}:${String(Math.floor(tile.modelData.duration % 60)).padStart(2, "0")}` : " "
                             font.pixelSize: Appearance.font.pixelSize.smallest
                             font.family: Appearance.font.family.numbers
                             color: "white"
