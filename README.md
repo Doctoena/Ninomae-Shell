@@ -60,7 +60,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 
 <br>
 
-<img src="assets/readme/overlay.jpg" alt="The in-game overlay over Project Zomboid: quick actions, the game's banner and session, performance graphs, each app's volume and what's playing">
+<img src="assets/readme/overlay.jpg" alt="The in-game overlay over Project Zomboid's menu: the clock and quick actions, the game's banner and session, what came in while playing, performance graphs for the session and each app's volume with the game first">
 
 <sub><b>In-game overlay</b> · <code>Super+Shift+G</code> in a game: clips, screenshots, performance and sound without leaving it</sub>
 
