@@ -80,7 +80,7 @@ LauncherTopPanel {
         } else {
             const word = tool === "gamemode" ? "gamemoderun" : "mangohud";
             // Off: its word, and MangoHud's layout with it
-            if (p.pre.includes(word)) p.pre = p.pre.filter(t => t !== word && !(word === "mangohud" && /^MANGOHUD_CONFIG=preset=\d$/.test(t)));
+            if (p.pre.includes(word)) p.pre = p.pre.filter(t => t !== word && !(word === "mangohud" && presetOf(t) !== ""));
             else {
                 // Env vars stay first, then gamemoderun, then mangohud
                 const envEnd = p.pre.filter(t => t.includes("=")).length;
@@ -90,17 +90,24 @@ LauncherTopPanel {
         }
         options = build(p);
     }
-    // MangoHud's layout: one of its presets (README: preset=), "" for its own config, "custom" for other settings
+    // MangoHud's layout: one of its presets (README: preset=), "" for its own config, "custom" for other settings.
+    // A preset leaves MangoHud.conf unread, so it carries the frame-rate log the in-game overlay's FPS reads
+    // (as MangoHud.conf's, into the folder GameOverlay reads); one written before that, without it, still counts
+    // as the preset
+    readonly property string mangohudLog: "output_folder=~/.cache/quickshell/mangohud,autostart_log=1,log_interval=250"
+    function presetOf(token) {
+        const m = /^MANGOHUD_CONFIG=preset=(\d)(,.*)?$/.exec(token);
+        return m && (!m[2] || m[2] === "," + mangohudLog) ? m[1] : "";
+    }
     readonly property string mangohudPreset: {
         const v = parsed.pre.find(t => t.startsWith("MANGOHUD_CONFIG="));
         if (!v) return "";
-        const m = /^MANGOHUD_CONFIG=preset=(\d)$/.exec(v);
-        return m ? m[1] : "custom";
+        return presetOf(v) || "custom";
     }
     function setMangohudPreset(preset) {
         const p = parse(options);
         p.pre = p.pre.filter(t => !t.startsWith("MANGOHUD_CONFIG="));
-        if (preset !== "") p.pre.unshift(`MANGOHUD_CONFIG=preset=${preset}`); // Env vars first
+        if (preset !== "") p.pre.unshift(`MANGOHUD_CONFIG=preset=${preset},${mangohudLog}`); // Env vars first
         options = build(p);
     }
     property string _gamescopeArgs: ""

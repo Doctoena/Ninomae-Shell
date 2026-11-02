@@ -13,7 +13,9 @@ import Quickshell.Services.Notifications
 ColumnLayout {
     id: root
     property real since: 0
-    readonly property var items: since > 0 ? Notifications.list.filter(n => n.time >= since).reverse() : []
+    readonly property var items: since > 0 ? Notifications.list.filter(n => n.time >= since && !isSteamTip(n)).reverse() : []
+    // Steam's tip that comes with every game it starts ("Press Shift+Tab to begin"): nothing missed
+    function isSteamTip(n) { return /^steam$/i.test(n.appName) && /Shift\+Tab/.test(`${n.summary} ${n.body}`); }
     signal activated()
     function hasDefault(n) { return n.actions.some(a => a.identifier === "default"); }
     function open(n) {

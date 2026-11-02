@@ -2,8 +2,11 @@
 """For the in-game overlay's Performance, while a game runs: which GPU it draws on, and its frame rate.
 
 Every 2 s prints a JSON line:
-  {"pids": [the game's processes], "gpu": "intel" | "amd" | "nvidia" | "", "integrated": bool,
-   "busy": 0–1 or -1, "fps": number or -1, "fpsAvg": …, "fpsLow": …}
+  {"pids": [the game's processes], "icon": its square icon or "", "gpu": "intel" | "amd" | "nvidia" | "",
+   "integrated": bool, "busy": 0–1 or -1, "fps": number or -1, "fpsAvg": …, "fpsLow": …}
+
+The icon: a Steam game's small square one from Steam's library cache (a jpg named by its hash, as
+on_save.sh's), for the in-game overlay's Sound.
 
 The GPU: the kernel says, for Intel and AMD, how long each of a program's GPU clients kept the GPU busy
 (/proc/<pid>/fdinfo, drm-engine-*). A game doing any work there draws on that GPU, and busy is its share of it.
@@ -141,6 +144,24 @@ class FpsLog:
         return self.samples[-1], self.total / len(self.samples), sum(low) / len(low)
 
 
+def square_icon(matchers):
+    """A Steam game's square icon in Steam's library cache, "" without one"""
+    for matcher in matchers:
+        kind, _, appid = matcher.partition(":")
+        if kind != "steam" or not appid.isdigit():
+            continue
+        for steam in ("~/.local/share/Steam", "~/.steam/steam"):
+            folder = os.path.expanduser(f"{steam}/appcache/librarycache/{appid}")
+            try:
+                names = sorted(os.listdir(folder))
+            except OSError:
+                continue
+            for name in names:
+                if re.fullmatch(r"[0-9a-f]{40}\.jpg", name):
+                    return os.path.join(folder, name)
+    return ""
+
+
 def clean(folder):
     cutoff = time.time() - 2 * 86400
     try:
@@ -157,6 +178,7 @@ def main():
     os.makedirs(folder, exist_ok=True)
     clean(folder)
     log = FpsLog(folder, since - 5)
+    icon = square_icon(matchers)
     pids, handles, nvidia, before, tick = [], [], False, {}, 0
     while True:
         if matchers and (tick % PIDS_EVERY == 0 or not handles):  # Every look until the game has opened a GPU
@@ -175,7 +197,7 @@ def main():
             gpu, busiest, igpu = ("nvidia", -1, False) if nvidia else ("", -1, False)
         log.read()
         fps, avg, low = log.stats()
-        print(json.dumps({"pids": pids, "gpu": gpu, "integrated": igpu, "busy": round(min(1.0, busiest), 3) if busiest >= 0 else -1,
+        print(json.dumps({"pids": pids, "icon": icon, "gpu": gpu, "integrated": igpu, "busy": round(min(1.0, busiest), 3) if busiest >= 0 else -1,
                           "fps": round(fps, 1), "fpsAvg": round(avg, 1), "fpsLow": round(low, 1)}), flush=True)
         time.sleep(INTERVAL)
 

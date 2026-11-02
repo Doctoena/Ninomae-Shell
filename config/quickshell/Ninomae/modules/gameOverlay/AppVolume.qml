@@ -38,7 +38,7 @@ RowLayout {
             anchors.fill: parent
             visible: root.game && root.gameArt !== ""
             source: visible ? "file://" + root.gameArt : ""
-            fillMode: Image.PreserveAspectCrop
+            fillMode: Image.PreserveAspectCrop // A cover's middle when there's no square icon
             sourceSize.width: 60
             asynchronous: true
         }

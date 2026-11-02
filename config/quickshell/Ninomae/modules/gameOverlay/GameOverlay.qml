@@ -107,7 +107,8 @@ Scope {
     readonly property var gameMatchers: game ? GameLauncherService.processMatchers(game)
         : GameClips.gameAppId !== "" ? ["steam:" + GameClips.gameAppId] : []
     // The game's processes, the GPU it draws on and its frame rate (game_perf.py):
-    // { pids, gpu, integrated, busy, fps, fpsAvg, fpsLow }
+    // { pids, icon, gpu, integrated, busy, fps, fpsAvg, fpsLow }
+    // Where MangoHud.conf (matugen's template) and the launcher's MangoHud presets write the frame-rate log
     readonly property string mangohudLogs: FileUtils.trimFileProtocol(`${Directories.cache}/mangohud`)
     property var perf: ({})
     property var gamePids: [] // Kept apart, and only replaced when they change, so Sound doesn't regroup every 2 s
@@ -384,7 +385,7 @@ Scope {
                                 gamePids: root.gamePids
                                 gameFlatpak: root.game?.flatpakId ?? ""
                                 gameName: GameClips.game
-                                gameArt: root.game?.icon || GameClips.gameArt || ""
+                                gameArt: root.perf.icon || GameClips.gameArt // Its square icon, else its cover (a Steam game's icon is its wide logo)
                             }
                         }
                     }
