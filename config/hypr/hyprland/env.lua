@@ -56,7 +56,10 @@ hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 --   qt.qpa.services          Qt 6.11 registering with the portal, which already knows the shell
 --                            ("Connection already associated with an application ID")
 --   qt.qml.propertyCache     Quickshell's own ClippingRectangle redefines `data`
-hl.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false;quickshell.desktopentry.warning=false;qt.qpa.services.warning=false;qt.qml.propertyCache.append.warning=false")
+--   quickshell.service.pipewire.loop  PipeWire's "error event" as a stream comes and goes (harmless)
+--   quickshell.dbus.properties  a media player or tray app that can't answer a property (Zen's
+--                            playback position, apps that quit), many times over
+hl.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false;quickshell.desktopentry.warning=false;qt.qpa.services.warning=false;qt.qml.propertyCache.append.warning=false;quickshell.service.pipewire.loop.warning=false;quickshell.dbus.properties.warning=false")
 -- User QML modules (Ninomae.Blobs for the launcher, see config/quickshell/plugins)
 hl.env("QML_IMPORT_PATH", os.getenv("HOME") .. "/.local/lib/qt6/qml")
 
