@@ -822,6 +822,18 @@ Item {
     // ── A Steam game's launch options, when it has more than one: Play asks which, here, so Steam doesn't
     // (scripts/game-launcher/steam_launch_options.py, read when the page opens) ──
     property var launchChoices: []
+    // The way to start it that Play uses without asking ("Always start this way" in launchMenu), -1 to ask
+    readonly property var _launchDefaults: Config.options.gameLauncher.launchDefaults ?? []
+    readonly property int launchDefault: {
+        const entry = _launchDefaults.find(e => e.startsWith((game?.id ?? "\u0000") + ":"));
+        const option = entry ? parseInt(entry.slice(entry.lastIndexOf(":") + 1)) : -1;
+        return option >= 0 && option < launchChoices.length ? option : -1;
+    }
+    function setLaunchDefault(option) { // -1 to ask again
+        if (!game?.id) return;
+        const rest = _launchDefaults.filter(e => !e.startsWith(game.id + ":"));
+        Config.options.gameLauncher.launchDefaults = option >= 0 ? [...rest, `${game.id}:${option}`] : rest;
+    }
     Process {
         id: launchChoicesProc
         stdout: StdioCollector {
@@ -846,8 +858,10 @@ Item {
         id: launchMenu
         paneW: 280
         paneH: launchCol.implicitHeight + 16
-        anchorCenterY: sidebarContent.y + playButton.y + playButton.height / 2
-        opener: playButton; exclusive: true
+        anchorCenterY: sidebarContent.y + playRow.y + playRow.height / 2
+        opener: chooserButton.visible ? chooserButton : playButton; exclusive: true
+        // The switch as this game has it each time (a click on it ends its binding, and the page is reused)
+        onOpenChanged: if (open) alwaysSwitch.checked = root.launchDefault >= 0
         Column {
             id: launchCol
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
@@ -856,12 +870,35 @@ Item {
                 model: root.launchChoices
                 MoreItem {
                     required property var modelData
-                    // The first, unnamed one is the game itself; the others say what they are
+                    // The first, unnamed one is the game itself; the others say what they are. The one Play
+                    // always uses is filled (else the game itself)
                     iconName: modelData.index === 0 ? "play_arrow" : "tune"
-                    filled: modelData.index === 0
+                    filled: modelData.index === (root.launchDefault >= 0 ? root.launchDefault : 0)
                     label: modelData.label || (modelData.index === 0 ? Translation.tr("Play") : Translation.tr("Option %1").arg(modelData.index + 1))
                     detail: modelData.detail
-                    onTriggered: { launchMenu.open = false; root.playPressed(root.game, modelData.index); }
+                    onTriggered: {
+                        if (alwaysSwitch.checked) root.setLaunchDefault(modelData.index);
+                        launchMenu.open = false;
+                        root.playPressed(root.game, modelData.index);
+                    }
+                }
+            }
+            Item { width: 1; height: 6 }
+            RowLayout { // As Steam's default launch option: Play then starts the one picked without asking
+                width: parent.width
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 12
+                    text: Translation.tr("Always start this way")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+                StyledSwitch {
+                    id: alwaysSwitch
+                    Layout.rightMargin: 6
+                    scale: 0.8
+                    // Off: Play asks again. On: the next pick is remembered (until then, Play still asks)
+                    onClicked: if (!checked) root.setLaunchDefault(-1)
                 }
             }
         }
@@ -870,7 +907,7 @@ Item {
         id: libraryMenu
         paneW: 260
         paneH: libraryCol.implicitHeight + 16
-        anchorCenterY: sidebarContent.y + playButton.y + playButton.height / 2
+        anchorCenterY: sidebarContent.y + playRow.y + playRow.height / 2
         opener: playButton; exclusive: true
         Column {
             id: libraryCol
@@ -1082,95 +1119,130 @@ Item {
         anchors { left: parent.left; leftMargin: 30; verticalCenter: parent.verticalCenter; verticalCenterOffset: 22 } // Room for the back arrow above
         width: 270; z: 10
         spacing: 0
-        RippleButton {
-            id: playButton
+        RowLayout { // Play, and beside it, with a way it always starts, the menu of ways: a split button, one pill
+            // in two, their inner corners small
+            id: playRow
             Layout.fillWidth: true
-            Layout.preferredHeight: 44
             Layout.leftMargin: 8
             Layout.rightMargin: 8
-            buttonRadius: height / 3
-            padding: 0
-            activeFocusOnTab: true
-            colBackground: Appearance.colors.colPrimary
-            colBackgroundHover: Appearance.colors.colPrimaryHover
-            colRipple: Appearance.colors.colPrimaryActive
-            buttonColor: (hovered || activeFocus) ? colBackgroundHover : colBackground
-            horizontalPadding: 0
-            enabled: root.installState !== "uninstalling"
-            opacity: enabled ? 1 : 0.6
-            // Running now (GameClips' watcher): the button says so and goes back to it, instead of starting it again
-            readonly property bool playing: !!game && GameClips.gameId === game.id
-            function activate() {
-                if (playing) {
-                    const matchers = GameLauncherService.processMatchers(game);
-                    if (matchers.length > 0)
-                        Quickshell.execDetached(["python3", "-I", Quickshell.shellPath("scripts/game-launcher/focus_game.py"), ...matchers]);
-                    GlobalStates.gameLauncherOpen = false;
-                }
-                // While a download runs, the button opens Steam's downloads instead of starting it again
-                else if (root._downloading || root.installState === "updatePaused") GameLauncherService.openDownloads();
-                // More than one Steam library: ask which here, instead of Steam's install dialog
-                else if (root.installState === "notInstalled" && (game?.id ?? "").startsWith("steam_")
-                         && GameLauncherService.steamLibraries.length > 1) libraryMenu.open = !libraryMenu.open;
-                // More than one way to start it (Project Zomboid: Play or Compatibility Mode): ask here, not in Steam
-                else if (root.installState === "installed" && root.launchChoices.length > 1) launchMenu.open = !launchMenu.open;
-                else root.playPressed(game, -1);
-            }
-            onClicked: activate()
-            Keys.onPressed: event => {
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { activate(); event.accepted = true; }
-            }
-            readonly property var _look: playing ? { icon: "", text: Translation.tr("Playing") } : ({
-                "notInstalled":   { icon: "download",    text: Translation.tr("Install") },
-                "installing":     { icon: "downloading", text: Translation.tr("Installing") },
-                "updating":       { icon: "downloading", text: Translation.tr("Updating") },
-                "updateRequired": { icon: "update",      text: Translation.tr("Update & play") },
-                "updatePaused":   { icon: "downloading", text: Translation.tr("Resume update") },
-                "uninstalling":   { icon: "delete",      text: Translation.tr("Uninstalling…") },
-                "installed":      { icon: "play_arrow",  text: Translation.tr("Play") }
-            })[root.installState] ?? { icon: "play_arrow", text: Translation.tr("Play") }
-            contentItem: Item {
-                implicitHeight: 44
-                Rectangle { // Download progress (the game's, or its mods'), filling the pill from the left
-                    visible: root._downloadPhase !== "" && root.downloadProgress >= 0
-                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                    width: parent.width * Math.max(0, root.downloadProgress)
-                    radius: height / 3
-                    color: ColorUtils.transparentize(Appearance.colors.colOnPrimary, 0.8)
-                    Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
-                }
-                Row {
-                    anchors.centerIn: parent
-                    anchors.horizontalCenterOffset: -4
-                    spacing: 8
-                    PlayingDot { // Playing: where the icon goes (as the grid's badge)
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: playButton.playing && root.visible
-                        size: 9
-                        color: Appearance.colors.colOnPrimary
+            spacing: 2
+            RippleButton {
+                id: playButton
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                buttonRadius: height / 3
+                buttonRadiusRight: chooserButton.visible ? 6 : -1
+                padding: 0
+                activeFocusOnTab: true
+                colBackground: Appearance.colors.colPrimary
+                colBackgroundHover: Appearance.colors.colPrimaryHover
+                colRipple: Appearance.colors.colPrimaryActive
+                buttonColor: (hovered || activeFocus) ? colBackgroundHover : colBackground
+                horizontalPadding: 0
+                enabled: root.installState !== "uninstalling"
+                opacity: enabled ? 1 : 0.6
+                // Running now (GameClips' watcher): the button says so and goes back to it, instead of starting it again
+                readonly property bool playing: !!game && GameClips.gameId === game.id
+                function activate() {
+                    if (playing) {
+                        const matchers = GameLauncherService.processMatchers(game);
+                        if (matchers.length > 0)
+                            Quickshell.execDetached(["python3", "-I", Quickshell.shellPath("scripts/game-launcher/focus_game.py"), ...matchers]);
+                        GlobalStates.gameLauncherOpen = false;
                     }
-                    MaterialSymbol {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: !playButton.playing
-                        text: playButton._look.icon
-                        iconSize: 20
-                        color: Appearance.colors.colOnPrimary
+                    // While a download runs, the button opens Steam's downloads instead of starting it again
+                    else if (root._downloading || root.installState === "updatePaused") GameLauncherService.openDownloads();
+                    // More than one Steam library: ask which here, instead of Steam's install dialog
+                    else if (root.installState === "notInstalled" && (game?.id ?? "").startsWith("steam_")
+                             && GameLauncherService.steamLibraries.length > 1) libraryMenu.open = !libraryMenu.open;
+                    // More than one way to start it (Project Zomboid: Play or Compatibility Mode): the one it always
+                    // starts with, else ask here, not in Steam
+                    else if (root.installState === "installed" && root.launchChoices.length > 1) {
+                        if (root.launchDefault >= 0) root.playPressed(game, root.launchDefault);
+                        else launchMenu.open = !launchMenu.open;
                     }
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: {
-                            const pct = root.downloadProgress >= 0 ? ` ${Math.floor(root.downloadProgress * 100)}%` : "";
-                            if (playButton.playing) return playButton._look.text;
-                            if (root._downloading || root._paused) return playButton._look.text + (pct ? " " + pct : "");
-                            if (root._modsOnly) return playButton._look.text + "  ·  " + Translation.tr("mods") + pct;
-                            return playButton._look.text;
+                    else root.playPressed(game, -1);
+                }
+                onClicked: activate()
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { activate(); event.accepted = true; }
+                }
+                readonly property var _look: playing ? { icon: "", text: Translation.tr("Playing") } : ({
+                    "notInstalled":   { icon: "download",    text: Translation.tr("Install") },
+                    "installing":     { icon: "downloading", text: Translation.tr("Installing") },
+                    "updating":       { icon: "downloading", text: Translation.tr("Updating") },
+                    "updateRequired": { icon: "update",      text: Translation.tr("Update & play") },
+                    "updatePaused":   { icon: "downloading", text: Translation.tr("Resume update") },
+                    "uninstalling":   { icon: "delete",      text: Translation.tr("Uninstalling…") },
+                    "installed":      { icon: "play_arrow",  text: Translation.tr("Play") }
+                })[root.installState] ?? { icon: "play_arrow", text: Translation.tr("Play") }
+                contentItem: Item {
+                    implicitHeight: 44
+                    Rectangle { // Download progress (the game's, or its mods'), filling the pill from the left
+                        visible: root._downloadPhase !== "" && root.downloadProgress >= 0
+                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                        width: parent.width * Math.max(0, root.downloadProgress)
+                        radius: height / 3
+                        color: ColorUtils.transparentize(Appearance.colors.colOnPrimary, 0.8)
+                        Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                    }
+                    Row {
+                        anchors.centerIn: parent
+                        anchors.horizontalCenterOffset: -4
+                        spacing: 8
+                        PlayingDot { // Playing: where the icon goes (as the grid's badge)
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: playButton.playing && root.visible
+                            size: 9
+                            color: Appearance.colors.colOnPrimary
                         }
-                        color: Appearance.colors.colOnPrimary
-                        font.pixelSize: Appearance.font.pixelSize.normal
-                        font.weight: Font.DemiBold
-                        font.letterSpacing: 0.5
+                        MaterialSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !playButton.playing
+                            text: playButton._look.icon
+                            iconSize: 20
+                            color: Appearance.colors.colOnPrimary
+                        }
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: {
+                                const pct = root.downloadProgress >= 0 ? ` ${Math.floor(root.downloadProgress * 100)}%` : "";
+                                if (playButton.playing) return playButton._look.text;
+                                if (root._downloading || root._paused) return playButton._look.text + (pct ? " " + pct : "");
+                                if (root._modsOnly) return playButton._look.text + "  ·  " + Translation.tr("mods") + pct;
+                                return playButton._look.text;
+                            }
+                            color: Appearance.colors.colOnPrimary
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 0.5
+                        }
                     }
                 }
+            }
+            RippleButton { // The other ways to start it, once Play starts one without asking (launchDefault)
+                id: chooserButton
+                visible: root.installState === "installed" && !playButton.playing && root.launchDefault >= 0
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 44
+                buttonRadius: height / 3
+                buttonRadiusLeft: 6
+                padding: 0
+                colBackground: Appearance.colors.colPrimary
+                colBackgroundHover: Appearance.colors.colPrimaryHover
+                colRipple: Appearance.colors.colPrimaryActive
+                buttonColor: (hovered || launchMenu.open) ? colBackgroundHover : colBackground
+                onClicked: launchMenu.open = !launchMenu.open
+                contentItem: MaterialSymbol {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: "chevron_right"
+                    iconSize: 20
+                    color: Appearance.colors.colOnPrimary
+                    rotation: launchMenu.open ? 180 : 0 // Points back at the menu while it's out
+                    Behavior on rotation { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+                }
+                StyledToolTip { text: Translation.tr("Other ways to start it") }
             }
         }
         Item { // Slot for the action icons (topLeftButtons is positioned on top of it)

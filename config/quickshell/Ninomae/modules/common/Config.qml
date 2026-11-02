@@ -232,6 +232,9 @@ Singleton {
                 property bool hideWithoutBoxArt: true
                 property bool hidePartialBoxArt: true
                 property bool launchAnimation: true // Drawer under the bar following a launched game until its window opens (LaunchSplash.qml)
+                // A game's way to start that Play uses without asking, as Steam's default launch option:
+                // "<game id>:<option>", the option one of its Steam launch options (GameDetailsPanel's launchMenu)
+                property list<string> launchDefaults: []
                 property bool newsUpdatesOnly: false // News sheet: only game updates (patch notes), not events and promos
                 property string steamApiKey: ""
                 property string steamGridDbApiKey: ""

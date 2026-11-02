@@ -9,6 +9,8 @@ import QtQuick.Effects
 MultiEffect {
     id: root
     property real radius: 0
+    property real leftRadius: radius // One side's corners apart (a split button's)
+    property real rightRadius: radius
     property real maskWidth: width
     property real maskHeight: height
 
@@ -22,6 +24,10 @@ MultiEffect {
         width: root.maskWidth
         height: root.maskHeight
         radius: root.radius
+        topLeftRadius: root.leftRadius
+        bottomLeftRadius: root.leftRadius
+        topRightRadius: root.rightRadius
+        bottomRightRadius: root.rightRadius
         visible: false
         layer.enabled: true
         layer.smooth: true
