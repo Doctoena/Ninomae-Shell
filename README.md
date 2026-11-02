@@ -29,7 +29,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 | 🎮 **Game launcher** | Steam and Lutris games with cover art, launch progress, captures and per-game launch options. |
 | 🎬 **Gameplay clips** | Press `` ` `` in a game to save the last minute, with game audio, voice chat and your mic. |
 | 🎯 **Crosshair** | Your own crosshair over the games you pick, drawn part by part with a live preview. |
-| 🕹️ **In-game overlay** | `Super+Shift+G` in a game: clips, screenshots, performance and each app's volume without leaving it. |
+| 🕹️ **In-game overlay** | `Super+Shift+G` in a game: clips, screenshots, FPS, performance and each app's volume without leaving it. |
 | ⚙️ **Live settings** | Every option in one searchable window, applied the moment you change it. |
 | 💻 **One folder, many machines** | The same setup on a desktop and a laptop. Hardware you don't have is hidden. |
 
@@ -60,9 +60,9 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 
 <br>
 
-<img src="assets/readme/overlay.jpg" alt="The in-game overlay over Project Zomboid's menu: the clock and quick actions, the game's banner and session, what came in while playing, performance graphs for the session and each app's volume with the game first">
+<img src="assets/readme/overlay.jpg" alt="The in-game overlay over Project Zomboid's menu: a side panel with the game's banner, clock and session, the quick actions, CPU and GPU graphs for the session and each app's volume with the game first, and on the right this session's captures and what came in while playing">
 
-<sub><b>In-game overlay</b> · <code>Super+Shift+G</code> in a game: clips, screenshots, performance and sound without leaving it</sub>
+<sub><b>In-game overlay</b> · <code>Super+Shift+G</code> in a game: clips, screenshots, FPS, performance and sound without leaving it</sub>
 
 <br><br>
 
@@ -271,12 +271,13 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
 - **Clips.** While a game runs, `` ` `` saves the last minute to `~/Videos/Clips/<game>/`. Nothing
   records outside games, or while Steam is only updating one. Change the key and length, or turn it off,
   in **Settings → In game**.
-- **In-game overlay.** `Super+Shift+G` while a game runs (it closes if the game does): the time and battery
-  the hidden bar would show, quick actions with a letter key each (save a clip, screenshot, crosshair, do not
-  disturb, game mode), the game's art and hours, this session's clips and screenshots (one opens right
-  there: clips play with a seek bar, `Shift+←/→` skips 5 s, `Ctrl+C` copies), what came in while you played, live CPU and GPU graphs,
-  and the sound: output device, mic, and each app's volume, the game's own first. Turn it off in
-  **Settings → In game**.
+- **In-game overlay.** `Super+Shift+G` while a game runs (it closes if the game does). A panel down the left
+  holds the game's art and hours, the time and battery the hidden bar would show, quick actions with a letter
+  key each (save a clip, screenshot, crosshair, do not disturb, game mode), FPS when the game runs with
+  MangoHud, CPU and GPU graphs for the session (with a warning when a laptop runs the game on its integrated
+  graphics), and the sound: mic, output device, and each app's volume, the game's own first. Down the right
+  are this session's clips and screenshots (one opens right there: clips play with a seek bar, `Shift+←/→`
+  skips 5 s, `Ctrl+C` copies) and what came in while you played. Turn it off in **Settings → In game**.
 - **GE-Proton.** **Settings → Games** installs the latest GE-Proton in one click (checked before it's
   unpacked) and removes old versions no game uses.
 - **Crosshair.** Design one in **Settings → Crosshair**, then turn it on per game with the crosshair
