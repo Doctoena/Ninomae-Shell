@@ -24,7 +24,7 @@ Singleton {
     readonly property string gameId: GameClips.gameId
     readonly property bool onForGame: gameId !== "" && games.indexOf(gameId) >= 0
 
-    readonly property Toplevel focused: ToplevelManager.activeToplevel
+    readonly property Toplevel focused: ToplevelManager.activeToplevel ?? null // Undefined while nothing has the focus
     // The game's own window has the focus (the watcher matches it to the game's processes, windowed or not).
     // Without Hyprland's events: a fullscreen or Steam game window, as a fallback
     readonly property bool gameFocused: GameClips.focusKnown ? GameClips.gameFocused

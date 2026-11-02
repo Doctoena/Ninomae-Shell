@@ -5,6 +5,8 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Pipewire
+// One app's volume in the sidebar's Sound menu. Its node goes null for a moment as the app stops playing (the
+// row is on its way out): everything here reads it with ?.
 Item {
     id: root
     required property PwNode node
@@ -23,6 +25,7 @@ Item {
             sourceSize.width: size
             sourceSize.height: size
             source: {
+                if (!root.node) return "";
                 let icon;
                 icon = AppSearch.guessIcon(root.node.properties["application.icon-name"]);
                 if (AppSearch.iconExists(icon))
@@ -41,6 +44,7 @@ Item {
                 color: Appearance.colors.colOnSurfaceVariant
                 elide: Text.ElideRight
                 text: {
+                    if (!root.node) return "";
                     const app = root.node.properties["application.name"] ?? (root.node.description != "" ? root.node.description : root.node.name);
                     const media = root.node.properties["media.name"];
                     return media != undefined ? `${app} • ${media}` : app;
@@ -48,8 +52,8 @@ Item {
             }
             StyledSlider {
                 id: slider
-                value: root.node.audio.volume
-                onMoved: root.node.audio.volume = value
+                value: root.node?.audio?.volume ?? 0
+                onMoved: if (root.node?.audio) root.node.audio.volume = value
                 configuration: StyledSlider.Configuration.S
                 stopIndicatorValues: []
             }
