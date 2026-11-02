@@ -14,6 +14,20 @@ Scope {
     property string protectionMessage: ""
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
     property string currentIndicator: "volume"
+    // The one on screen (its own value, not bound to currentIndicator, so it can lag behind). While the drawer is
+    // out, a new one swaps in with an animation: the old fades and slides up, the new one comes up after it. Another
+    // swap mid-way restarts it from wherever it got to. With the drawer in, at once
+    property string shownIndicator: "volume"
+    onCurrentIndicatorChanged: {
+        if (osdRoot.visible && osdRoot.offsetScale < 1) {
+            if (currentIndicator !== shownIndicator) swapAnim.restart();
+        } else {
+            swapAnim.stop();
+            osdIndicatorLoader.opacity = 1;
+            swapShift.y = 0;
+            shownIndicator = currentIndicator;
+        }
+    }
     property var indicators: [
         {
             id: "volume",
@@ -178,7 +192,21 @@ Scope {
                 Loader {
                     id: osdIndicatorLoader
                     active: osdRoot.visible
-                    source: root.indicators.find(i => i.id === root.currentIndicator)?.sourceUrl
+                    source: root.indicators.find(i => i.id === root.shownIndicator)?.sourceUrl
+                    transform: Translate { id: swapShift }
+                    SequentialAnimation {
+                        id: swapAnim
+                        ParallelAnimation {
+                            NumberAnimation { target: osdIndicatorLoader; property: "opacity"; to: 0; duration: 90; easing.type: Easing.InQuad }
+                            NumberAnimation { target: swapShift; property: "y"; to: -8; duration: 90; easing.type: Easing.InQuad }
+                        }
+                        ScriptAction { script: root.shownIndicator = root.currentIndicator }
+                        PropertyAction { target: swapShift; property: "y"; value: 8 }
+                        ParallelAnimation {
+                            NumberAnimation { target: osdIndicatorLoader; property: "opacity"; to: 1; duration: 160; easing.type: Easing.OutCubic }
+                            NumberAnimation { target: swapShift; property: "y"; to: 0; duration: 160; easing.type: Easing.OutCubic }
+                        }
+                    }
                 }
                 Rectangle { // Volume protection warning
                     visible: root.protectionMessage !== ""
