@@ -3,6 +3,7 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -11,24 +12,25 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 
 /**
- * The in-game overlay (Super+Shift+G), like Xbox Game Bar: the game stays in view in the middle, with
- *  - at the top, the clock and battery when the game is fullscreen (the bar is hidden then; in a window it
- *    stays above the overlay), and the quick actions: save a clip, screenshot, crosshair, do not disturb,
- *    game mode (accent when on; a letter each)
- *  - on the left, the game (GameBanner), this session's clips and screenshots (CapturesPanel: one opens in
- *    CaptureViewer, over everything), and what came in while playing (MissedNotifications)
- *  - on the right, live CPU and GPU graphs (PerformancePanel), and the sound (SoundPanel): the game's own
- *    first, matched by process (scripts/clips/game_pids.py: Steam, Lutris, Flatpak or its program) or, for
- *    a Flatpak, its app id, then voice chat
- *  - between them at the bottom, what's playing (NowPlaying)
- * Both columns are the same width (narrower on a small screen). Cards are as tall as what they hold, and the
- * last of each column scrolls when the screen is short.
+ * The in-game overlay (Super+Shift+G): one panel down the left, the game still in view beside it. In the panel:
+ *  - the game (GameBanner), with the clock and battery in its corner when the game is fullscreen (the bar is
+ *    hidden then; in a window it stays above the overlay), and the quick actions under it: save a clip,
+ *    screenshot, crosshair, do not disturb, game mode (accent when on; a key each)
+ *  - live FPS, CPU and GPU (PerformancePanel), and the sound (SoundPanel): the game's own first, matched by process
+ *    (game_perf.py, with game_pids.py: Steam, Lutris, Flatpak or its program) or, for a Flatpak, its app id, then
+ *    voice chat
+ *  - at its foot, what's playing (NowPlaying) and how to leave
+ * The sections scroll when the screen is short. What happened this session is apart, in a column down the right,
+ * as it can add up fast: the clips and screenshots (CapturesPanel: one opens in CaptureViewer, over everything),
+ * and under them what came in while playing (MissedNotifications), only when something did.
  * On the overlay layer of the game's screen, with the keyboard: Esc or the key again closes it, as does a
  * click on the backdrop or opening a notification. It fades out with the keyboard and clicks already back with
  * the game. Clip and screenshot close it at once, then capture, so they show the game.
  * Only exists while open. The CPU and GPU are sampled the whole time a game runs, so the graphs and their
  * average and peak cover the session (ResourceUsage reads files, or an nvidia-smi that's already running, and
- * leaves a sleeping NVIDIA GPU asleep).
+ * leaves a sleeping NVIDIA GPU asleep). So is scripts/clips/game_perf.py, for the GPU the game draws on (on a
+ * laptop's integrated one, that one's graph, and a warning when there's a faster one) and its frame rate, from
+ * MangoHud's log when it runs with MangoHud.
  * It only opens while a game runs (GameClips' watcher), and closes if the game does. Settings → In game turns it
  * off (gameLauncher.overlayEnabled): the key then does nothing.
  */
@@ -98,20 +100,48 @@ Scope {
         root.close();
     }
 
-    // ── CPU and GPU, sampled the whole session: the last 5 minutes for the graphs, average and peak over all of it ──
+    // ── Watched the whole session: the CPU, GPU and frame rate, the last 5 minutes for the graphs, average and
+    // peak over all of it ──
     readonly property bool sampling: enabled && GameClips.gameStarted > 0
+    // How to find the game's processes. Without a launcher entry: a Steam game by its id
+    readonly property var gameMatchers: game ? GameLauncherService.processMatchers(game)
+        : GameClips.gameAppId !== "" ? ["steam:" + GameClips.gameAppId] : []
+    // The game's processes, the GPU it draws on and its frame rate (game_perf.py):
+    // { pids, gpu, integrated, busy, fps, fpsAvg, fpsLow }
+    readonly property string mangohudLogs: FileUtils.trimFileProtocol(`${Directories.cache}/mangohud`)
+    property var perf: ({})
+    property var gamePids: [] // Kept apart, and only replaced when they change, so Sound doesn't regroup every 2 s
+    readonly property bool onIntegrated: (perf.gpu ?? "") !== "" && (perf.integrated ?? false)
+    Process {
+        running: root.sampling
+        command: ["python3", "-I", Quickshell.shellPath("scripts/clips/game_perf.py"), root.mangohudLogs,
+                  String(GameClips.gameStarted / 1000), ...root.gameMatchers]
+        stdout: SplitParser {
+            onRead: line => {
+                try {
+                    root.perf = JSON.parse(line);
+                    if (JSON.stringify(root.perf.pids) !== JSON.stringify(root.gamePids)) root.gamePids = root.perf.pids;
+                } catch (e) {}
+            }
+        }
+        onRunningChanged: if (!running) { root.perf = {}; root.gamePids = []; }
+    }
     onSamplingChanged: ResourceUsage.watchers += sampling ? 1 : -1
-    Component.onCompleted: if (sampling) ResourceUsage.watchers++
+    Component.onCompleted: {
+        if (sampling) ResourceUsage.watchers++;
+        Quickshell.execDetached(["mkdir", "-p", mangohudLogs]); // MangoHud doesn't make its log folder
+    }
     Component.onDestruction: if (sampling) ResourceUsage.watchers--
     readonly property int historyLength: 100
     property var cpuHistory: []
     property var gpuHistory: []
+    property var fpsHistory: []
     property var cpuStats: ({ sum: 0, count: 0, peak: 0 })
     property var gpuStats: ({ sum: 0, count: 0, peak: 0 })
     Connections {
         target: GameClips
         function onGameChanged() {
-            root.cpuHistory = []; root.gpuHistory = [];
+            root.cpuHistory = []; root.gpuHistory = []; root.fpsHistory = [];
             root.cpuStats = { sum: 0, count: 0, peak: 0 }; root.gpuStats = { sum: 0, count: 0, peak: 0 };
         }
     }
@@ -126,15 +156,17 @@ Scope {
             interval = Config.options?.resources?.updateInterval ?? 3000;
             root.cpuHistory = root.pushSample(root.cpuHistory, ResourceUsage.cpuUsage);
             root.cpuStats = root.addStat(root.cpuStats, ResourceUsage.cpuUsage);
-            if (ResourceUsage.gpuDetected) {
-                const gpu = ResourceUsage.gpuAsleep ? 0 : ResourceUsage.gpuUsage;
+            if (root.onIntegrated || ResourceUsage.gpuDetected) {
+                // On an integrated GPU, the game's share of it; else the GPU ResourceUsage reads
+                const gpu = root.onIntegrated ? Math.max(0, root.perf.busy) : ResourceUsage.gpuAsleep ? 0 : ResourceUsage.gpuUsage;
                 root.gpuHistory = root.pushSample(root.gpuHistory, gpu);
                 root.gpuStats = root.addStat(root.gpuStats, gpu);
             }
+            if ((root.perf.fps ?? -1) > 0) root.fpsHistory = root.pushSample(root.fpsHistory, root.perf.fps, Infinity);
         }
     }
-    function pushSample(list, value) {
-        const next = list.concat([Math.min(1, Math.max(0, value))]);
+    function pushSample(list, value, max = 1) {
+        const next = list.concat([Math.min(max, Math.max(0, value))]);
         return next.length > historyLength ? next.slice(next.length - historyLength) : next;
     }
     function addStat(stats, value) {
@@ -170,17 +202,6 @@ Scope {
             readonly property int sessionMinutes: GameClips.gameStarted > 0 ? Math.max(0, Math.floor((now - GameClips.gameStarted) / 60000)) : -1
 
             // ── Loaded on opening ──
-            // The game's processes, to tell its sound from other apps'. Without a launcher entry: a Steam game by its id
-            readonly property var gameMatchers: root.game ? GameLauncherService.processMatchers(root.game)
-                : GameClips.gameAppId !== "" ? ["steam:" + GameClips.gameAppId] : []
-            property var gamePids: []
-            Process {
-                running: window.gameMatchers.length > 0
-                command: ["python3", "-I", Quickshell.shellPath("scripts/clips/game_pids.py"), ...window.gameMatchers]
-                stdout: StdioCollector {
-                    onStreamFinished: { try { window.gamePids = JSON.parse(text); } catch (e) {} }
-                }
-            }
             // Clips saved since the game started, with thumbnails (made and cached by list_clips.py)
             property var sessionClips: []
             Process {
@@ -227,9 +248,15 @@ Scope {
                 viewerIndex = captures.length === 0 ? -1 : Math.min(viewerIndex, captures.length - 1);
             }
 
-            Rectangle { // Dims the game; a click here closes
+            Rectangle { // Dims the game, more behind the panels at its sides than in the middle; a click here closes
                 anchors.fill: parent
-                color: Qt.rgba(0, 0, 0, 0.55)
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.7) }
+                    GradientStop { position: 0.4; color: Qt.rgba(0, 0, 0, 0.35) }
+                    GradientStop { position: 0.75; color: Qt.rgba(0, 0, 0, 0.35) }
+                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.6) }
+                }
                 opacity: window.shown ? 1 : 0
                 Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
                 MouseArea {
@@ -241,14 +268,17 @@ Scope {
             Item {
                 id: layout
                 anchors.fill: parent
-                anchors.margins: 32
+                anchors.margins: 16
                 focus: true
-                // Both columns the same width: 400, narrower on a small screen, leaving the middle for the game
-                readonly property int columnWidth: Math.round(Math.max(300, Math.min(400, (width - 560) / 2)))
-                readonly property real panelsOpacity: window.shown && !window.viewing ? 1 : 0
+                readonly property real panelOpacity: window.shown && !window.viewing ? 1 : 0
                 Keys.onPressed: event => {
                     if (window.viewing) {
                         if (viewer.handleKey(event)) event.accepted = true;
+                        return;
+                    }
+                    if (event.key === Qt.Key_Escape && soundPanel.outputMenuOpen) { // The menu first
+                        soundPanel.outputMenuOpen = false;
+                        event.accepted = true;
                         return;
                     }
                     const actions = { [Qt.Key_Escape]: () => root.close(), [Qt.Key_C]: () => clipAction.trigger(),
@@ -260,130 +290,167 @@ Scope {
                     }
                 }
 
-                // ── Top: the clock and battery (fullscreen only), then the quick actions ──
-                ColumnLayout {
-                    id: top
-                    anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
-                    anchors.topMargin: window.shown ? 0 : -24
-                    opacity: layout.panelsOpacity
-                    Behavior on anchors.topMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                // ── The panel, down the left: the game, the quick actions, then Performance and Sound
+                // (scrolling when the screen is short), what's playing and how to leave at its foot ──
+                OverlayPanel {
+                    id: panel
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    anchors.leftMargin: window.shown ? 0 : -48
+                    Behavior on anchors.leftMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                    width: Math.round(Math.max(380, Math.min(520, layout.width * 0.28)))
+                    opacity: layout.panelOpacity
                     Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-                    spacing: 12
 
-                    OverlayPanel { // What the hidden bar would say
-                        visible: root.gameFullscreen
-                        Layout.alignment: Qt.AlignHCenter
-                        implicitWidth: statusRow.implicitWidth + 32
-                        implicitHeight: 40
-                        radius: Appearance.rounding.normal // A rounded rectangle, not a pill
-                        RowLayout {
-                            id: statusRow
-                            anchors.centerIn: parent
-                            spacing: 14
-                            StyledText {
-                                text: DateTime.time
-                                font.family: Appearance.font.family.numbers
-                                font.weight: Font.DemiBold
-                                color: Appearance.colors.colOnLayer0
-                            }
-                            Rectangle { // Between the clock and the battery
-                                visible: Battery.available
-                                implicitWidth: 4; implicitHeight: 4; radius: 2
-                                color: Appearance.colors.colSubtext
-                            }
-                            Row {
-                                visible: Battery.available
-                                spacing: 4
-                                readonly property bool low: !Battery.isPluggedIn && Battery.percent <= 20
-                                MaterialSymbol {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: Battery.isPluggedIn ? "battery_charging_full" : parent.low ? "battery_alert" : "battery_full"
-                                    iconSize: 18
-                                    color: parent.low ? Appearance.colors.colError : Appearance.colors.colOnLayer0
+                    StyledFlickable {
+                        id: body
+                        anchors { left: parent.left; right: parent.right; top: parent.top; bottom: foot.top; margins: 16; bottomMargin: 14 }
+                        clip: true
+                        contentHeight: sections.implicitHeight
+                        ColumnLayout {
+                            id: sections
+                            width: body.width
+                            spacing: 26
+                            ColumnLayout { // The game and what to do
+                                Layout.fillWidth: true
+                                spacing: 10
+                                GameBanner {
+                                    Layout.fillWidth: true
+                                    art: root.bannerArt
+                                    gameName: GameClips.game
+                                    showStatus: root.gameFullscreen
+                                    sessionText: window.sessionMinutes < 0 ? ""
+                                        : Translation.tr("This session: %1").arg(root.duration(window.sessionMinutes))
+                                          // Steam adds this session to its hours when it ends
+                                          + (root.game?.playtime ? "  ·  " + Translation.tr("%1 h in all").arg(Math.floor((root.game.playtime + window.sessionMinutes) / 60)) : "")
                                 }
-                                StyledText {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: Battery.percent + "%"
-                                    font.family: Appearance.font.family.numbers
-                                    color: parent.low ? Appearance.colors.colError : Appearance.colors.colOnLayer0
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    OverlayQuickAction {
+                                        id: clipAction
+                                        icon: "movie"; key: "C"
+                                        text: Translation.tr("Save clip")
+                                        tip: GameClips.recording ? Translation.tr("The last %1 s").arg(GameClips.seconds)
+                                            : GameClips.enabled ? Translation.tr("Records once a game is running") : Translation.tr("Clips are off in Settings → In game")
+                                        available: GameClips.recording
+                                        onTriggered: root.capture("clip")
+                                    }
+                                    OverlayQuickAction {
+                                        id: shotAction
+                                        icon: "screenshot_monitor"; key: "S"
+                                        text: Translation.tr("Screenshot")
+                                        tip: Translation.tr("Saved with the game's screenshots")
+                                        onTriggered: root.capture("screenshot")
+                                    }
+                                    OverlayQuickAction {
+                                        id: crosshairAction
+                                        icon: "my_location"; key: "X"
+                                        text: Translation.tr("Crosshair")
+                                        tip: Translation.tr("Its look is in Settings → Crosshair")
+                                        active: Crosshair.manual ?? Crosshair.automatic // What it does once the overlay closes
+                                        onTriggered: Crosshair.toggleOutsideOverlay()
+                                    }
+                                    OverlayQuickAction {
+                                        id: dndAction
+                                        icon: "notifications_paused"; key: "D"
+                                        text: Translation.tr("Silence")
+                                        tip: Translation.tr("Do not disturb: no pop-ups. They still wait in the sidebar")
+                                        active: Notifications.silent
+                                        onTriggered: Notifications.silent = !Notifications.silent
+                                    }
+                                    OverlayQuickAction {
+                                        id: gameModeAction
+                                        icon: "speed"; key: "G"
+                                        text: Translation.tr("Game mode")
+                                        tip: Translation.tr("No animations, blur or gaps")
+                                        active: GameModeService.active
+                                        onTriggered: GameModeService.toggle()
+                                    }
                                 }
+                            }
+                            PerformancePanel {
+                                Layout.fillWidth: true
+                                cpuHistory: root.cpuHistory
+                                gpuHistory: root.gpuHistory
+                                cpuStats: root.cpuStats
+                                gpuStats: root.gpuStats
+                                fpsHistory: root.fpsHistory
+                                perf: root.perf
+                                onIntegrated: root.onIntegrated
+                            }
+                            SoundPanel {
+                                id: soundPanel
+                                Layout.fillWidth: true
+                                gamePids: root.gamePids
+                                gameFlatpak: root.game?.flatpakId ?? ""
+                                gameName: GameClips.game
+                                gameArt: root.game?.icon || GameClips.gameArt || ""
                             }
                         }
                     }
 
-                    OverlayPanel {
-                        Layout.alignment: Qt.AlignHCenter
-                        implicitWidth: actionRow.implicitWidth + 16
-                        implicitHeight: actionRow.implicitHeight + 16
+                    ColumnLayout { // What's playing, and how to leave
+                        id: foot
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 16 }
+                        spacing: 12
+                        NowPlaying { Layout.fillWidth: true }
                         RowLayout {
-                            id: actionRow
-                            anchors.centerIn: parent
-                            spacing: 8
-                            OverlayQuickAction {
-                                id: clipAction
-                                icon: "movie"; key: "C"
-                                text: Translation.tr("Save clip")
-                                tip: GameClips.recording ? Translation.tr("The last %1 s").arg(GameClips.seconds)
-                                    : GameClips.enabled ? Translation.tr("Records once a game is running") : Translation.tr("Clips are off in Settings → In game")
-                                available: GameClips.recording
-                                onTriggered: root.capture("clip")
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: 6
+                            KeyCap { text: "Esc" }
+                            StyledText {
+                                text: Translation.tr("or")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colSubtext
                             }
-                            OverlayQuickAction {
-                                id: shotAction
-                                icon: "screenshot_monitor"; key: "S"
-                                text: Translation.tr("Screenshot")
-                                tip: Translation.tr("Saved with the game's screenshots")
-                                onTriggered: root.capture("screenshot")
-                            }
-                            OverlayQuickAction {
-                                id: crosshairAction
-                                icon: "my_location"; key: "X"
-                                text: Translation.tr("Crosshair")
-                                tip: Translation.tr("Its look is in Settings → Crosshair")
-                                active: Crosshair.manual ?? Crosshair.automatic // What it does once the overlay closes
-                                onTriggered: Crosshair.toggleOutsideOverlay()
-                            }
-                            OverlayQuickAction {
-                                id: dndAction
-                                icon: "notifications_paused"; key: "D"
-                                text: Translation.tr("Do not disturb")
-                                tip: Translation.tr("No pop-ups. They still wait in the sidebar")
-                                active: Notifications.silent
-                                onTriggered: Notifications.silent = !Notifications.silent
-                            }
-                            OverlayQuickAction {
-                                id: gameModeAction
-                                icon: "speed"; key: "G"
-                                text: Translation.tr("Game mode")
-                                tip: Translation.tr("No animations, blur or gaps")
-                                active: GameModeService.active
-                                onTriggered: GameModeService.toggle()
+                            KeyCap { text: "Super+Shift+G" }
+                            StyledText {
+                                text: Translation.tr("back to the game")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colSubtext
                             }
                         }
                     }
                 }
 
-                // ── Left: the game, this session's captures, what came in ──
-                SideColumn {
-                    id: leftColumn
-                    anchors { left: parent.left; top: top.bottom; topMargin: 24; bottom: hint.top; bottomMargin: 16 }
-                    anchors.leftMargin: window.shown ? 0 : -40
-                    Behavior on anchors.leftMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
-                    width: layout.columnWidth
-                    opacity: layout.panelsOpacity
-                    GameBanner {
-                        id: banner
-                        Layout.fillWidth: true
-                        art: root.bannerArt
-                        gameName: GameClips.game
-                        sessionText: window.sessionMinutes < 0 ? ""
-                            : Translation.tr("This session: %1").arg(root.duration(window.sessionMinutes))
-                              // Steam adds this session to its hours when it ends
-                              + (root.game?.playtime ? "  ·  " + Translation.tr("%1 h in all").arg(Math.floor((root.game.playtime + window.sessionMinutes) / 60)) : "")
+                // ── The outputs, out of the panel's right edge beside their button; a click anywhere else closes them ──
+                MouseArea {
+                    anchors.fill: parent
+                    visible: soundPanel.outputMenuOpen
+                    onClicked: soundPanel.outputMenuOpen = false
+                }
+                PanelSideDrawer {
+                    anchors { left: panel.right; top: panel.top; bottom: panel.bottom; leftMargin: -1 } // Over its border
+                    open: soundPanel.outputMenuOpen && layout.panelOpacity > 0
+                    onOpenChanged: if (open) anchorY = soundPanel.outputButton.mapToItem(panel, 0, soundPanel.outputButton.height / 2).y
+                    paneH: outputList.implicitHeight + 16
+                    OutputList {
+                        id: outputList
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+                        outputs: soundPanel.outputs
+                        iconFor: soundPanel.outputIcon
+                        onPicked: soundPanel.outputMenuOpen = false
                     }
+                }
+
+                // ── Down the right, what happened this session, as it adds up: the captures, and under them what
+                // came in (only when something did). Each card is as tall as it needs; together they fit the screen,
+                // the captures keeping at least half of it, and scroll inside ──
+                Item {
+                    id: rightColumn
+                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                    anchors.rightMargin: window.shown ? 0 : -48
+                    Behavior on anchors.rightMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                    width: Math.round(Math.max(320, Math.min(420, layout.width * 0.22)))
+                    opacity: layout.panelOpacity
+                    Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+                    readonly property int gap: 16
                     CapturesPanel {
                         id: capturesPanel
-                        Layout.fillWidth: true
+                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                        maxHeight: missedCard.visible
+                            ? Math.max(rightColumn.height / 2, rightColumn.height - missedCard.implicitHeight - rightColumn.gap)
+                            : rightColumn.height
                         captures: window.captures
                         clipsFolder: GameClips.folderFor(GameClips.game)
                         shotsFolder: window.shotsFolder
@@ -391,46 +458,24 @@ Scope {
                         onOpenCapture: index => window.viewerIndex = index
                         onOpenFolder: folder => root.openFolder(folder)
                     }
-                    MissedNotifications {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(implicitHeight, leftColumn.height - banner.height - capturesPanel.height - 2 * leftColumn.spacing)
-                        since: GameClips.gameStarted
-                        onActivated: root.close()
+                    OverlayPanel {
+                        id: missedCard
+                        anchors { left: parent.left; right: parent.right; top: capturesPanel.bottom; topMargin: rightColumn.gap }
+                        visible: missed.visible
+                        implicitHeight: missed.implicitHeight + 28
+                        height: Math.min(implicitHeight, rightColumn.height - capturesPanel.height - rightColumn.gap)
+                        StyledFlickable {
+                            anchors { fill: parent; margins: 14 }
+                            clip: true
+                            contentHeight: missed.implicitHeight
+                            MissedNotifications {
+                                id: missed
+                                width: parent.width
+                                since: GameClips.gameStarted
+                                onActivated: root.close()
+                            }
+                        }
                     }
-                }
-
-                // ── Right: how hard the computer is working, and the sound ──
-                SideColumn {
-                    id: rightColumn
-                    anchors { right: parent.right; top: top.bottom; topMargin: 24; bottom: hint.top; bottomMargin: 16 }
-                    anchors.rightMargin: window.shown ? 0 : -40
-                    Behavior on anchors.rightMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
-                    width: layout.columnWidth
-                    opacity: layout.panelsOpacity
-                    PerformancePanel {
-                        id: performancePanel
-                        Layout.fillWidth: true
-                        cpuHistory: root.cpuHistory
-                        gpuHistory: root.gpuHistory
-                        cpuStats: root.cpuStats
-                        gpuStats: root.gpuStats
-                    }
-                    SoundPanel {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(implicitHeight, rightColumn.height - performancePanel.height - rightColumn.spacing)
-                        gamePids: window.gamePids
-                        gameFlatpak: root.game?.flatpakId ?? ""
-                        gameName: GameClips.game
-                        gameArt: root.game?.icon || GameClips.gameArt || ""
-                    }
-                }
-
-                // ── Between them at the bottom: what's playing ──
-                NowPlaying {
-                    anchors { bottom: hint.top; bottomMargin: 16; horizontalCenter: parent.horizontalCenter }
-                    width: Math.min(520, parent.width - 2 * (layout.columnWidth + 24))
-                    opacity: layout.panelsOpacity
-                    Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
                 }
 
                 CaptureViewer {
@@ -444,13 +489,10 @@ Scope {
                     onTrashed: path => window.forget(path)
                 }
 
-                StyledText { // How to leave
-                    id: hint
+                StyledText { // How to use the viewer
                     anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
-                    opacity: window.shown ? 1 : 0
-                    Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-                    text: window.viewing ? Translation.tr("←/→ to step through · Delete to trash · Esc to go back")
-                        : Translation.tr("Esc or Super+Shift+G to go back to the game")
+                    visible: window.viewing
+                    text: Translation.tr("←/→ to step through · Delete to trash · Esc to go back")
                     font.pixelSize: Appearance.font.pixelSize.small
                     color: Appearance.colors.colOnLayer0
                     style: Text.Outline
@@ -460,16 +502,19 @@ Scope {
         }
     }
 
-    // A side column: its cards stack from the top, each as tall as what it holds (the last one is given a
-    // height that fits what's left)
-    component SideColumn: Item {
-        default property alias cards: cards.data
-        readonly property int spacing: 12
-        Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-        ColumnLayout {
-            id: cards
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            spacing: parent.spacing
+    // A key, as the overlay's foot shows it
+    component KeyCap: Rectangle {
+        property alias text: label.text
+        implicitWidth: label.implicitWidth + 12
+        implicitHeight: 20
+        radius: 6
+        color: Appearance.colors.colLayer2
+        StyledText {
+            id: label
+            anchors.centerIn: parent
+            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.weight: Font.DemiBold
+            color: Appearance.colors.colOnLayer2
         }
     }
 

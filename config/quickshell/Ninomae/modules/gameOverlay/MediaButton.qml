@@ -9,16 +9,16 @@ Rectangle {
     property bool main: false
     property bool available: true
     signal clicked()
-    implicitWidth: main ? 48 : 40
+    implicitWidth: main ? 40 : 32
     implicitHeight: implicitWidth
-    radius: main ? Appearance.rounding.normal : Appearance.rounding.container
+    radius: main ? Appearance.rounding.container : Appearance.rounding.segment
     opacity: available ? 1 : 0.4
     color: main ? (mouse.containsMouse ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary)
-        : mouse.containsMouse ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2
+        : mouse.containsMouse ? Appearance.colors.colLayer3 : "transparent"
     MaterialSymbol {
         anchors.centerIn: parent
         text: root.icon
-        iconSize: root.main ? 26 : 22
+        iconSize: root.main ? 24 : 20
         fill: 1
         color: root.main ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
     }

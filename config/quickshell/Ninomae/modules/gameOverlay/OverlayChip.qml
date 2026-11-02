@@ -4,13 +4,15 @@ import QtQuick
 import QtQuick.Layouts
 
 // A small button on the in-game overlay: a folder, the mic, an output device. Neutral; the one in use has its
-// icon on an accent squircle and its name in the accent (as Settings' option rows), a warning is red (the mic muted)
+// icon on an accent squircle and its name in the accent (as Settings' option rows), a warning is red (the mic muted).
+// trailingIcon after the name (a dropdown's arrow)
 Rectangle {
     id: root
     property string icon
     property string text
     property bool active: false
     property bool warn: false
+    property string trailingIcon
     signal clicked()
     implicitWidth: Math.min(row.implicitWidth + 16, 360)
     implicitHeight: 30
@@ -39,6 +41,13 @@ Rectangle {
             text: root.text
             elide: Text.ElideRight
             font.pixelSize: Appearance.font.pixelSize.smaller
+            color: root.textColor
+        }
+        MaterialSymbol {
+            visible: root.trailingIcon !== ""
+            Layout.rightMargin: -4
+            text: root.trailingIcon
+            iconSize: 16
             color: root.textColor
         }
     }

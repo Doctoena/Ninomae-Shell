@@ -1,64 +1,70 @@
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 
-// A live usage graph on the in-game overlay, on a neutral tile: name and temperature, the average and peak (over
-// the session, stats), the value now, and the last few minutes under it (history: 0–1 samples, oldest first)
+// One slim row of the in-game overlay's Performance, on the neutral surface: its name, the value now (and the
+// temperature under it), its last few minutes as a small graph (history: samples, oldest first, drawn against
+// ceiling), and two lines at its end (the session's average and peak, or low). The rows' columns line up
 Rectangle {
     id: root
     property string label
-    property real usage
-    property real temp
+    property string valueText
+    property real temp: 0
     property var history: []
-    property var stats: null // { sum, count, peak } over the session; without, the history's
+    property real ceiling: 1
+    property string sideText
     property bool warning: false
     readonly property color accent: warning ? Appearance.colors.colError : Appearance.colors.colPrimary
-    Layout.fillWidth: true
-    implicitHeight: content.implicitHeight + 20
+    implicitHeight: 48
     radius: Appearance.rounding.normal
     color: Appearance.colors.colLayer2
-    ColumnLayout {
-        id: content
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
-        spacing: 4
-        RowLayout {
-            Layout.fillWidth: true
+    RowLayout {
+        anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+        spacing: 10
+        StyledText {
+            Layout.preferredWidth: 30
+            text: root.label
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            color: Appearance.colors.colSubtext
+        }
+        ColumnLayout {
+            Layout.preferredWidth: 58
+            spacing: -4
             StyledText {
-                Layout.fillWidth: true
-                text: root.temp > 0 ? `${root.label} · ${Math.round(root.temp)}°C` : root.label
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colSubtext
-            }
-            StyledText {
-                visible: (root.stats?.count ?? root.history.length) > 1
-                text: Translation.tr("avg %1%  ·  peak %2%")
-                    .arg(Math.round((root.stats ? root.stats.sum / Math.max(1, root.stats.count)
-                        : root.history.reduce((a, b) => a + b, 0) / Math.max(1, root.history.length)) * 100))
-                    .arg(Math.round((root.stats ? root.stats.peak : Math.max(0, ...root.history)) * 100))
-                font.pixelSize: Appearance.font.pixelSize.smaller
+                text: root.valueText
+                font.pixelSize: Appearance.font.pixelSize.larger
                 font.family: Appearance.font.family.numbers
-                color: Appearance.colors.colSubtext
-            }
-            StyledText {
-                text: Math.round(root.usage * 100) + "%"
                 font.weight: Font.DemiBold
+                color: root.warning ? root.accent : Appearance.colors.colOnLayer2
+            }
+            StyledText {
+                visible: root.temp > 0
+                text: Math.round(root.temp) + "°C"
+                font.pixelSize: Appearance.font.pixelSize.smallest
                 font.family: Appearance.font.family.numbers
-                color: root.accent
+                color: root.temp >= 90 ? Appearance.colors.colError : Appearance.colors.colSubtext
             }
         }
         LineGraph {
             Layout.fillWidth: true
-            Layout.preferredHeight: 72
+            Layout.preferredHeight: 26
             // Whatever history there is spans the width, newest on the right; a single sample as a level line
             points: {
                 const samples = root.history.length === 1 ? [root.history[0], root.history[0]] : root.history;
                 const last = Math.max(1, samples.length - 1);
-                return samples.map((v, i) => Qt.point(1 - (samples.length - 1 - i) / last, v));
+                return samples.map((v, i) => Qt.point(1 - (samples.length - 1 - i) / last, Math.min(1, v / root.ceiling)));
             }
             color: root.accent
-            emptyText: Translation.tr("Collecting…")
+        }
+        StyledText {
+            Layout.preferredWidth: 62
+            text: root.sideText
+            horizontalAlignment: Text.AlignRight
+            lineHeight: 0.9
+            font.pixelSize: Appearance.font.pixelSize.smallest
+            font.family: Appearance.font.family.numbers
+            color: Appearance.colors.colSubtext
         }
     }
 }

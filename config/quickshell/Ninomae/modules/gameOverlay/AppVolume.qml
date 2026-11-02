@@ -28,10 +28,10 @@ RowLayout {
         .filter(n => n).map(n => AppSearch.guessIcon(n)).find(i => AppSearch.iconExists(i)) ?? ""
     spacing: 10
     Rectangle {
-        Layout.preferredWidth: 30; Layout.preferredHeight: 30
+        Layout.preferredWidth: 28; Layout.preferredHeight: 28
         Layout.alignment: Qt.AlignVCenter
-        radius: Appearance.rounding.segment
-        color: Appearance.colors.colLayer2
+        radius: Appearance.rounding.chip + 1
+        color: Appearance.colors.colLayer3
         clip: true
         Image { // The game's art
             id: gameArtImage
@@ -44,7 +44,7 @@ RowLayout {
         }
         IconImage { // An app's icon, from the icon theme (as the dock's)
             anchors.centerIn: parent
-            implicitSize: 24
+            implicitSize: 22
             visible: !root.game && root.iconName !== ""
             source: visible ? Quickshell.iconPath(root.iconName, "application-x-executable") : ""
         }
@@ -81,23 +81,24 @@ RowLayout {
     }
     ColumnLayout {
         Layout.fillWidth: true
-        spacing: -4
-        StyledText {
+        spacing: 0
+        RowLayout {
             Layout.fillWidth: true
-            elide: Text.ElideRight
-            text: root.game ? (root.gameName || Translation.tr("The game"))
-                : root.node.properties["application.name"] || root.node.description || root.node.name
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Medium
-            color: root.game ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
+            StyledText {
+                Layout.fillWidth: true
+                elide: Text.ElideRight
+                text: root.game ? (root.gameName || Translation.tr("The game"))
+                    : root.node.properties["application.name"] || root.node.description || root.node.name
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.Medium
+                color: root.game ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
+            }
+            VolumePercent { value: root.node.audio?.volume ?? 0; muted: root.muted }
         }
-        StyledSlider {
-            Layout.fillWidth: true
+        OverlaySlider {
             opacity: root.muted ? 0.4 : 1
             value: root.node.audio?.volume ?? 0
             onMoved: root.nodes.forEach(n => { if (n.audio) n.audio.volume = value; })
-            configuration: StyledSlider.Configuration.S
-            stopIndicatorValues: []
         }
     }
 }

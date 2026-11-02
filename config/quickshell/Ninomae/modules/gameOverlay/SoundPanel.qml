@@ -6,16 +6,20 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Pipewire
 
-// The in-game overlay's Sound: the mic, where the sound goes (with more than one output), its volume, then each
+// The in-game overlay's Sound: the mic and, with more than one output, the one in use beside it (a click opens
+// outputMenuOpen: the overlay lists them out of the panel's side, beside outputButton), the output's volume, then each
 // app playing sound: the game first (its streams' processes are among gamePids, or for a Flatpak game its app id is
-// gameFlatpak: inside the sandbox its process ids are its own), voice chat next, the rest after.
-// As tall as what it holds; the apps scroll when the overlay gives it less
-OverlayPanel {
+// gameFlatpak: inside the sandbox its process ids are its own), voice chat next, the rest after. Each volume
+// shows its percentage
+ColumnLayout {
     id: root
     property var gamePids: []
     property string gameFlatpak: ""
     property string gameName: ""
     property string gameArt: ""
+    property bool outputMenuOpen: false
+    onOutputsChanged: if (outputs.length < 2) outputMenuOpen = false // Nothing to choose from any more
+    readonly property Item outputButton: outputChip
     readonly property var outputs: Pipewire.nodes.values.filter(n => n.isSink && n.audio && !n.isStream)
     // Every app's streams, tracked here so their names and processes are in before they're grouped
     readonly property var streams: Pipewire.nodes.values.filter(n => n.isSink && n.audio && n.isStream)
@@ -47,46 +51,43 @@ OverlayPanel {
         return /hdmi|displayport/i.test(node.name) ? "tv"
             : /bluez|headphone|headset/i.test(`${node.name} ${node.description}`) ? "headphones" : "speaker";
     }
-    implicitHeight: column.implicitHeight + 28
-    ColumnLayout {
-        id: column
-        anchors { fill: parent; margins: 14 }
-        spacing: 10
-        RowLayout {
-            Layout.fillWidth: true
-            OverlayPanelTitle { Layout.fillWidth: true; icon: "volume_up"; text: Translation.tr("Sound") }
-            OverlayChip { // The mic, for voice chat
-                readonly property bool muted: Audio.source?.audio?.muted ?? false
-                visible: Audio.source?.audio !== undefined
-                icon: muted ? "mic_off" : "mic"
-                text: muted ? Translation.tr("Mic muted") : Translation.tr("Mic on")
-                warn: muted
-                onClicked: Audio.source.audio.muted = !muted
-            }
+    spacing: 12
+    RowLayout {
+        Layout.fillWidth: true
+        OverlayPanelTitle { Layout.fillWidth: true; icon: "volume_up"; text: Translation.tr("Sound") }
+        OverlayChip { // The mic, for voice chat
+            readonly property bool muted: Audio.source?.audio?.muted ?? false
+            visible: Audio.source?.audio !== undefined
+            icon: muted ? "mic_off" : "mic"
+            text: muted ? Translation.tr("Mic muted") : Translation.tr("Mic on")
+            warn: muted
+            onClicked: Audio.source.audio.muted = !muted
         }
-        Flow { // Where the sound goes, when there's a choice
-            Layout.fillWidth: true
+        OverlayChip { // Where the sound goes, when there's a choice: a click lists the outputs
+            id: outputChip
             visible: root.outputs.length > 1
-            spacing: 6
-            Repeater {
-                model: root.outputs
-                OverlayChip {
-                    required property var modelData
-                    icon: root.outputIcon(modelData)
-                    text: modelData.description || modelData.name
-                    active: Pipewire.defaultAudioSink === modelData
-                    onClicked: Pipewire.preferredDefaultAudioSink = modelData
-                }
-            }
+            Layout.maximumWidth: 190
+            icon: Pipewire.defaultAudioSink ? root.outputIcon(Pipewire.defaultAudioSink) : "speaker"
+            text: Pipewire.defaultAudioSink?.description || Pipewire.defaultAudioSink?.name || Translation.tr("Output")
+            trailingIcon: root.outputMenuOpen ? "chevron_left" : "chevron_right"
+            onClicked: root.outputMenuOpen = !root.outputMenuOpen
         }
-        QuickDialogGroup { // The output: its name and volume; its squircle mutes, as the shell's Sound menu
-            Layout.fillWidth: true
-            padding: 8
-            RowLayout {
+    }
+    Rectangle { // The output, then each app, on one neutral group
+        Layout.fillWidth: true
+        implicitHeight: volumes.implicitHeight + 20
+        radius: Appearance.rounding.normal
+        color: Appearance.colors.colLayer2
+        ColumnLayout {
+            id: volumes
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10; rightMargin: 12 }
+            spacing: 10
+            RowLayout { // The output: its name and volume; its squircle mutes, as the shell's Sound menu
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: 10
                 QuickDialogIcon {
                     readonly property bool muted: Audio.sink?.audio?.muted ?? false
+                    implicitWidth: 28; implicitHeight: 28; radius: Appearance.rounding.chip + 1
                     icon: muted ? "volume_off" : Audio.sink ? root.outputIcon(Audio.sink) : "volume_up"
                     active: !muted
                     MouseArea {
@@ -97,59 +98,34 @@ OverlayPanel {
                 }
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: -4
-                    StyledText {
+                    spacing: 0
+                    RowLayout {
                         Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        text: Audio.sink?.description || Audio.sink?.name || Translation.tr("Output")
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Medium
-                        color: Appearance.colors.colOnSurfaceVariant
+                        StyledText {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            text: Audio.sink?.description || Audio.sink?.name || Translation.tr("Output")
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.Medium
+                            color: Appearance.colors.colOnSurfaceVariant
+                        }
+                        VolumePercent { value: Audio.sink?.audio?.volume ?? 0 }
                     }
-                    StyledSlider {
-                        Layout.fillWidth: true
+                    OverlaySlider {
                         value: Audio.sink?.audio?.volume ?? 0
                         onMoved: if (Audio.sink?.audio) Audio.sink.audio.volume = value
-                        configuration: StyledSlider.Configuration.S
-                        stopIndicatorValues: []
                     }
                 }
             }
-        }
-        StyledText {
-            visible: root.apps.length === 0
-            text: Translation.tr("No apps are playing sound")
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colSubtext
-        }
-        StyledFlickable { // The apps on a neutral group, scrolling when the overlay gives less room than they need
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            implicitHeight: appsGroup.height
-            visible: root.apps.length > 0
-            clip: true
-            contentHeight: appsGroup.height
-            Rectangle {
-                id: appsGroup
-                width: parent.width
-                height: apps.implicitHeight + 20
-                radius: Appearance.rounding.normal
-                color: Appearance.colors.colLayer2
-                ColumnLayout {
-                    id: apps
-                    anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 10; leftMargin: 10; rightMargin: 12 }
-                    spacing: 10
-                    Repeater {
-                        model: ScriptModel { values: root.apps }
-                        AppVolume {
-                            required property var modelData
-                            Layout.fillWidth: true
-                            nodes: modelData.nodes
-                            game: modelData.game
-                            gameName: root.gameName
-                            gameArt: root.gameArt
-                        }
-                    }
+            Repeater {
+                model: ScriptModel { values: root.apps }
+                AppVolume {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    nodes: modelData.nodes
+                    game: modelData.game
+                    gameName: root.gameName
+                    gameArt: root.gameArt
                 }
             }
         }
