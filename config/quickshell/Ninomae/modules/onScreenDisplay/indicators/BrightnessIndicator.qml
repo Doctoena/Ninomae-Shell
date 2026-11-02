@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import qs.modules.onScreenDisplay
+// The focused screen's brightness (the icon a sunset while night light is on)
 OsdValueIndicator {
     id: root
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
@@ -11,5 +12,5 @@ OsdValueIndicator {
     rotateIcon: true
     scaleIcon: true
     name: Translation.tr("Brightness")
-    value: root.brightnessMonitor?.brightness ?? 50
+    value: root.brightnessMonitor?.brightness ?? 0.5
 }
