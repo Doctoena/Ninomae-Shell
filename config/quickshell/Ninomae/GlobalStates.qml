@@ -9,6 +9,16 @@ pragma ComponentBehavior: Bound
 Singleton {
     id: root
     property bool barOpen: true
+    // Whether the bar is there on a screen: on, and no fullscreen window (a game) over it. The drawers
+    // that grow out of it stand on their own as cards while it isn't (DrawerBackground's followBar)
+    function barShownOn(screen) {
+        if (!barOpen) return false;
+        if (!screen) return true;
+        return !(Hyprland.monitorFor(screen)?.activeWorkspace?.toplevels?.values ?? []).some(w => w.wayland?.fullscreen);
+    }
+    // Where a drawer's top goes: right below the bar, or near the screen's top edge while there's none
+    readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
+    function drawerTopOn(screen) { return barShownOn(screen) ? barBottom : 10; }
     // Theme transition: while true the wallpaper and colours keep their current look (the new ones are
     // generated in the background), so the change can be revealed in one go
     property bool themeHold: false

@@ -19,7 +19,7 @@ Scope {
         readonly property real sideMargin: 40 // Room for the gooey joins either side
         readonly property real hiddenExtra: 60
         readonly property real bottomRadius: Appearance.rounding.screenRounding
-        readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
+        readonly property real barBottom: GlobalStates.drawerTopOn(screen) // Below the bar, or near the top without one
         readonly property real panelWidth: sidebarWidth - Appearance.sizes.hyprlandGapsOut - Appearance.sizes.elevationMargin
         readonly property real fullHeight: height - Appearance.sizes.hyprlandGapsOut * 2
 
@@ -88,6 +88,7 @@ Scope {
             }
 
             DrawerBackground { // Shared with the launcher and the other drawers
+                followBar: true // A card while there's no bar (a fullscreen game)
                 id: background
                 anchors.fill: parent
                 active: sidebarRoot.visible

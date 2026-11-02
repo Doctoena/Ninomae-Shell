@@ -19,13 +19,9 @@ Scope {
         id: root
         readonly property real sideMargin: 40 // Room for the gooey joins either side
         readonly property real padding: 10
-        readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
         // No bar to hang from (a fullscreen window covers it, or it's toggled off): a free-standing card instead
-        readonly property bool fullscreenActive: screen
-            ? (Hyprland.monitorFor(screen)?.activeWorkspace?.toplevels?.values ?? []).some(w => w.wayland?.fullscreen)
-            : false
-        readonly property bool attached: GlobalStates.barOpen && !fullscreenActive
-        readonly property real topEdge: attached ? barBottom : 10
+        readonly property bool attached: GlobalStates.barShownOn(screen)
+        readonly property real topEdge: GlobalStates.drawerTopOn(screen)
         readonly property real panelWidth: Appearance.sizes.notificationPopupWidth
         readonly property bool hasPopups: Notifications.popupList.length > 0 && !GlobalStates.screenLocked
 
@@ -84,12 +80,10 @@ Scope {
                 joinWidth: root.panelWidth
             }
 
-            DrawerBackground {
+            DrawerBackground { // A card, higher up, while there's no bar (topEdge)
                 anchors.fill: parent
                 active: root.visible
-                // Hidden, not unloaded, while it's a card: a freshly loaded blob didn't draw its join to the
-                // bar until the drawer next changed size, so switching workspaces left it detached
-                visible: root.attached
+                followBar: true
                 screenWidth: root.screen?.width ?? 0
                 windowScreenX: (root.screen?.width ?? 0) - root.implicitWidth
                 drawerX: root.sideMargin
@@ -98,16 +92,6 @@ Scope {
                 drawerHeight: root.drawerHeight
                 drawerRadius: Math.min(Appearance.rounding.large + 4, root.drawerHeight / 2)
                 fallbackRadius: Appearance.rounding.large
-            }
-
-            Rectangle { // Free-standing card while there's no bar to join
-                visible: !root.attached
-                x: root.sideMargin
-                width: root.panelWidth
-                height: root.drawerHeight
-                radius: Math.min(Appearance.rounding.large + 4, root.drawerHeight / 2)
-                color: Appearance.colors.colLayer0
-                opacity: 0.92
             }
 
             Item { // Cards, revealed as the drawer grows

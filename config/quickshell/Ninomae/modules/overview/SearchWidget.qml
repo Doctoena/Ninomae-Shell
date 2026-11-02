@@ -176,6 +176,8 @@ Item { // Wrapper
     readonly property real cornerRadius: Appearance.rounding.windowRounding // matches the bar's rounding
     readonly property real sideMargin: 40 // Room for the gooey bulge beside the drawer
     readonly property bool useBlobs: blobBg.status === Loader.Ready
+    // No bar on this screen (a fullscreen game): a free-standing card instead of a drawer joined to nothing
+    readonly property bool barAttached: GlobalStates.barShownOn(root.QsWindow.window?.screen ?? null)
     readonly property real bottomRadius: 28
     readonly property int maxShown: 8
     readonly property real itemHeight: 50
@@ -219,6 +221,7 @@ Item { // Wrapper
         Loader {
             id: blobBg
             anchors.fill: parent
+            visible: root.barAttached // Hidden, not unloaded, while it's a card
             source: "BlobDrawerBackground.qml"
             onLoaded: {
                 // The clipper starts on the bar's 1px bottom border row. End the stand-in just
@@ -236,8 +239,18 @@ Item { // Wrapper
             }
         }
 
+        Rectangle { // No bar to join: a card where the drawer is
+            visible: !root.barAttached && root.visibleHeight > 0
+            x: root.sideMargin
+            y: root.drawerY
+            width: root.panelWidth
+            height: root.drawerHeight
+            radius: Math.min(root.bottomRadius, root.drawerHeight / 2)
+            color: Appearance.colors.colLayer0
+            opacity: 0.92
+        }
         Item { // Fallback background (no plugin): corners + panel as one translucent surface
-            visible: !root.useBlobs
+            visible: !root.useBlobs && root.barAttached
             anchors.fill: parent
             opacity: 0.92
             layer.enabled: visible // Group opacity, so the corners and panel don't double up where they meet
@@ -294,7 +307,7 @@ Item { // Wrapper
             implicitHeight: columnLayout.implicitHeight + root.panelPadding * 2
             opacity: 1 - root.offsetScale // Fade in step with the drawer so it never slides in empty
             transform: Matrix4x4 { // Wobble with the blob, as caelestia does for its panels
-                matrix: root.useBlobs ? blobBg.item.deformMatrix : Qt.matrix4x4()
+                matrix: root.useBlobs && root.barAttached ? blobBg.item.deformMatrix : Qt.matrix4x4()
             }
 
             ColumnLayout {

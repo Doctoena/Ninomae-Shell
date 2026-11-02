@@ -171,7 +171,7 @@ Scope {
         readonly property real padding: 10
         readonly property real bottomRadius: 26
         readonly property real hiddenExtra: 60
-        readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
+        readonly property real barBottom: GlobalStates.drawerTopOn(screen) // Below the bar, or near the top without one
         readonly property real panelWidth: card.width + padding * 2
         readonly property real fullHeight: card.height + padding * 2
 
@@ -231,6 +231,7 @@ Scope {
                 joinWidth: drawer.panelWidth
             }
             DrawerBackground {
+                followBar: true // A card while there's no bar (a fullscreen game)
                 id: background
                 anchors.fill: parent
                 active: drawer.visible

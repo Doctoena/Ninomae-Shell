@@ -26,7 +26,7 @@ PanelWindow {
     readonly property real padding: 8
     readonly property real bottomRadius: Appearance.rounding.large
     readonly property real hiddenExtra: 60
-    readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
+    readonly property real barBottom: GlobalStates.drawerTopOn(screen) // Below the bar, or near the top without one
     // Content size, animated when a submenu opens or closes (but not while the menu first fills in)
     property real contentWidth: stackView.implicitWidth
     property real contentHeight: stackView.implicitHeight
@@ -138,6 +138,7 @@ PanelWindow {
         }
 
         DrawerBackground { // Shared with the other drawers. Made with the window (it's created per right-click),
+            followBar: true // A card while there's no bar (a fullscreen game)
             // so the blob is there for the first frame instead of the unjoined fallback
             id: background
             anchors.fill: parent

@@ -91,7 +91,7 @@ Scope {
                     horizontalCenter: parent.horizontalCenter
                     top: parent.top
                     // The bar's visual bottom edge (it floats inside its gaps when cornerStyle is 1)
-                    topMargin: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0) // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+                    topMargin: GlobalStates.drawerTopOn(root.screen) // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
                 }
                 spacing: -8
                 Keys.onPressed: event => {

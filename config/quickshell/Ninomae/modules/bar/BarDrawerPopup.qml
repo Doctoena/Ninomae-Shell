@@ -51,7 +51,7 @@ LazyLoader {
         readonly property real padding: 12
         readonly property real bottomRadius: 24
         readonly property real hiddenExtra: 60
-        readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
+        readonly property real barBottom: GlobalStates.drawerTopOn(screen) // Below the bar, or near the top without one
         readonly property real panelWidth: root.contentItem.implicitWidth + padding * 2
         readonly property real fullHeight: root.contentItem.implicitHeight + padding * 2
 
@@ -117,6 +117,7 @@ LazyLoader {
             }
 
             DrawerBackground { // Shared with the launcher and the other drawers
+                followBar: true // A card while there's no bar (a fullscreen game)
                 id: background
                 anchors.fill: parent
                 screenWidth: win.screen?.width ?? 0
