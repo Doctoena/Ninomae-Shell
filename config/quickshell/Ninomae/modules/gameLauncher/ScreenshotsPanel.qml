@@ -617,7 +617,7 @@ LauncherTopPanel {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 retainWhileLoading: true // The last one stays up (under the ghost) instead of flashing the small copy
-                sourceSize.width: Math.ceil(width * 1.5) // Sharp at the panel's size without decoding 4K shots in full
+                sourceSize.width: Math.ceil(width * 1.5 / 256) * 256 // Sharp at the panel's size without decoding 4K shots in full; in steps, so a resize doesn't decode it again
                 property bool loadedOnce: false
                 onStatusChanged: if (status === Image.Ready) { loadedOnce = true; ghostFade.restart(); }
                 opacity: loadedOnce ? 1 : 0

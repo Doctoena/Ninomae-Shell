@@ -231,10 +231,11 @@ Item {
             source: root._bannerSource
             cache: false
             fillMode: Image.PreserveAspectCrop
-            // Decode at the frame's size: Steam heroes are 3840×1240 (~19 MB decoded) for a panel-sized
-            // frame. Crop mode scales them to cover this size, so nothing gets blurrier
-            sourceSize.width: Math.ceil(bannerFrame.width * Screen.devicePixelRatio)
-            sourceSize.height: Math.ceil(bannerFrame.height * Screen.devicePixelRatio)
+            // Decoded near the frame's width, not at 3840×1240 (~19 MB). Width only, in 256 px steps: any new
+            // sourceSize decodes it again (Loading: the frame fades out), and the frame's height eases a pixel
+            // at a time as the page settles, which made the art flicker. A hero is wider than the frame's
+            // shape, so cropped it still covers the frame at full sharpness
+            sourceSize.width: Math.ceil(bannerFrame.width * Screen.devicePixelRatio / 256) * 256
             asynchronous: true
             // Slow settle from a slight zoom, no overshoot
             scale: (status === Image.Ready && root.animationReady) ? 1.0 : 1.04

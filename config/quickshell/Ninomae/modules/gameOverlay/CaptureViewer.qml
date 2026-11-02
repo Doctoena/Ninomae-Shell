@@ -125,7 +125,7 @@ Item {
             Image { // A screenshot, or a clip's thumbnail until its first frame is up
                 anchors.fill: parent
                 source: !root.current ? "" : root.isClip ? (root.current.thumb ? "file://" + root.current.thumb : "") : "file://" + root.current.path
-                sourceSize.width: root.isClip ? 480 : Math.ceil(picture.width * 1.5) // Sharp without decoding 4K in full
+                sourceSize.width: root.isClip ? 480 : Math.ceil(picture.width * 1.5 / 256) * 256 // Sharp without decoding 4K in full; in steps, so a resize doesn't decode it again
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 retainWhileLoading: true
