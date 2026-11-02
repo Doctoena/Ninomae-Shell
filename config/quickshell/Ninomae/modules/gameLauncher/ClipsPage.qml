@@ -13,8 +13,8 @@ import Quickshell.Widgets
  * in <clips folder>/<game>/), newest first in a grid of 16:9 tiles with their length; clicking one plays
  * it in the sheet. scripts/clips/list_clips.py lists them and makes the thumbnails (cached).
  * Keys (from ScreenshotsPanel.handleKey): on the grid the arrows move a ring and Enter plays; in the player
- * Space plays/pauses, ←/→ jump 5 s, Page Up/Down go to the previous/next clip, Delete moves it to the
- * Trash, Esc goes back to the grid.
+ * Space plays/pauses, ←/→ jump 5 s, Page Up/Down go to the previous/next clip, Esc goes back to the grid.
+ * Delete (twice) is the panel's: ScreenshotsPanel.requestTrash asks before trashCurrent.
  *
  * Trim (T, or the header's scissors): [ and ] mark where it starts and ends at the playhead, it loops
  * in that part, and Save makes it a new clip (scripts/clips/export_clip.py; the original is kept).
@@ -185,7 +185,6 @@ Item {
             if (key === Qt.Key_Left || key === Qt.Key_Right) { seekBy(key === Qt.Key_Left ? -5000 : 5000); return true; }
             if (key === Qt.Key_PageUp) { playerIndex = Math.max(0, playerIndex - 1); return true; }
             if (key === Qt.Key_PageDown) { playerIndex = Math.min(clips.length - 1, playerIndex + 1); return true; }
-            if (key === Qt.Key_Delete) { trashCurrent(); return true; }
             return key === Qt.Key_Up || key === Qt.Key_Down || key === Qt.Key_Return || key === Qt.Key_Enter;
         }
         const isArrow = key === Qt.Key_Left || key === Qt.Key_Right || key === Qt.Key_Up || key === Qt.Key_Down;
@@ -281,7 +280,7 @@ Item {
         text: root.loading ? Translation.tr("Looking for clips…") : Translation.tr("No clips yet")
         hint: root.loading ? ""
             : !GameClips.available ? Translation.tr("Install gpu-screen-recorder to record clips")
-            : !(Config.options.gameLauncher.clipsEnabled ?? false) ? Translation.tr("Turn on clips in Settings → Games")
+            : !(Config.options.gameLauncher.clipsEnabled ?? false) ? Translation.tr("Turn on clips in Settings → In game")
             : Translation.tr("Press %1 while playing to save the last %2").arg(GameClips.keyLabel).arg(GameClips.seconds >= 60
                 ? (GameClips.seconds === 60 ? Translation.tr("minute") : Translation.tr("%1 minutes").arg(GameClips.seconds / 60))
                 : Translation.tr("%1 seconds").arg(GameClips.seconds))

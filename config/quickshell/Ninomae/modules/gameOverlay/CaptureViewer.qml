@@ -15,7 +15,7 @@ import Quickshell.Widgets
  * plays with a seek bar, click to pause), previous and next at its sides, when it was taken and its size
  * under it with Copy, Open and Trash, and a filmstrip of all of them. Keys (from the overlay, handleKey):
  * ←/→ (Home/End) step through, Space plays or pauses a clip and Shift+←/→ seeks it 5 s, Ctrl+C copies,
- * Delete trashes (to the Trash, so it can be got back), Esc goes back.
+ * Delete, pressed twice, trashes (to the Trash, so it can be got back), Esc goes back.
  * Copy puts a screenshot on the clipboard as PNG and a clip as its file.
  */
 Item {
@@ -51,6 +51,16 @@ Item {
         if (current) Quickshell.execDetached(["xdg-open", current.path]);
     }
     // To the Trash. For Steam's screenshots, their small copy in thumbnails/ goes too
+    // Trash asks twice, as the launcher's Captures: the first click (or Delete) arms it, red, a second one within
+    // 4 s trashes. Another capture, or waiting, puts it back
+    property bool trashArmed: false
+    function requestTrash() {
+        if (!trashArmed) { trashArmed = true; trashDisarm.restart(); return; }
+        trashArmed = false;
+        trashCurrent();
+    }
+    Timer { id: trashDisarm; interval: 4000; onTriggered: root.trashArmed = false }
+    onIndexChanged: trashArmed = false
     function trashCurrent() {
         if (!current) return;
         const path = current.path;
@@ -84,7 +94,7 @@ Item {
             return true;
         case Qt.Key_Home: goTo(0); return true;
         case Qt.Key_End: goTo(n - 1); return true;
-        case Qt.Key_Delete: trashCurrent(); return true;
+        case Qt.Key_Delete: requestTrash(); return true;
         case Qt.Key_Space: if (isClip) { togglePlay(); return true; } return false;
         case Qt.Key_C: if (event.modifiers & Qt.ControlModifier) { copyCurrent(); return true; } return false;
         }
@@ -268,10 +278,11 @@ Item {
                 onClicked: root.openCurrent()
             }
             ViewerAction {
-                icon: "delete"
+                icon: root.trashArmed ? "delete_forever" : "delete"
                 danger: true
-                tip: Translation.tr("Move to the Trash (Delete)")
-                onClicked: root.trashCurrent()
+                armed: root.trashArmed
+                tip: root.trashArmed ? Translation.tr("Click again to move to the Trash") : Translation.tr("Move to the Trash (Delete)")
+                onClicked: root.requestTrash()
             }
         }
     }
@@ -353,15 +364,18 @@ Item {
         property string icon
         property string tip
         property bool danger: false
+        property bool armed: false // Waiting for the second click: red
         signal clicked()
         anchors.verticalCenter: parent.verticalCenter
         width: 32; height: 32; radius: Appearance.rounding.segment
-        color: actionMouse.containsMouse ? (danger ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer2Hover) : Appearance.colors.colLayer2
+        color: armed ? Appearance.colors.colError
+            : actionMouse.containsMouse ? (danger ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer2Hover) : Appearance.colors.colLayer2
         MaterialSymbol {
             anchors.centerIn: parent
             text: viewerAction.icon
             iconSize: 18
-            color: viewerAction.danger && actionMouse.containsMouse ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnLayer2
+            color: viewerAction.armed ? Appearance.colors.colOnError
+                : viewerAction.danger && actionMouse.containsMouse ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnLayer2
         }
         MouseArea {
             id: actionMouse

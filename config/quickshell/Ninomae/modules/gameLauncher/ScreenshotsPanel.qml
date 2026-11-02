@@ -13,7 +13,7 @@ import Quickshell.Widgets
  * first, in rows that keep each shot's own shape (portrait and cropped ones at least square); clicking one
  * opens it large with its details and a filmstrip under it. Keys come from the details page while it's
  * open (handleKey): on the grid the arrows (Home/End) move a ring and Enter opens that one; in the viewer
- * ←/→ (Home/End) step through and Delete moves it to the Trash; Esc goes back to the grid, then closes.
+ * ←/→ (Home/End) step through and Delete, pressed twice, moves it to the Trash; Esc goes back to the grid, then closes.
  * What it found is kept per game for the session (GameLauncherService.screenshotsCache), so it opens
  * filled in and looks again behind that.
  *
@@ -41,7 +41,7 @@ LauncherTopPanel {
     readonly property string appid: game?.id?.startsWith("steam_") ? game.id.substring(6) : ""
     property string page: GameLauncherService.screenshotsPage // "shots" or "clips"; opens on the last one used
     readonly property bool onShots: page === "shots"
-    onPageChanged: { _resetView(); GameLauncherService.screenshotsPage = page; }
+    onPageChanged: { _resetView(); GameLauncherService.screenshotsPage = page; trashArmed = false; }
 
     onShownChanged: {
         if (!shown) return;
@@ -227,6 +227,16 @@ LauncherTopPanel {
         environment: ({ IMMICH_API_KEY: GameLauncherService.immichApiKey }) // Not an argument: any process can read those (ps)
         onExited: exitCode => { if (exitCode === 0) { root.copiedEntry = copier.entry; copiedTimer.restart(); } }
     }
+    // Trash asks twice: the first click (or Delete) arms it, red, and a second one within 4 s moves the shot or clip
+    // to the Trash. Moving to another one, or waiting, puts it back
+    property bool trashArmed: false
+    function requestTrash() {
+        if (!trashArmed) { trashArmed = true; trashDisarm.restart(); return; }
+        trashArmed = false;
+        if (onShots) trashCurrent(); else clipsPage.trashCurrent();
+    }
+    Timer { id: trashDisarm; interval: 4000; onTriggered: root.trashArmed = false }
+    Connections { target: clipsPage; function onPlayerIndexChanged() { root.trashArmed = false; } }
     // To the Trash (so it can be got back). For Steam's, its small copy in thumbnails/ goes too
     function trashCurrent() {
         const i = viewerIndex, path = currentEntry;
@@ -243,12 +253,16 @@ LauncherTopPanel {
     }
     // Back on the grid: keep the one just viewed in sight
     property int _lastViewed: 0
-    onViewerIndexChanged: if (viewerIndex >= 0) { _lastViewed = viewerIndex; gridIndex = viewerIndex; } // The ring comes back on it
+    onViewerIndexChanged: {
+        trashArmed = false;
+        if (viewerIndex >= 0) { _lastViewed = viewerIndex; gridIndex = viewerIndex; } // The ring comes back on it
+    }
     onViewingChanged: if (!viewing) gallery.positionViewAtIndex(gallery.rowOf[_lastViewed] ?? 0, ListView.Contain)
 
     // Keys, from the details page's handler while this is open. Returns whether it used the key
     function handleKey(key, modifiers) {
         if (key === Qt.Key_Tab && !viewing && !clipsPage.viewing) { page = onShots ? "clips" : "shots"; return true; }
+        if (key === Qt.Key_Delete && (onShots ? viewing && !currentIsRemote : clipsPage.viewing)) { requestTrash(); return true; }
         if (!onShots) {
             if (clipsPage.handleKey(key, modifiers)) return true;
             if (key === Qt.Key_Escape) { closeRequested(); return true; }
@@ -263,7 +277,6 @@ LauncherTopPanel {
             if (viewing) viewerIndex = -1; else closeRequested();
             return true;
         }
-        if (viewing && key === Qt.Key_Delete) { trashCurrent(); return true; } // Not Immich's: trashCurrent leaves those
         if (viewing && (key === Qt.Key_Left || key === Qt.Key_Right)) {
             viewerIndex = Math.max(0, Math.min(paths.length - 1, viewerIndex + (key === Qt.Key_Left ? -1 : 1)));
             return true;
@@ -466,8 +479,10 @@ LauncherTopPanel {
         SheetIconButton {
             visible: trashGap.visible
             danger: true
-            iconName: "delete"; tip: Translation.tr("Move to Trash (Delete)")
-            onClicked: root.onShots ? root.trashCurrent() : clipsPage.trashCurrent()
+            active: root.trashArmed
+            iconName: root.trashArmed ? "delete_forever" : "delete"
+            tip: root.trashArmed ? Translation.tr("Click again to move to Trash") : Translation.tr("Move to Trash (Delete)")
+            onClicked: root.requestTrash()
         }
     }
 
@@ -583,23 +598,64 @@ LauncherTopPanel {
         visible: root.viewing
         readonly property string source: root.currentEntry !== "" ? root.sourceFor(root.currentEntry) : ""
         readonly property real aspect: root.aspectOf(root.currentEntry)
-        // Stepping to another shot: the one before stays on top and fades out once the new one is decoded
+        // The size a shot is shown at in this frame, and decoded at: from the target size, never the animating one,
+        // so the picture's size easing between shapes doesn't decode it again on the way (in steps, a little sharper
+        // than shown, without decoding a 4K shot in full)
+        function shownWidth(entry) { return Math.round(Math.min(width, height * root.aspectOf(entry))); }
+        function decodeWidth(entry) { return Math.ceil(shownWidth(entry) * 1.5 / 256) * 256; }
+        // Stepping to another shot: the one before stays on top while the new one decodes, then the new one slides
+        // in from the side it's on as the old one slides out the other way and fades
         property string _last: ""
+        property string _lastEntry: ""
+        property string _ghostEntry: "" // The one the ghost shows, for its decode size (so it's the cached copy)
+        property int _lastIndex: -1
+        property int _dir: 1 // +1: moved on (it comes in from the right), -1: back
+        property bool _revealed: false // Once per shot: a second start would jump it back mid-slide
+        readonly property real slide: 48
         onSourceChanged: {
-            ghostFade.stop();
+            enter.stop(); ghostFade.stop();
+            _revealed = false;
+            // From viewerIndex itself: it's already the new one here (a binding on it might not be yet)
+            _dir = root.viewerIndex >= _lastIndex ? 1 : -1;
+            _lastIndex = root.viewerIndex;
+            _ghostEntry = _lastEntry;
             ghost.source = fullImage.loadedOnce ? _last : "";
-            ghost.opacity = 1;
+            ghost.opacity = 1; ghost.shift = 0;
             _last = source;
-            // One shown before is still in the cache: it's Ready at once, with no status change to fade on
-            Qt.callLater(() => { if (fullImage.status === Image.Ready) ghostFade.restart(); });
+            _lastEntry = root.currentEntry;
+            // One shown before (or preloaded) is in the cache: Ready at once, with no status change to start on
+            Qt.callLater(() => { if (fullImage.status === Image.Ready) viewer.reveal(); });
         }
-        onVisibleChanged: if (!visible) { fullImage.loadedOnce = false; ghost.source = ""; _last = ""; }
+        function reveal() {
+            if (_revealed) return;
+            _revealed = true;
+            if (ghost.source == "") return; // The first one: it just fades in
+            fullImage.shift = _dir * slide;
+            enter.restart(); ghostFade.restart();
+        }
+        onVisibleChanged: if (!visible) { fullImage.loadedOnce = false; ghost.source = ""; _last = ""; _lastEntry = ""; _lastIndex = -1; }
+
+        // The shots either side, decoded ahead at the size they'll be shown at, so stepping to them is instant
+        Preload { offset: -1 }
+        Preload { offset: 1 }
+        component Preload: Image {
+            property int offset
+            readonly property int at: root.viewerIndex + offset
+            readonly property string entry: root.viewing && at >= 0 && at < root.paths.length ? root.paths[at] : ""
+            visible: false
+            asynchronous: true
+            source: entry !== "" ? root.sourceFor(entry) : ""
+            sourceSize.width: entry !== "" ? viewer.decodeWidth(entry) : 0
+        }
 
         ClippingRectangle { // The picture's own rect, fitted from its known shape, so the rounding is on its corners
             id: picture
             anchors.centerIn: parent
-            width: Math.round(Math.min(parent.width, parent.height * viewer.aspect))
-            height: Math.round(width / viewer.aspect)
+            // Eased between shots of different shapes instead of snapping
+            width: viewer.shownWidth(root.currentEntry)
+            height: Math.round(viewer.shownWidth(root.currentEntry) / viewer.aspect)
+            Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
             radius: Appearance.rounding.normal
             color: Appearance.colors.colLayer1
             Image { // A small copy first (quick to decode), shown while the full size loads
@@ -617,20 +673,29 @@ LauncherTopPanel {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 retainWhileLoading: true // The last one stays up (under the ghost) instead of flashing the small copy
-                sourceSize.width: Math.ceil(width * 1.5 / 256) * 256 // Sharp at the panel's size without decoding 4K shots in full; in steps, so a resize doesn't decode it again
+                sourceSize.width: viewer.decodeWidth(root.currentEntry)
                 property bool loadedOnce: false
-                onStatusChanged: if (status === Image.Ready) { loadedOnce = true; ghostFade.restart(); }
+                property real shift: 0
+                transform: Translate { x: fullImage.shift }
+                onStatusChanged: if (status === Image.Ready) { loadedOnce = true; viewer.reveal(); }
                 opacity: loadedOnce ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 180 } }
+                NumberAnimation on shift { id: enter; running: false; to: 0; duration: 280; easing.type: Easing.OutCubic }
             }
             Image {
                 id: ghost
                 anchors.fill: parent
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
-                sourceSize.width: fullImage.sourceSize.width // Same size as it was shown: still in the cache
+                sourceSize.width: viewer.decodeWidth(viewer._ghostEntry) // Same size as it was shown: still in the cache
                 visible: source != "" && opacity > 0
-                NumberAnimation on opacity { id: ghostFade; running: false; to: 0; duration: 220; easing.type: Easing.OutCubic }
+                property real shift: 0
+                transform: Translate { x: ghost.shift }
+                ParallelAnimation {
+                    id: ghostFade
+                    NumberAnimation { target: ghost; property: "opacity"; to: 0; duration: 220; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: ghost; property: "shift"; to: -viewer._dir * viewer.slide; duration: 280; easing.type: Easing.OutCubic }
+                }
             }
             MouseArea { // Click the picture to open it outside (image viewer, or its page in Immich)
                 anchors.fill: parent
