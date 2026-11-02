@@ -93,7 +93,7 @@ def find_game(custom):
         argv = cmdline(entry.name)
         if not argv or not argv[0]:
             continue
-        if b"SteamLaunch" in argv:
+        if b"SteamLaunch" in argv and b"Install=1" not in argv:  # Not a game's first-run install script
             for a in argv:
                 if a.startswith(b"AppId="):
                     appid = a[6:].decode(errors="replace")
@@ -127,7 +127,7 @@ def find_game(custom):
 # Tests for "this pid is the game's": one of the processes its launcher started, or inside its sandbox
 def under_steam(appid):
     tag = b"AppId=" + appid.encode()
-    return lambda pid: any(b"SteamLaunch" in argv and tag in argv for argv in ancestry(pid))
+    return lambda pid: any(b"SteamLaunch" in argv and tag in argv and b"Install=1" not in argv for argv in ancestry(pid))
 
 
 def under_lutris(pid):

@@ -32,8 +32,8 @@ def matches(argv, kind, key):
     if kind == "exe":
         name = os.path.basename(key)
         return bool(argv and argv[0]) and (argv[0] == key or os.path.basename(argv[0]) == name)
-    if kind == "steam":
-        return "SteamLaunch" in argv and f"AppId={key}" in argv
+    if kind == "steam":  # Not its first-run install script, which Steam runs the same way with Install=1
+        return "SteamLaunch" in argv and f"AppId={key}" in argv and "Install=1" not in argv
     if argv and argv[0].startswith(f"lutris-wrapper: {key}"):
         return True
     return any(a.endswith("/lutris-wrapper") and argv[i + 1:i + 2] == [key] for i, a in enumerate(argv))

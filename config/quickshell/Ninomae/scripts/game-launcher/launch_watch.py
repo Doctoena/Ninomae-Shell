@@ -19,7 +19,10 @@ Stages, in the order a launch usually goes through them:
 
 Usage: launch_watch.py steam <app id> <appmanifest path or "">
        launch_watch.py lutris <game name>
-Steam's stages come from its console_log.txt ("LaunchApp changed task to …"). Lutris games only get
+Steam's stages come from its console_log.txt ("LaunchApp changed task to …"). A Steam game only counts as
+exited once Steam has created its process (CreatingProcess). Before that, something Steam runs under the
+game's name ending (its first-run install script, which the matching leaves out anyway) isn't the game
+closing: a first launch used to read as a failure that way. Lutris games only get
 "starting" and the end states. A window counts as the game's when its process descends from the
 game's root process: `reaper SteamLaunch AppId=<id>` for Steam, `lutris-wrapper <name>` for Lutris
 (the same ones watch_game.py looks for), so Steam's own dialogs and anything else never count.
@@ -206,6 +209,8 @@ def main():
     replay_re = re.compile(rf"Still replaying {re.escape(key)} \((\d+)%")
     events = hyprland_events()
     roots, seen_roots, last_process_check, check_windows = set(), False, 0, False
+    created = kind != "steam"  # Steam has created the game's process (its log says so)
+    stage_before = state["stage"]  # The stage the game's process showing up replaced
     last_progress_check = 0
 
     while time.time() - started < TIMEOUT:
@@ -224,6 +229,8 @@ def main():
                     emit(stage="failed", error=m[2])
                     return
                 stage = TASKS.get(m[1])
+                if m[1] in ("CreatingProcess", "WaitingGameWindow", "Completed"):
+                    created = True
                 if stage == "failed":
                     emit(stage="failed")
                     return
@@ -249,10 +256,16 @@ def main():
             if roots and not seen_roots:
                 seen_roots = check_windows = True  # Its window may already be open
                 if state["stage"] in ("preparing", "updating", "setup", "cloud", "shaders", "choose"):
+                    stage_before = state["stage"]
                     emit(stage="starting", progress=-1)  # Steam didn't log it (or Lutris): it's up
             elif not roots and seen_roots:
-                emit(stage="exited", progress=-1)
-                return
+                if created:
+                    emit(stage="exited", progress=-1)
+                    return
+                # Something before the game itself: back to the step Steam was on, following its log
+                seen_roots = False
+                if state["stage"] == "starting":
+                    emit(stage=stage_before, progress=-1)
         if roots and (check_windows or not events):
             check_windows = False
             if game_window(roots):

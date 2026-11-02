@@ -56,7 +56,8 @@ def roots(procs, kind, key):
     """The game's own processes for one matcher, before their children are added"""
     if kind == "steam":
         tag = f"AppId={key}".encode()
-        return [p for p, (argv, _) in procs.items() if b"SteamLaunch" in argv and tag in argv]
+        # Not its first-run install script, which Steam runs the same way with Install=1
+        return [p for p, (argv, _) in procs.items() if b"SteamLaunch" in argv and tag in argv and b"Install=1" not in argv]
     if kind == "lutris":
         name = key.encode()
         out = []
