@@ -29,7 +29,7 @@ import Quickshell.Hyprland
  * Only exists while open. The CPU and GPU are sampled the whole time a game runs, so the graphs and their
  * average and peak cover the session (ResourceUsage reads files, or an nvidia-smi that's already running, and
  * leaves a sleeping NVIDIA GPU asleep).
- * It only opens while a game runs (GameClips' watcher), and closes if the game does. Settings → Games turns it
+ * It only opens while a game runs (GameClips' watcher), and closes if the game does. Settings → In game turns it
  * off (gameLauncher.overlayEnabled): the key then does nothing.
  */
 Scope {
@@ -324,7 +324,7 @@ Scope {
                                 icon: "movie"; key: "C"
                                 text: Translation.tr("Save clip")
                                 tip: GameClips.recording ? Translation.tr("The last %1 s").arg(GameClips.seconds)
-                                    : GameClips.enabled ? Translation.tr("Records once a game is running") : Translation.tr("Clips are off in Settings → Games")
+                                    : GameClips.enabled ? Translation.tr("Records once a game is running") : Translation.tr("Clips are off in Settings → In game")
                                 available: GameClips.recording
                                 onTriggered: root.capture("clip")
                             }

@@ -30,7 +30,9 @@ from launch_options import (COMPAT_KEYS, CONFIG_VDF, STEAM, close_steam, get_val
 
 TOOLS = os.path.join(STEAM, "compatibilitytools.d")
 API = "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases"
-NAME = re.compile(r"^GE-Proton\d+-\d+$")  # A version (its folder here): GE-Proton11-11
+# A version's folder: GE-Proton11-11 (as installed here), or with its build's arch as the release unpacks
+# and other tools leave it (GE-Proton11-11-x86_64)
+NAME = re.compile(r"^(GE-Proton(\d+)-(\d+))(-[A-Za-z0-9_]+)?$")
 ARCH = platform.machine()  # x86_64; GE-Proton 11 also has aarch64 builds
 HEADERS = {"Accept": "application/vnd.github+json", "User-Agent": "Ninomae-Shell"}
 
@@ -87,7 +89,16 @@ def usage():
 
 
 def version_key(name):
-    return tuple(int(n) for n in re.findall(r"\d+", name))
+    m = NAME.match(name)
+    return (int(m.group(2)), int(m.group(3))) if m else (0, 0)
+
+
+def installed_folder(tag):
+    """The folder a version is in, either way it's named, or None"""
+    for d in (tag, f"{tag}-{ARCH}"):
+        if os.path.isdir(os.path.join(TOOLS, d)):
+            return d
+    return None
 
 
 def cmd_list():
@@ -97,7 +108,8 @@ def cmd_list():
         for d in os.listdir(TOOLS):
             if NAME.match(d) and os.path.isdir(os.path.join(TOOLS, d)):
                 path = os.path.join(TOOLS, d)
-                installed.append({"name": d, "bytes": folder_size(path), "usedBy": used_by(path, used)})
+                installed.append({"name": d, "version": NAME.match(d).group(1), "bytes": folder_size(path),
+                                  "usedBy": used_by(path, used)})
     installed.sort(key=lambda v: version_key(v["name"]), reverse=True)
     print(json.dumps({"installed": installed, "steamRunning": steam_running()}))
 
@@ -126,10 +138,11 @@ def cmd_latest():
 def cmd_install(tag):
     # Settings closing mid-download stops this with SIGTERM: as an exit, so the half download is cleaned up
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
-    if not NAME.match(tag):
+    m = NAME.match(tag)
+    if not m or m.group(4):
         print("error Not a GE-Proton version", flush=True)
         return 1
-    if os.path.isdir(os.path.join(TOOLS, tag)):
+    if installed_folder(tag):  # Already here, however it was installed
         print(f"done {tag}", flush=True)
         return 0
     os.makedirs(TOOLS, exist_ok=True)

@@ -8,7 +8,7 @@ import Quickshell.Hyprland
 
 /**
  * Gameplay clips: while a game runs, gpu-screen-recorder keeps the last N seconds in RAM (encoded on
- * the GPU, a few % of it), and the clip key (` by default, set in Settings → Games; bound below) saves them to
+ * the GPU, a few % of it), and the clip key (` by default, set in Settings → In game; bound below) saves them to
  * ~/Videos/Clips/<game>/. Nothing runs outside games. scripts/clips/game_watch.py says which game is
  * running (however it was started: Steam, Lutris, or one added in the launcher); scripts/clips/on_save.sh
  * names the file and notifies.

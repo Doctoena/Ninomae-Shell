@@ -270,20 +270,20 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
   a file) and its particle effect, with a preview: hover one to see it before you pick it.
 - **Clips.** While a game runs, `` ` `` saves the last minute to `~/Videos/Clips/<game>/`. Nothing
   records outside games, or while Steam is only updating one. Change the key and length, or turn it off,
-  in **Settings → Games**.
+  in **Settings → In game**.
 - **In-game overlay.** `Super+Shift+G` while a game runs (it closes if the game does): the time and battery
   the hidden bar would show, quick actions with a letter key each (save a clip, screenshot, crosshair, do not
   disturb, game mode), the game's art and hours, this session's clips and screenshots (one opens right
   there: clips play with a seek bar, `Shift+←/→` skips 5 s, `Ctrl+C` copies), what came in while you played, live CPU and GPU graphs,
   and the sound: output device, mic, and each app's volume, the game's own first. Turn it off in
-  **Settings → Games**.
+  **Settings → In game**.
 - **GE-Proton.** **Settings → Games** installs the latest GE-Proton in one click (checked before it's
   unpacked) and removes old versions no game uses.
 - **Crosshair.** Design one in **Settings → Crosshair**, then turn it on per game with the crosshair
   button under Play on its page. `Super+G` shows or hides it.
 - **Captures.** Each game's page shows its screenshots (Steam's F12 and the game's own folder) and
   clips. Clips play right there. `T` trims one into a new clip, and `Ctrl+C` copies it, ready to
-  paste into Discord. With an Immich server set in **Settings → Games**, the cloud button backs
+  paste into Discord. With an Immich server set in **Settings → In game**, the cloud button backs
   them up to an album named after the game.
 - **Game mode.** A sidebar toggle that turns off animations, blur and gaps for more performance.
 - **Steam theme.** [Millennium](https://github.com/SteamClientHomebrew/Millennium) with

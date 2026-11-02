@@ -28,7 +28,7 @@ ContentSection {
     property real progress: -1
     property string error: ""
     property bool needsRestart: false
-    readonly property bool latestInstalled: !!latest?.tag && installed.some(v => v.name === latest.tag)
+    readonly property bool latestInstalled: !!latest?.tag && installed.some(v => (v.version ?? v.name) === latest.tag)
 
     function size(bytes) {
         return bytes >= 1073741824 ? (bytes / 1073741824).toFixed(1) + " GB" : Math.round(bytes / 1048576) + " MB";

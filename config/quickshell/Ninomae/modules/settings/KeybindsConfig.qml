@@ -94,7 +94,7 @@ ContentPage {
         return !/^(code:|mouse)/.test(key) && key !== "1–0";
     }
     function isCustom(description) { return (description ?? "").startsWith("Custom: "); }
-    // Set somewhere else, so no edit buttons here: the clip key is in Settings → Games
+    // Set somewhere else, so no edit buttons here: the clip key is in Settings → In game
     function fixed(description) { return description === "Shell: Save gameplay clip (while a game runs)"; }
     function customIndex(description) {
         const name = description.substring("Custom: ".length);
