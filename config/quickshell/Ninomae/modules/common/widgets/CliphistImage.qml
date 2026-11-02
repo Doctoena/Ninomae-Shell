@@ -69,7 +69,9 @@ Rectangle {
         asynchronous: true
         width: root.imageWidth * root.imageScale
         height: root.imageHeight * root.imageScale
-        sourceSize.width: width
-        sourceSize.height: height
+        // Width only (the picture keeps its shape), in steps: the overview's preview pane sizes it from its
+        // own height, which eases as the drawer opens, and every new sourceSize decodes the picture again.
+        // Never past its own width (that would enlarge it), and never 0 (that's full size)
+        sourceSize.width: Math.max(1, Math.min(root.imageWidth, Math.ceil(width / 128) * 128))
     }
 }
