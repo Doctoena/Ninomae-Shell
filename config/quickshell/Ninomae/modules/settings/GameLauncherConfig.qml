@@ -30,6 +30,12 @@ ContentPage {
             option: "gameLauncher.launchAnimation"
             tooltip: Translation.tr("A drawer under the bar while the game starts: what Steam is doing (updating, shaders…)\nwith progress, until the game's window opens. Says so if the game quits before then")
         }
+        ConfigSwitch {
+            buttonIcon: "login"
+            text: Translation.tr("Start Steam at login")
+            option: "gameLauncher.steamAtLogin"
+            tooltip: Translation.tr("Hidden in the tray, without its window. Games start without waiting for Steam,\nand updates download before you play. Uses some memory while it runs")
+        }
         ContentSubsection {
             title: Translation.tr("Steam library")
             StyledText { // While the keyring is locked (what each key does is in its field's tooltip)
@@ -53,6 +59,192 @@ ContentPage {
                     text: Translation.tr("Optional. Keeps your library to the games you own (and family-shared ones),\nand fills in playtime and when you last played\n\nStored in your system keyring")
                 }
             }
+        }
+    }
+    // Steam's own download settings, in its config.vdf (launch_options.py downloads-get/-set). Steam only
+    // reads them when it starts, so a change closes it and starts it again in the tray, a moment after the
+    // last change (picking both hours restarts it once)
+    ContentSection {
+        id: steamDownloads
+        icon: "download"
+        title: Translation.tr("Steam downloads")
+        spacing: 10
+        readonly property string helper: Quickshell.shellPath("scripts/game-launcher/launch_options.py")
+        property var current: null // As Steam has them, null until read (or with no Steam)
+        property var pending: ({})  // Changes waiting to be written
+        property string error: ""
+        readonly property var shown: Object.assign({}, current ?? {}, pending)
+        // A switch flips itself when clicked: the change comes from Steam's value instead, and the switch
+        // goes back to showing it (after its own handler), so a change that fails shows as undone
+        function toggle(sw, key) {
+            change(key, !(shown[key] ?? false));
+            Qt.callLater(() => sw.checked = Qt.binding(() => steamDownloads.shown[key] ?? false));
+        }
+        function change(key, value) {
+            pending = Object.assign({}, pending, { [key]: value });
+            error = "";
+            applyTimer.restart();
+        }
+        Component.onCompleted: readProc.running = true
+        Process {
+            id: readProc
+            command: ["python3", "-I", steamDownloads.helper, "downloads-get"]
+            stdout: StdioCollector { onStreamFinished: { try { steamDownloads.current = JSON.parse(text); } catch (e) {} } }
+        }
+        Timer {
+            id: applyTimer
+            interval: 1500
+            onTriggered: if (!writeProc.running) {
+                writeProc.command = ["python3", "-I", steamDownloads.helper, "downloads-set", JSON.stringify(steamDownloads.pending), "--restart"];
+                writeProc.running = true;
+            }
+        }
+        Process {
+            id: writeProc
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    let r = null; try { r = JSON.parse(text); } catch (e) {}
+                    steamDownloads.error = r?.ok ? "" : ({
+                        "game-running": Translation.tr("A game is running. Close it and change this again."),
+                        "steam-wont-close": Translation.tr("Steam didn't close, so nothing was changed. Try again.")
+                    })[r?.error] ?? Translation.tr("Couldn't change Steam's settings.");
+                    steamDownloads.pending = ({});
+                    readProc.running = true;
+                }
+            }
+        }
+
+        StyledText {
+            Layout.fillWidth: true
+            visible: steamDownloads.current === null
+            wrapMode: Text.Wrap
+            color: Appearance.colors.colSubtext
+            font.pixelSize: Appearance.font.pixelSize.small
+            text: Translation.tr("Steam's settings will show here once Steam has been opened.")
+        }
+        ConfigSwitch {
+            id: duringGameplaySwitch
+            visible: steamDownloads.current !== null
+            enabled: !writeProc.running
+            buttonIcon: "sports_esports"
+            text: Translation.tr("Download while playing")
+            checked: steamDownloads.shown.duringGameplay ?? false
+            onClicked: steamDownloads.toggle(duringGameplaySwitch, "duringGameplay")
+            tooltip: Translation.tr("Off, Steam holds downloads while a game runs, so they don't slow it down")
+        }
+        ConfigSwitch {
+            id: windowSwitch
+            visible: steamDownloads.current !== null
+            enabled: !writeProc.running
+            buttonIcon: "schedule"
+            text: Translation.tr("Only update games at certain hours")
+            checked: steamDownloads.shown.windowEnabled ?? false
+            onClicked: steamDownloads.toggle(windowSwitch, "windowEnabled")
+            tooltip: Translation.tr("Updates for games you don't open wait for these hours.\nPlaying a game still updates it first")
+        }
+        ConfigComboBox {
+            visible: steamDownloads.current !== null && (steamDownloads.shown.windowEnabled ?? false)
+            enabled: !writeProc.running
+            icon: "bedtime"
+            text: Translation.tr("From")
+            options: [...Array(24).keys()].map(h => ({ displayName: Qt.formatTime(new Date(2000, 0, 1, h), Qt.locale().timeFormat(Locale.ShortFormat)), value: h }))
+            currentValue: steamDownloads.shown.windowStart ?? 1
+            onSelected: v => steamDownloads.change("windowStart", v)
+        }
+        ConfigComboBox {
+            visible: steamDownloads.current !== null && (steamDownloads.shown.windowEnabled ?? false)
+            enabled: !writeProc.running
+            icon: "wb_sunny"
+            text: Translation.tr("Until")
+            options: [...Array(24).keys()].map(h => ({ displayName: Qt.formatTime(new Date(2000, 0, 1, h), Qt.locale().timeFormat(Locale.ShortFormat)), value: h }))
+            currentValue: steamDownloads.shown.windowEnd ?? 7
+            onSelected: v => steamDownloads.change("windowEnd", v)
+        }
+        ConfigSwitch { // Steam restarts with its debugging port open (or closed): -cef-enable-debugging
+            visible: steamDownloads.current !== null
+            enabled: !writeProc.running && !restartProc.running
+            buttonIcon: "pause_circle"
+            text: Translation.tr("Pause and resume from the launcher")
+            option: "gameLauncher.steamRemoteControl"
+            onClicked: Qt.callLater(() => { // After the switch has saved the option (its own click handler)
+                const on = Config.options.gameLauncher.steamRemoteControl ?? false;
+                restartProc.command = ["python3", "-I", steamDownloads.helper, "restart-steam", "--remote", on ? "on" : "off"];
+                restartProc.running = true;
+            })
+            tooltip: Translation.tr("Opens Steam's debugging port (localhost:8080, as Decky Loader does) so the launcher can press\nSteam's own pause and resume, and save launch options, Proton and uninstalls without restarting it.\nOnly this PC can reach it, and with the guard below only your desktop: not Flatpak apps.\nA Steam update can break it: then the launcher falls back to restarting Steam, or opening it")
+        }
+        // The port guard (scripts/game-launcher/steam_port_guard.sh): a firewall rule so only the desktop session
+        // reaches the port, not Flatpak apps. It needs root, so it's a command to run once, copied from here
+        RowLayout {
+            id: portGuard
+            readonly property string script: Quickshell.shellPath("scripts/game-launcher/steam_port_guard.sh")
+            property bool on: false
+            visible: steamDownloads.current !== null && (Config.options.gameLauncher.steamRemoteControl ?? false)
+            Layout.fillWidth: true
+            Layout.leftMargin: 8
+            Layout.rightMargin: 8
+            spacing: 10
+            onVisibleChanged: if (visible) guardCheck.running = true
+            Component.onCompleted: if (visible) guardCheck.running = true
+            Process {
+                id: guardCheck
+                command: [portGuard.script, "status"]
+                stdout: StdioCollector { onStreamFinished: portGuard.on = text.trim() === "on" }
+            }
+            MaterialSymbol {
+                text: portGuard.on ? "shield_lock" : "shield"
+                iconSize: Appearance.font.pixelSize.larger
+                color: portGuard.on ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+            }
+            StyledText {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colOnLayer1
+                text: portGuard.on ? Translation.tr("Only your desktop can reach it. Flatpak apps can't.")
+                    : Translation.tr("Flatpak apps can reach it too. Run the guard's command once in a terminal to allow only your desktop.")
+            }
+            DialogButton {
+                visible: !portGuard.on
+                buttonText: copied.running ? Translation.tr("Copied") : Translation.tr("Copy command")
+                onClicked: {
+                    Quickshell.execDetached(["wl-copy", `sudo ${portGuard.script} install`]);
+                    copied.restart();
+                    guardRecheck.left = 40; // Two minutes
+                    guardRecheck.restart();
+                }
+                Timer { id: copied; interval: 2000 }
+            }
+            Timer { // After copying: check again for a while, so it turns on here once the command has run
+                id: guardRecheck
+                interval: 3000
+                repeat: true
+                property int left: 0
+                onTriggered: { guardCheck.running = true; if (portGuard.on || --left <= 0) stop(); }
+            }
+        }
+        Process {
+            id: restartProc
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    let r = null; try { r = JSON.parse(text); } catch (e) {}
+                    if (r?.ok) return;
+                    steamDownloads.error = r?.error === "game-running"
+                        ? Translation.tr("A game is running, so Steam wasn't restarted. It changes the next time Steam starts.")
+                        : Translation.tr("Steam didn't restart. It changes the next time Steam starts.");
+                }
+            }
+        }
+        StyledText {
+            Layout.fillWidth: true
+            Layout.leftMargin: 8
+            visible: steamDownloads.current !== null
+            wrapMode: Text.Wrap
+            color: steamDownloads.error !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            text: steamDownloads.error !== "" ? steamDownloads.error
+                : writeProc.running || applyTimer.running || restartProc.running ? Translation.tr("Restarting Steam in the tray…")
+                : Translation.tr("Changing these restarts Steam in the tray. Speed limits are in Steam's Downloads page.")
         }
     }
     ContentSection {

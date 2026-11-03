@@ -38,6 +38,8 @@ Scope {
         function showCustomize(query: string): void { gameLauncherScope.show(query, "customize"); }
         // The grid's Tags panel: `qs -c Ninomae ipc call gameLauncher showTags`
         function showTags(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("tags"); }
+        // Steam's downloads: `qs -c Ninomae ipc call gameLauncher showDownloads`
+        function showDownloads(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("downloads"); }
         // The launch drawer for a game, without starting it: steps through every state and ends on
         // "Launched", or on a failure when the query ends in "!" (`previewSplash "Cyberpunk!"`)
         function previewSplash(query: string): void {
@@ -254,7 +256,7 @@ Scope {
             // ── The game page's Screenshots / Achievements / News / Customize / Launch options: a panel growing
             //    up out of the launcher's top edge (LauncherTopPanel), one at a time, named by the page's openPanel ──
             // A game's panel on its details page; on the grid, Add a game (the search bar's button)
-            property string gridPanel: "" // "addGame" or "tags": the grid's panel open (from the search bar / tag buttons)
+            property string gridPanel: "" // "addGame", "tags" or "downloads": the grid's panel open (from the toolbar's buttons)
             readonly property string wantedTopPanel: root.showingDetails ? (detailsLoader.item?.openPanel ?? "")
                 : root.gridPanel
             property string _topPanelLoaded: "" // Stays set while the closing slide plays
@@ -292,7 +294,7 @@ Scope {
                     active: root._topPanelLoaded !== ""
                     sourceComponent: ({ screenshots: screenshotsPanelComp, achievements: achievementsPanelComp, news: newsPanelComp,
                                        customize: customizePanelComp, launchOptions: launchOptionsPanelComp,
-                                       addGame: addGamePanelComp, tags: tagsPanelComp })[root._topPanelLoaded] ?? null
+                                       addGame: addGamePanelComp, tags: tagsPanelComp, downloads: downloadsPanelComp })[root._topPanelLoaded] ?? null
                     onLoaded: {
                         // As much of the space above the launcher as there is, clear of the bar
                         item.maxHeight = Qt.binding(() => Math.min(Math.round(640 * root.scaleFactor), animatedContainer.y - Appearance.sizes.barHeight - 24));
@@ -309,7 +311,7 @@ Scope {
                     function onCloseRequested() {
                         // The page's keys again (a box in the panel, as Launch options', may have taken them)
                         if (detailsLoader.item) { detailsLoader.item.openPanel = ""; if (root.showingDetails) detailsLoader.item.forceActiveFocus(); }
-                        if (root._topPanelLoaded === "addGame" || root._topPanelLoaded === "tags") { root.gridPanel = ""; visibleSearchBar.forceActiveFocus(); }
+                        if (["addGame", "tags", "downloads"].includes(root._topPanelLoaded) && !root.showingDetails) { root.gridPanel = ""; visibleSearchBar.forceActiveFocus(); }
                     }
                     function onVisibleChanged() { if (!topPanelLoader.item.visible && !topPanelLoader.item.shown) root._topPanelLoaded = ""; }
                 }
@@ -320,6 +322,18 @@ Scope {
                 Component { id: launchOptionsPanelComp; LaunchOptionsPanel { game: root._topPanelGame } }
                 Component { id: addGamePanelComp; AddGamePanel {} }
                 Component { id: tagsPanelComp; TagsPanel {} }
+                Component {
+                    id: downloadsPanelComp
+                    DownloadsPanel { // A row opens its game's page
+                        onOpenGame: game => {
+                            if (detailsLoader.item) detailsLoader.item.openPanel = "";
+                            root.gridPanel = "";
+                            root.showingStats = false;
+                            root.selectedGame = game;
+                            root.showingDetails = true;
+                        }
+                    }
+                }
             }
             Item {
                 id: animatedContainer
@@ -574,6 +588,37 @@ Scope {
                                                 text: Translation.tr("Refresh game list")
                                             }
                                         }
+                                    }
+                                }
+                                // Downloads: by the stats (status, not a filter), there while Steam downloads something
+                                // (or finished in the last hour), with how far the one downloading is. Opens the Downloads panel
+                                ToolbarGroup {
+                                    id: downloadsContainer
+                                    anchors { right: statsPill.left; rightMargin: 8 }
+                                    readonly property bool open: root.gridPanel === "downloads"
+                                    readonly property var current: GameLauncherService.activeDownloads.find(i => i.state === "downloading") ?? null
+                                    function toggle() { root.gridPanel = open ? "" : "downloads"; }
+                                    visible: open || GameLauncherService.activeDownloads.length > 0 || GameLauncherService.recentlyFinished
+                                    IconToolbarButton {
+                                        implicitHeight: 30
+                                        implicitWidth: 30
+                                        buttonRadius: Appearance.rounding.segment
+                                        text: "download"
+                                        colText: toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colPrimary
+                                        toggled: downloadsContainer.open
+                                        onClicked: downloadsContainer.toggle()
+                                        StyledToolTip { text: downloadsContainer.open ? Translation.tr("Close") : Translation.tr("Downloads") }
+                                    }
+                                    StyledText { // How far the current download is (opens the panel too)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: (downloadsContainer.current?.progress ?? -1) >= 0
+                                        leftPadding: 2; rightPadding: 6
+                                        text: `${Math.floor((downloadsContainer.current?.progress ?? 0) * 100)}%`
+                                        font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium
+                                        font.family: Appearance.font.family.numbers
+                                        font.variableAxes: ({}) // Not Roboto Flex's tuning
+                                        color: Appearance.colors.colPrimary
+                                        TapHandler { onTapped: downloadsContainer.toggle() }
                                     }
                                 }
                                 // Game count, and the way into Library statistics: hover tints it and slides out a label

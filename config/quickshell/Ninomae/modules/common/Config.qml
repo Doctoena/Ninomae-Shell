@@ -231,6 +231,10 @@ Singleton {
                 property bool fallbackToIcons: true
                 property bool hideWithoutBoxArt: true
                 property bool hidePartialBoxArt: true
+                property bool steamAtLogin: false // Start Steam hidden when you log in (services/SteamAutostart.qml)
+                // Steam starts with its debugging port (localhost), for pause and resume in the Downloads panel
+                // (scripts/game-launcher/steam_control.py). Whatever starts Steam adds -cef-enable-debugging
+                property bool steamRemoteControl: false
                 property bool launchAnimation: true // Drawer under the bar following a launched game until its window opens (LaunchSplash.qml)
                 // A game's way to start that Play uses without asking, as Steam's default launch option:
                 // "<game id>:<option>", the option one of its Steam launch options (GameDetailsPanel's launchMenu)

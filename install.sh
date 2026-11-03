@@ -28,7 +28,7 @@
 #                    us, de, fr, gb, us:dvorak, de:nodeadkeys… (qwerty and dvorak work too).
 #                    Default: the one this computer uses now
 #    --only a,b      Only these components (install mode): packages, codecs, configs,
-#                    shell, apps, steam, sddm, boot, fish
+#                    shell, apps, steam, steamguard, sddm, boot, fish
 #    --skip a,b      Everything except these components
 #    -h, --help      Show this help
 # ─────────────────────────────────────────────────────────────────────────────

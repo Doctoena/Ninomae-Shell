@@ -80,6 +80,7 @@ ShellRoot {
         ConflictKiller.load()
         Cliphist.refresh()
         GameClips.load()
+        SteamAutostart.load()
         Crosshair.load()
         WindowRules.load()
         KeybindOverrides.load()

@@ -99,6 +99,7 @@ COMPONENTS=(
     "Shell extras — Python helpers · gooey drawer plugin · wallpaper colours|shell|on"
     "App themes — VS Code · Zen · Discord (the ones installed)|apps|on"
     "Steam — Material theme · notifications in the shell|steam|on"
+    "Steam port guard — only your desktop can use Steam's remote control, not Flatpak apps (needs sudo)|steamguard|on"
     "Login screen — SDDM theme (needs sudo)|sddm|on"
     "Boot splash — Plymouth theme · rebuilds the boot image (needs sudo)|boot|off"
     "fish as your login shell (needs sudo)|fish|on"
@@ -504,6 +505,18 @@ comp_steam() {
     info "Millennium (Steam client patcher), Material theme, notifications plugin:"
     if run_visible "$DOTFILES/themes/steam/install-theme.sh"; then
         result done "Theme and notifications plugin"
+    else result fail "See the log"; fi
+}
+
+# ── Steam port guard ────────────────────────────────────────────────────────
+# Settings → Games → "Pause and resume from the launcher" opens Steam's debugging port (localhost:8080).
+# A firewall rule lets only the desktop session (the shell, its helpers, Steam) reach it, not Flatpak apps:
+# steam_port_guard.sh, which also puts in a small service that loads the rule at every login
+comp_steamguard() {
+    step "Steam port guard"
+    if ! command -v nft >/dev/null; then info "nftables isn't installed"; result skip "No nftables"; return; fi
+    if spin "Firewall rule for Steam's debugging port" sudo "$DOTFILES/config/quickshell/Ninomae/scripts/game-launcher/steam_port_guard.sh" install
+    then result done "Only your desktop can reach Steam's debugging port"
     else result fail "See the log"; fi
 }
 

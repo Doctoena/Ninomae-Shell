@@ -25,7 +25,7 @@ import tempfile
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # Run with -I, which leaves its own folder out
-from launch_options import (COMPAT_KEYS, CONFIG_VDF, STEAM, close_steam, get_value, path_in,  # noqa: E402
+from launch_options import (COMPAT_KEYS, CONFIG_VDF, STEAM, close_steam, outlive_caller, get_value, path_in,  # noqa: E402
                             read_vdf, start_steam, steam_running)
 
 TOOLS = os.path.join(STEAM, "compatibilitytools.d")
@@ -151,10 +151,10 @@ def cmd_install(tag):
             shutil.rmtree(os.path.join(TOOLS, d), ignore_errors=True)
     try:
         _, tarball, checksum = release(tag)
-        expected = None
-        if checksum:
-            with get(checksum["browser_download_url"]) as r:
-                expected = r.read().decode().split()[0].lower()
+        if not checksum:  # Nothing to check it against: it isn't installed unchecked
+            raise RuntimeError("this release has no checksum to check the download against, so it wasn't installed")
+        with get(checksum["browser_download_url"]) as r:
+            expected = r.read().decode().split()[0].lower()
         # Downloaded next to its destination (same drive, a few hundred MB), then unpacked and moved in
         with tempfile.TemporaryDirectory(dir=TOOLS, prefix=".ninomae-") as tmp:
             path = os.path.join(tmp, tarball["name"])
@@ -169,7 +169,7 @@ def cmd_install(tag):
                     if total and done / total - last >= 0.01:
                         last = done / total
                         print(f"progress {last * 0.9:.3f}", flush=True)  # The last 10 %: unpacking
-            if expected and digest.hexdigest() != expected:
+            if digest.hexdigest() != expected:
                 raise RuntimeError("the download was damaged (checksum didn't match), try again")
             with tarfile.open(path) as t:
                 t.extractall(tmp, filter="data")
@@ -221,6 +221,7 @@ if __name__ == "__main__":
     elif cmd == "remove" and len(args) == 2:
         sys.exit(cmd_remove(args[1]))
     elif cmd == "restart-steam":
+        outlive_caller()  # Steam closed and started again even if the Settings window asking goes away
         sys.exit(cmd_restart_steam())
     else:
         print(__doc__)

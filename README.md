@@ -156,7 +156,7 @@ Turned it down? Run `themes/steam/install-theme.sh` any time.
 | `--uninstall` | Remove the links and restore your backups (packages and this folder stay) |
 | `--dry-run` | Show what would happen without changing anything |
 | `-y` | Don't ask questions, use the defaults |
-| `--only a,b` / `--skip a,b` | Pick components: `packages` `codecs` `configs` `shell` `apps` `steam` `sddm` `boot` `fish` |
+| `--only a,b` / `--skip a,b` | Pick components: `packages` `codecs` `configs` `shell` `apps` `steam` `steamguard` `sddm` `boot` `fish` |
 | `--boot` | Also install the boot splash (off by default) |
 | `--keyboard LAYOUT` | Set the layout without asking: `us`, `de`, `fr`, `us:dvorak`, `de:nodeadkeys`… |
 

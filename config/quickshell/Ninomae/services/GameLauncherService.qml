@@ -185,6 +185,10 @@ Singleton {
         filePath: `${root.cacheDir}/custom_art.json`
         onLoaded: root._rebaseCachePaths(_customArtStore)
     }
+    JsonStore { // Downloads panel: finished downloads cleared from it, appid → when that download finished
+        id: _clearedDownloadsStore
+        filePath: `${root.cacheDir}/cleared_downloads.json`
+    }
     JsonStore {
         id: _completedStore
         filePath: `${root.cacheDir}/completed_games.json`
@@ -808,7 +812,9 @@ Singleton {
     function installState(gameOrId) {
         const id = typeof gameOrId === "string" ? gameOrId : gameOrId?.id;
         const g = root._installedGamesMap[id];
-        const flags = g?.stateFlags ?? 0;
+        // Flags read since the scan count only for a game the scan saw installed: an uninstall's last manifest
+        // write would otherwise outlive the scan that found the game gone
+        const flags = (g?.stateFlags ? root._liveFlags[id] : undefined) ?? g?.stateFlags ?? 0;
         if (root.steamPending[id]) return root.steamPending[id]; // Ours, before Steam's manifest says so
         if (!g || flags === 0) return "notInstalled";
         if (!g.id.startsWith("steam_")) return "installed"; // Lutris: present means installed
@@ -878,6 +884,95 @@ Singleton {
         onTriggered: if (!_workshopScanProc.running) _workshopScanProc.running = true
     }
     function openDownloads() { Quickshell.execDetached(["xdg-open", "steam://open/downloads"]); }
+    // Steam's downloads (scripts/game-launcher/steam_downloads.py --watch): what's downloading, queued, paused
+    // or waiting, its live speed, and what finished in the last day. One process follows Steam while the
+    // launcher is open, and says something only when it changes
+    property var steamDownloads: ({ steamRunning: false, rate: -1, history: [], items: [], finished: [] })
+    // The feed's downloads, with the ones taken off Steam's queue here (controlDownload "remove") shown as
+    // waiting for the game to be played: Steam drops a paused one from its list without logging a change,
+    // so the feed alone would still call it paused. Until Steam logs something newer for it
+    property var _removedDownloads: ({}) // appid → when it was removed (ms)
+    readonly property var downloadItems: (steamDownloads.items ?? []).map(i => {
+        const removed = root._removedDownloads[i.appid];
+        return removed && removed / 1000 > (i.since ?? 0) && i.state !== "downloading"
+            ? Object.assign({}, i, { state: "waiting", progress: -1 }) : i;
+    })
+    // Downloading, queued or held (not updates that wait for the game to be played)
+    readonly property var activeDownloads: downloadItems.filter(i => i.state !== "waiting")
+    // Finished in the last day, less the ones cleared from the panel (they come back if they finish again)
+    readonly property var finishedDownloads: {
+        const cleared = _clearedDownloadsStore.value;
+        return (steamDownloads.finished ?? []).filter(f => cleared[f.appid] !== f.at);
+    }
+    readonly property bool recentlyFinished: finishedDownloads.some(f => Date.now() / 1000 - f.at < 3600)
+    function clearFinishedDownloads(entries) { // [{ appid, at }]; older clearings (2 days) are dropped
+        const keep = {};
+        for (const [appid, at] of Object.entries(_clearedDownloadsStore.value))
+            if (Date.now() / 1000 - at < 172800) keep[appid] = at;
+        for (const e of entries) keep[e.appid] = e.at;
+        _clearedDownloadsStore.commit(keep);
+    }
+    Process {
+        id: _downloadsProc
+        running: GlobalStates.gameLauncherOpen
+        command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_downloads.py"), "--watch"]
+        stdout: SplitParser {
+            onRead: line => {
+                try { root.steamDownloads = JSON.parse(line); } catch (e) {}
+            }
+        }
+        stderr: SplitParser { onRead: line => console.warn("[GameLauncher] steam_downloads:", line) }
+        onExited: (code, status) => { if (GlobalStates.gameLauncherOpen) console.warn("[GameLauncher] steam_downloads ended:", code, status); }
+    }
+    // Pause, resume and "download now", as Steam's Downloads page's buttons (steam_control.py), when
+    // Settings → Games → "Pause and resume from the launcher" is on. When Steam can't be reached that way,
+    // its Downloads page opens instead. While one runs (and a moment after, for Steam to log it), appid
+    // (or "all") → when it was pressed is in downloadControlPending
+    readonly property bool canControlDownloads: steamDownloads.remoteControl ?? false
+    property var downloadControlPending: ({})
+    // action: resume (that game first, as Steam's "Move to top"; also its retry), remove or remove-and-resume
+    // (off the queue, Steam's ✕), pause-all or resume-all (the queue, as the pause button on the one downloading)
+    function controlDownload(action, appid) {
+        const key = appid ?? "all";
+        if (root.downloadControlPending[key] || root.downloadControlPending["all"]) return;
+        if (!root.canControlDownloads) { root.openDownloads(); return; }
+        root.downloadControlPending = Object.assign({}, root.downloadControlPending, { [key]: Date.now() });
+        if (appid) {
+            const removed = Object.assign({}, root._removedDownloads);
+            if (action.startsWith("remove")) removed[appid] = Date.now(); else delete removed[appid];
+            root._removedDownloads = removed;
+        }
+        _downloadControlComp.createObject(root, {
+            command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_control.py"), action, ...(appid ? [String(appid)] : [])],
+            running: true
+        });
+        _controlRelease.restart();
+    }
+    Component {
+        id: _downloadControlComp
+        Process {
+            stdout: StdioCollector { id: _controlOut }
+            onExited: exitCode => {
+                if (exitCode !== 0) {
+                    console.warn("[GameLauncher] steam_control", command.slice(3).join(" "), _controlOut.text.trim());
+                    root.openDownloads(); // Steam's own buttons, then
+                }
+                destroy();
+            }
+        }
+    }
+    Timer { // Lets the buttons go once Steam has had a moment to act (the feed shows the result)
+        id: _controlRelease
+        interval: 500
+        repeat: true
+        onTriggered: {
+            const keep = {}; // (No Object.fromEntries in Qt's JavaScript)
+            for (const [key, at] of Object.entries(root.downloadControlPending))
+                if (Date.now() - at < 2500) keep[key] = at;
+            root.downloadControlPending = keep;
+            if (Object.keys(keep).length === 0) stop();
+        }
+    }
     // Steam installs and uninstalls run here, without Steam's dialogs (launch_options.py install/uninstall).
     // Steam only reads its manifests on start and rewrites them on exit, so both close Steam if it's open
     // and start it again in the tray. While one runs, the game's id → "installing"/"uninstalling" is in
@@ -1074,12 +1169,52 @@ Singleton {
     // ── File watcher for auto-refresh ─────────────────────────
     // watch_games.sh prints raw inotify events ("dir/ EVENT file"). Installs/uninstalls
     // refresh quickly; manifest edits (Steam rewrites a manifest when a download starts, pauses
-    // or finishes) wait a little longer, for the burst to settle. Events during a scan are
-    // dropped, the scan covers them.
+    // or finishes) wait a little longer, for the burst to settle. An event during a scan may come
+    // after the scan read that folder (an uninstall Steam finishes just after the launcher's own
+    // refresh started), so it gets one more scan once that one is done
     Timer {
         id: _watchDebounce
         repeat: false
         onTriggered: if (!root.loading) root.refreshGames()
+    }
+    // An installed Steam game's manifest rewritten (Steam does it on every start, pause, resume and queue
+    // change of a download, as a new file renamed over the old): only its StateFlags are read again, into
+    // _liveFlags, which installState prefers. A whole scan would reset the grid each time. A download that
+    // finishes (back to plain "fully installed") does get the scan, for its size and "Updated" badge
+    property var _liveFlags: ({}) // game id → StateFlags read since the last scan
+    property bool _watchMissed: false // A file changed during a scan: scan again after it
+    onLoadingChanged: if (!loading && _watchMissed) { _watchMissed = false; _watchDebounce.interval = 1000; _watchDebounce.restart(); }
+    property var _flagsPending: ({}) // game id → its manifest's path
+    Timer {
+        id: _flagsTimer
+        interval: 400 // Steam writes a few in a row
+        onTriggered: {
+            const paths = Object.values(root._flagsPending);
+            if (paths.length === 0 || _flagsProc.running) return;
+            _flagsProc.command = ["grep", "-H", "\"StateFlags\"", ...paths];
+            root._flagsPending = ({});
+            _flagsProc.running = true;
+        }
+    }
+    Process {
+        id: _flagsProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const live = Object.assign({}, root._liveFlags);
+                let finished = false;
+                for (const line of text.split("\n")) {
+                    const m = line.match(/appmanifest_(\d+)\.acf:\s*"StateFlags"\s+"(\d+)"/);
+                    if (!m) continue;
+                    const id = "steam_" + m[1], flags = Number(m[2]);
+                    const before = live[id] ?? root._installedGamesMap[id]?.stateFlags ?? 0;
+                    if (flags === 4 && before !== 4) finished = true;
+                    live[id] = flags;
+                }
+                root._liveFlags = live;
+                if (finished && !root.loading) { _watchDebounce.interval = 1500; _watchDebounce.restart(); }
+            }
+        }
+        onExited: if (Object.keys(root._flagsPending).length > 0) _flagsTimer.restart()
     }
     Process {
         id: watchGamesProc
@@ -1087,7 +1222,21 @@ Singleton {
         command: [Quickshell.shellPath("scripts/game-launcher/watch_games.sh")]
         stdout: SplitParser {
             onRead: data => {
-                if (root.loading) return;
+                // An installed Steam game's manifest, rewritten: just its flags (above)
+                const manifest = data.match(/^(.*\/) (?:MODIFY|MOVED_TO|CREATE)\S* (appmanifest_(\d+)\.acf)$/);
+                if (manifest && (root._installedGamesMap["steam_" + manifest[3]]?.stateFlags ?? 0) !== 0) {
+                    root._flagsPending = Object.assign({}, root._flagsPending, { ["steam_" + manifest[3]]: manifest[1] + manifest[2] });
+                    _flagsTimer.restart();
+                    return;
+                }
+                // Its manifest gone (uninstalled): whatever was read from it no longer counts
+                const gone = data.match(/ (?:DELETE|MOVED_FROM)\S* appmanifest_(\d+)\.acf$/);
+                if (gone && root._liveFlags["steam_" + gone[1]] !== undefined) {
+                    const live = Object.assign({}, root._liveFlags);
+                    delete live["steam_" + gone[1]];
+                    root._liveFlags = live;
+                }
+                if (root.loading) { root._watchMissed = true; return; }
                 const structural = /\b(CREATE|DELETE|MOVED_TO|MOVED_FROM)\b/.test(data);
                 const interval = structural ? 2000 : 5000;
                 // Don't let a later edit postpone an already-pending quick refresh
@@ -1152,6 +1301,7 @@ Singleton {
                         }
                     }
                     root.games = sortGames(parsedGames);
+                    root._liveFlags = ({}); // The scan read them all
                     root._lastDetectOutput = text;
                     root.loading = false;
                     refilter();
@@ -1191,9 +1341,13 @@ Singleton {
             startSession(game);
             root.lastLaunchOption = Object.assign({}, root.lastLaunchOption, { [game.id]: option });
             // Any word between the id and the index works ("x"); without one Steam ignores the index
-            Quickshell.execDetached(option >= 0 && game.id.startsWith("steam_")
+            const cmd = option >= 0 && game.id.startsWith("steam_")
                 ? ["steam", "-silent", `steam://launch/${game.id.substring(6)}/x/${option}`]
-                : game.launchCommand);
+                : game.launchCommand;
+            // Steam started by this launch opens its debugging port too, for pause and resume (a running
+            // Steam just takes the URL)
+            const remote = (Config.options?.gameLauncher?.steamRemoteControl ?? false) && cmd[0] === "steam";
+            Quickshell.execDetached(remote ? ["steam", "-cef-enable-debugging", ...cmd.slice(1)] : cmd);
             root.gameLaunching(game);
             // Toast confirming the launch, unless the splash already shows it
             if (Config.options?.gameLauncher?.launchAnimation ?? true) return;

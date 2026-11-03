@@ -13,7 +13,9 @@ import Quickshell.Io
  * On the left, the tools: GameMode, MangoHud and gamescope switch their word in front of %command% (MangoHud
  * with a layout, as MANGOHUD_CONFIG=preset=N, and gamescope with its own options, while on). On the right, the whole line as Steam holds it, and the Proton and Updates
  * menus (Updates once it's installed: the mode lives in the game's appmanifest).
- * Steam rewrites its settings when it quits, so saving while it's open closes and restarts it.
+ * Saving goes straight to Steam when it answers on its debugging port (Settings → Games → "Pause and resume
+ * from the launcher"). Otherwise Steam rewrites its settings when it quits, so saving while it's open
+ * closes and restarts it.
  * Keys: Enter in a box saves, Esc closes.
  */
 LauncherTopPanel {
@@ -32,6 +34,7 @@ LauncherTopPanel {
     property string status: "" // "", "loading", "saving", "saved", "error:<text>"
     readonly property bool loaded: info !== null
     readonly property bool steamRunning: info?.steamRunning ?? false
+    readonly property bool restartNeeded: steamRunning && !(info?.live ?? false) // Else saving goes straight to Steam
     readonly property bool changed: loaded && (options.trim() !== (info.launchOptions ?? "").trim() || proton !== (info.proton ?? "")
                                                || autoUpdate !== (info.autoUpdate ?? -1))
     readonly property bool busy: status === "saving"
@@ -293,9 +296,9 @@ LauncherTopPanel {
             color: root.status.startsWith("error:") ? Appearance.colors.colError
                  : root.status === "saved" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
             text: root.status.startsWith("error:") ? root.status.substring(6)
-                : root.busy ? (root.steamRunning ? Translation.tr("Restarting Steam…") : Translation.tr("Saving…"))
+                : root.busy ? (root.restartNeeded ? Translation.tr("Restarting Steam…") : Translation.tr("Saving…"))
                 : root.status === "saved" ? Translation.tr("Saved to Steam")
-                : root.changed ? (root.steamRunning ? Translation.tr("Not saved yet · Steam restarts to apply it") : Translation.tr("Not saved yet"))
+                : root.changed ? (root.restartNeeded ? Translation.tr("Not saved yet · Steam restarts to apply it") : Translation.tr("Not saved yet"))
                 : ""
         }
         RippleButton {
@@ -329,12 +332,12 @@ LauncherTopPanel {
                 anchors.centerIn: parent; spacing: 6
                 MaterialSymbol {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.steamRunning ? "restart_alt" : "save"; iconSize: 18
+                    text: root.restartNeeded ? "restart_alt" : "save"; iconSize: 18
                     color: saveButton.enabled ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
                 }
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.steamRunning ? Translation.tr("Save & restart Steam") : Translation.tr("Save")
+                    text: root.restartNeeded ? Translation.tr("Save & restart Steam") : Translation.tr("Save")
                     color: saveButton.enabled ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
                     font.weight: Font.Medium
                 }

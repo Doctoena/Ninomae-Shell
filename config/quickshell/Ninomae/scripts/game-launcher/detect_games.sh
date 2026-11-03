@@ -377,6 +377,12 @@ detect_steam_games() {
             local hero_art="${ART_HERO[$appid]:-}"
             local icon="${ART_ICON[$appid]:-}"
             local game_dir="$library/steamapps/common/$installdir"
+            # "Fully installed" with no folder: uninstalled, and Steam left the manifest behind (it does, flagged
+            # Files Missing, until it next restarts). Listed as the other uninstalled games are
+            if (( stateflags & 4 )) && [[ -z "$installdir" || ! -d "$game_dir" ]]; then
+                stateflags=0
+                game_dir=""
+            fi
 
             local playtime="${STEAM_PLAYTIME[$appid]:-0}"
             local last_played="${STEAM_LASTPLAYED[$appid]:-0}"

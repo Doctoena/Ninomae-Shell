@@ -22,38 +22,33 @@ Item {
     }
     readonly property bool _downloading: installState === "installing" || installState === "updating"
     readonly property bool _paused: installState === "updatePaused" // Still shows how far it got
-    property real downloadProgress: -1
     // Workshop mods downloading for an installed game (GameLauncherService.workshopDownloading)
     readonly property bool _modsOnly: !_downloading && installState === "installed" && !!GameLauncherService.workshopDownloading[game?.id]
     // What's downloading, if anything: progress starts over when this changes (not on a pause)
     readonly property string _downloadPhase: _downloading || _paused ? "game" : _modsOnly ? "mods" : ""
-    on_DownloadPhaseChanged: { downloadProgress = -1; _manifestProgress = -1; _bytesToStage = 0; }
-    // Steam only rewrites the manifest's byte counts on state changes (start, pause, finish), so it
-    // gives the totals (a Workshop job's too), and the live part is the data written so far under
-    // steamapps/downloading/<id> or workshop/downloads/<id>
-    property real _manifestProgress: -1
-    property real _bytesToStage: 0
-    function _updateProgress(staged) {
-        const disk = root._bytesToStage > 0 && staged >= 0 ? Math.min(1, staged / root._bytesToStage) : -1;
-        // Never step back: Steam moves finished files out of the download folder while it commits
-        root.downloadProgress = Math.max(root.downloadProgress, root._manifestProgress, disk);
+    // The game's own download: the Downloads panel's feed has it (GameLauncherService.steamDownloads), measured
+    // once for both. Its Workshop mods, which the feed doesn't follow: measured here (_modsProgress)
+    readonly property var _feedItem: {
+        const appid = (game?.id ?? "").startsWith("steam_") ? game.id.substring(6) : "";
+        return appid ? (GameLauncherService.steamDownloads.items ?? []).find(i => i.appid === appid) ?? null : null;
     }
-    FileView { // Polled only while a download is running
+    readonly property real downloadProgress: _downloadPhase === "game" ? (_feedItem?.progress ?? -1)
+        : _downloadPhase === "mods" ? _modsProgress : -1
+    // Mods: Steam gives the total in the game's manifest (BytesToStage), and the live part is the data
+    // written so far under steamapps/workshop/downloads/<id>
+    property real _modsProgress: -1
+    property real _bytesToStage: 0
+    on_DownloadPhaseChanged: { _modsProgress = -1; _bytesToStage = 0; }
+    FileView { // Read only while mods download
         id: manifestFile
-        path: root._downloadPhase !== "" ? (GameLauncherService.steamPaths(root.game)?.manifest ?? "") : ""
+        path: root._downloadPhase === "mods" ? (GameLauncherService.steamPaths(root.game)?.manifest ?? "") : ""
         printErrors: false
         onLoaded: {
             const t = text();
             const num = k => Number((t.match(new RegExp(`"${k}"\\s+"(\\d+)"`)) ?? [])[1] ?? 0);
             const toStage = num("BytesToStage") || num("BytesToDownload");
-            // New totals (the Workshop job replacing the game's): the old progress doesn't apply
-            if (toStage !== root._bytesToStage) root.downloadProgress = -1;
+            if (toStage !== root._bytesToStage) root._modsProgress = -1; // A new job: the old progress doesn't apply
             root._bytesToStage = toStage;
-            // A Workshop job never fills in the counts; leftovers from the game's download would mislead
-            const total = num("BytesToDownload") + num("BytesToStage");
-            root._manifestProgress = root._downloadPhase === "game" && total > 0
-                ? Math.min(1, (num("BytesDownloaded") + num("BytesStaged")) / total) : -1;
-            root._updateProgress(-1);
         }
     }
     Process { // Allocated bytes, not apparent size: Steam writes the files sparsely
@@ -63,13 +58,15 @@ Item {
             onStreamFinished: { // Last line is the total (a folder that doesn't exist yet just adds nothing)
                 const lines = text.trim().split("\n");
                 const bytes = parseInt(lines[lines.length - 1]);
-                if (!isNaN(bytes)) root._updateProgress(bytes);
+                // Never step back: Steam moves finished files out of the download folder while it commits
+                if (!isNaN(bytes) && root._bytesToStage > 0)
+                    root._modsProgress = Math.max(root._modsProgress, Math.min(1, bytes / root._bytesToStage));
             }
         }
     }
     Timer {
-        interval: root._paused ? 10000 : 1500 // Paused: only Steam resuming it changes anything
-        running: root._downloadPhase !== "" && root.visible && manifestFile.path !== ""
+        interval: 1500
+        running: root._downloadPhase === "mods" && root.visible && manifestFile.path !== ""
         repeat: true
         triggeredOnStart: true
         onTriggered: {
@@ -749,19 +746,21 @@ Item {
             }
             MoreItem {
                 // Asks here instead of in Steam: the first click arms it, a second one uninstalls. Steam games
-                // go without opening Steam (it restarts in the tray if it's open); Lutris still asks itself
+                // go without opening Steam: straight to it when it answers on its debugging port, else it
+                // restarts in the tray if it's open; Lutris still asks itself
                 id: uninstallItem
                 property bool armed: false
                 property bool steamOpen: false
                 readonly property bool isSteam: (game?.source ?? "").toLowerCase() === "steam"
-                // Mid-install it cancels it: the same uninstall stops the download (Steam closes first) and
-                // deletes what's been downloaded
+                // Mid-install it cancels it: the same uninstall stops the download and deletes what's been
+                // downloaded
                 readonly property bool cancels: root.installState === "installing"
                 iconName: cancels ? "cancel" : "delete_forever"
                 label: armed ? Translation.tr("Click to confirm") : cancels ? Translation.tr("Cancel install") : Translation.tr("Uninstall")
                 detail: !armed || !isSteam ? ""
                     : cancels ? Translation.tr("Stops the download · deletes it")
-                    : steamOpen ? Translation.tr("Restarts Steam · keeps saves") : Translation.tr("Deletes files · keeps saves")
+                    : steamOpen && !GameLauncherService.canControlDownloads ? Translation.tr("Restarts Steam · keeps saves")
+                    : Translation.tr("Deletes files · keeps saves")
                 filled: armed
                 danger: true
                 closesMenu: armed
@@ -1150,8 +1149,10 @@ Item {
                             Quickshell.execDetached(["python3", "-I", Quickshell.shellPath("scripts/game-launcher/focus_game.py"), ...matchers]);
                         GlobalStates.gameLauncherOpen = false;
                     }
-                    // While a download runs, the button opens Steam's downloads instead of starting it again
-                    else if (root._downloading || root.installState === "updatePaused") GameLauncherService.openDownloads();
+                    // While a download runs, the button shows the launcher's Downloads panel instead of starting it
+                    // again. A paused one resumes (or opens Steam's downloads, without pause and resume on)
+                    else if (root.installState === "updatePaused") GameLauncherService.controlDownload("resume", game.id.substring(6));
+                    else if (root._downloading) root.openPanel = root.openPanel === "downloads" ? "" : "downloads";
                     // More than one Steam library: ask which here, instead of Steam's install dialog
                     else if (root.installState === "notInstalled" && (game?.id ?? "").startsWith("steam_")
                              && GameLauncherService.steamLibraries.length > 1) libraryMenu.open = !libraryMenu.open;
