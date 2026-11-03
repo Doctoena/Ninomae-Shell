@@ -227,7 +227,7 @@ Item {
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: Appearance.colors.colOnSurfaceVariant
                     onLinkActivated: (link) => {
-                        Qt.openUrlExternally(link)
+                        StringUtils.openWebLink(link) // Any app's text: only web and email links
                         GlobalStates.sidebarRightOpen = false
                     }
                     PointingHandLinkHover {}

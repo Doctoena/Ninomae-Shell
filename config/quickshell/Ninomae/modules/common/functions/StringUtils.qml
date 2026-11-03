@@ -1,7 +1,20 @@
 pragma Singleton
+import QtQuick
 import Quickshell
 Singleton {
     id: root
+    /**
+     * Opens a link that came from outside (a notification, a game's news) only if it's a web or email link:
+     * file://, steam:// and other schemes could start programs or open files. Returns whether it opened
+     */
+    function openWebLink(link) {
+        if (!/^(https?:|mailto:)/i.test(String(link ?? "").trim())) {
+            console.warn("[StringUtils] not opening a link that isn't a web or email link:", link);
+            return false;
+        }
+        Qt.openUrlExternally(String(link).trim());
+        return true;
+    }
     /**
      * Formats a string according to the args that are passed inc
      * @param { string } str

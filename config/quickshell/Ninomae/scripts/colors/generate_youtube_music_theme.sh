@@ -35,7 +35,7 @@ eval "$(jq -r '{
   INVERSE_ON_SURFACE: .inverse_on_surface,
   TERTIARY: .tertiary,
   SCRIM: .scrim
-} | to_entries[] | "\(.key)=\u0027\(.value)\u0027"' "$COLORS_JSON")"
+} | to_entries[] | "\(.key)=\(.value | tostring | @sh)"' "$COLORS_JSON")" # @sh: quoted for the shell, whatever the file holds
 
 cat > "$OUTPUT_CSS" << CSSEOF
 /* YouTube Music — Material You Theme

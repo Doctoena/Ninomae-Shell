@@ -94,7 +94,7 @@ LauncherTopPanel {
             visible: (root.post?.url ?? "") !== ""
             iconName: "open_in_new"
             tip: Translation.tr("Open in browser")
-            onClicked: Qt.openUrlExternally(root.post.url)
+            onClicked: StringUtils.openWebLink(root.post.url)
         }
     }
 
@@ -247,7 +247,7 @@ LauncherTopPanel {
                             anchors.fill: parent
                             enabled: img.status === Image.Ready
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Qt.openUrlExternally(block.modelData.url)
+                            onClicked: StringUtils.openWebLink(block.modelData.url) // Written by the game's developers
                         }
                     }
                     Rectangle { // Placeholder while it loads
@@ -291,7 +291,7 @@ LauncherTopPanel {
                         colBackground: Appearance.colors.colLayer1
                         colBackgroundHover: Appearance.colors.colLayer1Hover
                         colRipple: Appearance.colors.colLayer1Active
-                        onClicked: Qt.openUrlExternally(block.modelData.url)
+                        onClicked: StringUtils.openWebLink(block.modelData.url) // Written by the game's developers
                         contentItem: Item {
                             Row {
                                 id: videoRow
@@ -377,7 +377,7 @@ LauncherTopPanel {
         color: Appearance.colors.colOnLayer1
         linkColor: Appearance.colors.colPrimary
         lineHeight: 1.25
-        onLinkActivated: link => Qt.openUrlExternally(link)
+        onLinkActivated: link => StringUtils.openWebLink(link)
         HoverHandler { cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor }
     }
 }
