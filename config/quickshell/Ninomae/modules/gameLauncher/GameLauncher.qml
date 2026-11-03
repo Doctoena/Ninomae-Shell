@@ -38,10 +38,12 @@ Scope {
         function showCustomize(query: string): void { gameLauncherScope.show(query, "customize"); }
         // The grid's Tags panel: `qs -c Ninomae ipc call gameLauncher showTags`
         function showTags(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("tags"); }
-        // The launch drawer for a game, without starting it
+        // The launch drawer for a game, without starting it: steps through every state and ends on
+        // "Launched", or on a failure when the query ends in "!" (`previewSplash "Cyberpunk!"`)
         function previewSplash(query: string): void {
-            const game = GameLauncherService.findGameByName(query);
-            if (game) launchSplash.preview(game); // Steps through every state, ending on a failure
+            const fail = query.endsWith("!");
+            const game = GameLauncherService.findGameByName(fail ? query.slice(0, -1) : query);
+            if (game) launchSplash.preview(game, fail);
         }
         function hideSplash(): void { launchSplash.dismiss(); }
     }
