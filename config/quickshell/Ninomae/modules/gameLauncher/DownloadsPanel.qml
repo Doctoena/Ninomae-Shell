@@ -49,7 +49,9 @@ LauncherTopPanel {
     function _sections() {
         const set = (key, rows) => { if (JSON.stringify(rows) !== JSON.stringify(root[key])) root[key] = rows; };
         const featuredId = root.featured?.appid;
-        set("upNext", items.filter(i => i.appid !== featuredId && ["queued", "scheduled", "waiting"].includes(i.state)));
+        // Waiting for a game to be played means nothing for Steam's runtimes and redistributables: those wait out of sight
+        set("upNext", items.filter(i => i.appid !== featuredId && ["queued", "scheduled", "waiting"].includes(i.state)
+            && (i.state !== "waiting" || root.gameFor(i.appid))));
         set("stopped", items.filter(i => i.appid !== featuredId && ["paused", "error", "suspended", "stopped"].includes(i.state)));
         set("finished", GameLauncherService.finishedDownloads.filter(f => root.gameFor(f.appid))); // Not Steam's runtimes
     }
