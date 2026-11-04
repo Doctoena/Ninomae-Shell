@@ -10,21 +10,24 @@ import Quickshell.Widgets
 /**
  * The game page's Captures: a game's screenshots in a panel growing up out of the launcher (LauncherTopPanel): what Steam's F12
  * saved and the game's own screenshot folders (scripts/game-launcher/find_screenshots.py), newest
- * first, in rows that keep each shot's own shape (portrait and cropped ones at least square); clicking one
+ * first, in 16:9 tiles four across as the Clips page's (other shapes cropped to fill them); clicking one
  * opens it large with its details and a filmstrip under it. Keys come from the details page while it's
  * open (handleKey): on the grid the arrows (Home/End) move a ring and Enter opens that one; in the viewer
  * ←/→ (Home/End) step through and Delete, pressed twice, moves it to the Trash; Esc goes back to the grid, then closes.
  * What it found is kept per game for the session (GameLauncherService.screenshotsCache), so it opens
  * filled in and looks again behind that.
  *
- * With an Immich server set (Settings → Game Launcher), the header uploads them there (all of them on the
- * grid, the one open in the viewer) into the game's album, and that album's photos show here too, by
+ * With an Immich server set (Settings → Game Launcher), they upload there (all of them from the rail, the
+ * one open from the viewer's header) into the game's album, and that album's photos show here too, by
  * date among the rest: all but the ones uploaded from here (same file name as one on disk), so each shows
  * once. Those are "immich:<asset id>" in paths, shown from copies scripts/game-launcher/immich_media.py
- * fetches; they can't be trashed from here. With both kinds, the header filters by where they are.
+ * fetches; they can't be trashed from here.
  *
- * The header also switches to the Clips page (ClipsPage.qml: gameplay clips saved with the clip key);
- * Tab flips between the two.
+ * A slim rail of icon buttons on the left stays throughout (each names itself on hover): the pages,
+ * Screenshots and Clips (ClipsPage.qml: gameplay clips saved with the clip key; Tab flips between them);
+ * where the shots are (with some of both); and the actions for what's showing (the grid: folder, Immich
+ * album, upload all; a shot: copy, open, upload, Trash; a clip: trim, copy, open, back up, Trash).
+ * Each grid ends in a dashed tile saying how to take more (CaptureAddTile).
  */
 LauncherTopPanel {
     id: root
@@ -69,6 +72,7 @@ LauncherTopPanel {
         finder.running = false;
         finder.running = true;
         fetchImmichAlbum();
+        clipsPage.refresh(); // For the rail's count, before its page is opened
     }
 
     // ── Sources ──
@@ -127,6 +131,7 @@ LauncherTopPanel {
     // the URL would land in proxies' access logs
     property var _fetched: ({}) // asset id -> path
     function sourceFor(entry) {
+        if (!entry) return ""; // The grid's how-to cell
         if (!isRemote(entry)) return "file://" + entry;
         const path = _fetched[entry.substring(7)];
         return path ? "file://" + path : "";
@@ -257,7 +262,7 @@ LauncherTopPanel {
         trashArmed = false;
         if (viewerIndex >= 0) { _lastViewed = viewerIndex; gridIndex = viewerIndex; } // The ring comes back on it
     }
-    onViewingChanged: if (!viewing) gallery.positionViewAtIndex(gallery.rowOf[_lastViewed] ?? 0, ListView.Contain)
+    onViewingChanged: if (!viewing) gallery.positionViewAtIndex(_lastViewed, GridView.Contain)
 
     // Keys, from the details page's handler while this is open. Returns whether it used the key
     function handleKey(key, modifiers) {
@@ -288,10 +293,10 @@ LauncherTopPanel {
             if (!keyboardNav || gridIndex < 0 || gridIndex >= paths.length) gridIndex = Math.max(0, Math.min(paths.length - 1, gridIndex)); // First press: just show where it is
             else if (key === Qt.Key_Left) gridIndex = Math.max(0, gridIndex - 1);
             else if (key === Qt.Key_Right) gridIndex = Math.min(paths.length - 1, gridIndex + 1);
-            else if (key === Qt.Key_Up || key === Qt.Key_Down) gridIndex = _gridStep(key === Qt.Key_Up ? -1 : 1);
+            else if (key === Qt.Key_Up || key === Qt.Key_Down) gridIndex = Math.max(0, Math.min(paths.length - 1, gridIndex + (key === Qt.Key_Up ? -gallery.columns : gallery.columns)));
             else gridIndex = key === Qt.Key_Home ? 0 : paths.length - 1;
             keyboardNav = true;
-            gallery.positionViewAtIndex(gallery.rowOf[gridIndex] ?? 0, ListView.Contain);
+            gallery.positionViewAtIndex(gridIndex, GridView.Contain);
             return true;
         }
         if (key === Qt.Key_Return || key === Qt.Key_Enter) {
@@ -303,18 +308,6 @@ LauncherTopPanel {
     // The grid's keyboard ring: which shot it's on, shown only once a key moved it (hovering moves it too)
     property int gridIndex: -1
     property bool keyboardNav: false
-    // ↑/↓: the shot in the row above/below whose middle is nearest this one's
-    function _gridStep(dir) {
-        const rows = gallery.model, r = gallery.rowOf[gridIndex];
-        const cur = rows[r]?.items?.find(it => it.index === gridIndex);
-        const next = rows[r + dir];
-        if (!cur || !next) return gridIndex;
-        const mid = cur.x + cur.width / 2;
-        let best = next.items[0];
-        for (const it of next.items)
-            if (Math.abs(it.x + it.width / 2 - mid) < Math.abs(best.x + best.width / 2 - mid)) best = it;
-        return best.index;
-    }
 
     // ── Dates and shapes ──
     function _day(t) { const d = new Date(t * 1000); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
@@ -344,14 +337,9 @@ LauncherTopPanel {
             const parts = [root.game?.name ?? ""];
             if (!root.onShots) {
                 if (clipsPage.viewing) parts.push(Translation.tr("%1 of %2").arg(clipsPage.playerIndex + 1).arg(clipsPage.clips.length));
-                else if (clipsPage.clips.length > 0) parts.push(clipsPage.clips.length === 1 ? Translation.tr("1 clip") : Translation.tr("%1 clips").arg(clipsPage.clips.length));
                 return parts.filter(p => p !== "").join(" · ");
             }
             if (root.viewing) parts.push(Translation.tr("%1 of %2").arg(root.viewerIndex + 1).arg(root.paths.length));
-            else if (root.paths.length > 0) {
-                parts.push(root.paths.length === 1 ? Translation.tr("1 screenshot") : Translation.tr("%1 screenshots").arg(root.paths.length));
-                if (root.filter === "all" && root.remoteCount > 0) parts.push(Translation.tr("%1 in Immich").arg(root.remoteCount));
-            }
             if (root._albumLoading && root.paths.length > 0) parts.push(Translation.tr("checking Immich…"));
             return parts.filter(p => p !== "").join(" · ");
         }
@@ -360,199 +348,181 @@ LauncherTopPanel {
         showBack: root.viewing || clipsPage.viewing
         backTip: root.onShots ? Translation.tr("All screenshots (Esc)") : Translation.tr("All clips (Esc)")
         onBackRequested: { root.viewerIndex = -1; clipsPage.back(); }
-        extras: Row {
-        anchors.verticalCenter: parent.verticalCenter
+    }
+
+    // ── Rail: icon buttons down the left, in groups as the header's (each says what it is on hover): the
+    //    pages, where the shots are, the actions for what's showing, then Trash on its own ──
+    Column {
+        id: rail
+        anchors { top: header.bottom; topMargin: 14; left: parent.left; leftMargin: 22 }
+        width: 36
         spacing: 10
-        Row { // Where they are: only with some of both
-            anchors.verticalCenter: parent.verticalCenter
+        readonly property int shotCount: root.localCount + root.remoteCount
+        readonly property bool onGrid: root.onShots ? !root.viewing : !clipsPage.viewing
+        function counted(name, n) { return n > 0 ? `${name} (${n})` : name; }
+
+        RailGroup {
+            SheetIconButton { // Also the way back to all of them from the viewer
+                iconName: "photo_library"; active: root.onShots
+                tip: rail.counted(Translation.tr("Screenshots"), rail.shotCount)
+                onClicked: { if (root.onShots) root.viewerIndex = -1; else root.page = "shots"; }
+            }
+            SheetIconButton {
+                iconName: "movie"; active: !root.onShots
+                tip: rail.counted(Translation.tr("Clips"), clipsPage.clips.length)
+                onClicked: { if (!root.onShots) clipsPage.back(); else root.page = "clips"; }
+            }
+        }
+        RailGroup { // Where the shots are: only with some of both
             visible: root.onShots && !root.viewing && root.localCount > 0 && root.remoteCount > 0
-            spacing: 2
-            Repeater {
-                model: [
-                    { value: "all", icon: "apps", text: Translation.tr("All") },
-                    { value: "local", icon: "computer", text: Translation.tr("This PC") },
-                    { value: "immich", icon: "cloud", text: Translation.tr("Immich") }
-                ]
-                delegate: SelectionGroupButton {
-                    required property var modelData
-                    required property int index
-                    focusPolicy: Qt.NoFocus // The details page keeps the keys
-                    leftmost: index === 0
-                    rightmost: index === 2
-                    buttonIcon: modelData.icon
-                    buttonText: modelData.text
-                    toggled: root.filter === modelData.value
-                    onClicked: root.filter = modelData.value
-                }
+            SheetIconButton {
+                iconName: "apps"; active: root.filter === "all"
+                tip: rail.counted(Translation.tr("Everywhere"), rail.shotCount)
+                onClicked: root.filter = "all"
+            }
+            SheetIconButton {
+                iconName: "computer"; active: root.filter === "local"
+                tip: rail.counted(Translation.tr("On this PC"), root.localCount)
+                onClicked: root.filter = "local"
+            }
+            SheetIconButton {
+                iconName: "cloud"; active: root.filter === "immich"
+                tip: rail.counted(Translation.tr("In Immich"), root.remoteCount)
+                onClicked: root.filter = "immich"
             }
         }
-        Row { // Screenshots or clips (Tab)
-            anchors.verticalCenter: parent.verticalCenter
-            visible: !root.viewing && !clipsPage.viewing
-            spacing: 2
-            Repeater {
-                model: [
-                    { value: "shots", icon: "photo_library", text: Translation.tr("Screenshots") },
-                    { value: "clips", icon: "movie", text: Translation.tr("Clips") }
-                ]
-                delegate: SelectionGroupButton {
-                    required property var modelData
-                    required property int index
-                    focusPolicy: Qt.NoFocus
-                    leftmost: index === 0
-                    rightmost: index === 1
-                    buttonIcon: modelData.icon
-                    buttonText: modelData.text
-                    toggled: root.page === modelData.value
-                    onClicked: root.page = modelData.value
+        RailGroup { // The actions for what's showing
+            // ── The grid ──
+            SheetIconButton { // Screenshots: the folder the newest one on disk is in, else where they go (made if missing)
+                visible: rail.onGrid && (root.onShots ? root.localPaths.length > 0 || root.screenshotFolder !== "" : true)
+                iconName: "folder_open"
+                tip: root.onShots ? Translation.tr("Open screenshots folder") : Translation.tr("Open clips folder")
+                onClicked: {
+                    if (!root.onShots) { clipsPage.openFolder(); return; }
+                    Quickshell.execDetached(["sh", "-c", 'mkdir -p -- "$1" && xdg-open "$1"', "open-folder",
+                        root.localPaths.length > 0 ? root.localPaths[0].replace(/\/[^/]*$/, "") : root.screenshotFolder]);
                 }
             }
+            SheetIconButton {
+                visible: rail.onGrid && root.onShots && root.immichAlbumId !== "" && GameLauncherService.immichReady
+                iconName: "photo_album"; tip: Translation.tr("Open album in Immich")
+                onClicked: Quickshell.execDetached(["xdg-open", `${GameLauncherService.immichUrl}/albums/${root.immichAlbumId}`])
+            }
+            // ── A shot ──
+            SheetIconButton {
+                visible: root.onShots && root.viewing
+                iconName: root.copied ? "check" : "content_copy"
+                tip: root.copied ? Translation.tr("Copied") : Translation.tr("Copy image (Ctrl+C)")
+                onClicked: root.copyCurrent()
+            }
+            SheetIconButton {
+                visible: root.onShots && root.viewing
+                iconName: "open_in_new"
+                tip: root.currentIsRemote ? Translation.tr("Open in Immich") : Translation.tr("Open in image viewer")
+                onClicked: root.openExternally(root.currentEntry)
+            }
+            // ── A clip ──
+            SheetIconButton {
+                visible: !root.onShots && clipsPage.viewing
+                enabled: clipsPage.exportKind === ""
+                active: clipsPage.trimming
+                iconName: "content_cut"; tip: clipsPage.trimming ? Translation.tr("Stop trimming (T)") : Translation.tr("Trim (T)")
+                onClicked: clipsPage.toggleTrim()
+            }
+            SheetIconButton {
+                visible: !root.onShots && clipsPage.viewing
+                iconName: clipsPage.copied ? "check" : "content_copy"
+                tip: clipsPage.copied ? Translation.tr("Copied") : Translation.tr("Copy clip (Ctrl+C)")
+                onClicked: clipsPage.copyClip(clipsPage.current?.path ?? "")
+            }
+            SheetIconButton {
+                visible: !root.onShots && clipsPage.viewing
+                iconName: "open_in_new"; tip: Translation.tr("Open in video app")
+                onClicked: clipsPage.openExternally()
+            }
+            // ── Immich: on the grid all of them (not the album's own photos: they're there already), else the
+            //    one open. Clips are "backed up" ──
+            SheetIconButton {
+                readonly property var files: root.onShots ? (root.viewing ? [root.currentEntry] : root.localPaths)
+                    : (clipsPage.viewing ? [clipsPage.current?.path ?? ""] : clipsPage.clips.map(c => c.path))
+                readonly property string uploadState: GameLauncherService.immichUploadState
+                visible: GameLauncherService.immichReady && files.length > 0 && !(root.onShots && root.currentIsRemote)
+                enabled: uploadState !== "uploading"
+                iconName: ({ uploading: "hourglass_top", done: "check", failed: "error" })[uploadState] ?? "cloud_upload"
+                tip: uploadState === "uploading" ? Translation.tr("Uploading to Immich…")
+                    : uploadState === "failed" ? Translation.tr("Upload failed")
+                    : rail.onGrid ? (root.onShots ? Translation.tr("Upload all %1 to Immich") : Translation.tr("Back up all %1 to Immich")).arg(files.length)
+                    : (root.onShots ? Translation.tr("Upload to Immich") : Translation.tr("Back up to Immich"))
+                onClicked: GameLauncherService.uploadToImmich(files, root.game?.name ?? "")
+            }
         }
-        }
-        // To the game's Immich album: on the grid all of them, open one just that one. Screenshots: not the
-        // album's own photos (they're there already); clips are "backed up"
-        SheetIconButton {
-            readonly property bool one: root.onShots ? root.viewing : clipsPage.viewing
-            readonly property var files: root.onShots ? (root.viewing ? [root.currentEntry] : root.localPaths)
-                : (clipsPage.viewing ? [clipsPage.current.path] : clipsPage.clips.map(c => c.path))
-            visible: GameLauncherService.immichReady && (root.onShots ? root.localPaths.length > 0 && !root.currentIsRemote : clipsPage.clips.length > 0)
-            enabled: GameLauncherService.immichUploadState !== "uploading"
-            iconName: ({ uploading: "hourglass_top", done: "check", failed: "error" })[GameLauncherService.immichUploadState] ?? "cloud_upload"
-            tip: GameLauncherService.immichUploadState === "uploading" ? Translation.tr("Uploading to Immich…")
-                : root.onShots ? (one ? Translation.tr("Upload to Immich") : Translation.tr("Upload all %1 to Immich").arg(files.length))
-                : (one ? Translation.tr("Back up to Immich") : Translation.tr("Back up all %1 to Immich").arg(files.length))
-            onClicked: GameLauncherService.uploadToImmich(files, root.game?.name ?? "")
-        }
-        SheetIconButton {
-            visible: root.onShots && !root.viewing && root.immichAlbumId !== "" && GameLauncherService.immichReady
-            iconName: "photo_album"; tip: Translation.tr("Open album in Immich")
-            onClicked: Quickshell.execDetached(["xdg-open", `${GameLauncherService.immichUrl}/albums/${root.immichAlbumId}`])
-        }
-        SheetIconButton { // Grid: the folder the newest one on disk is in, else where they go (made if missing)
-            visible: root.onShots && !root.viewing && (root.localPaths.length > 0 || root.screenshotFolder !== "")
-            iconName: "folder_open"; tip: Translation.tr("Open screenshots folder")
-            onClicked: Quickshell.execDetached(["sh", "-c", 'mkdir -p -- "$1" && xdg-open "$1"', "open-folder",
-                root.localPaths.length > 0 ? root.localPaths[0].replace(/\/[^/]*$/, "") : root.screenshotFolder])
-        }
-        SheetIconButton {
-            visible: root.viewing
-            iconName: root.copied ? "check" : "content_copy"
-            tip: root.copied ? Translation.tr("Copied") : Translation.tr("Copy image")
-            onClicked: root.copyCurrent()
-        }
-        SheetIconButton {
-            visible: root.viewing
-            iconName: "open_in_new"; tip: root.currentIsRemote ? Translation.tr("Open in Immich") : Translation.tr("Open in image viewer")
-            onClicked: root.openExternally(root.currentEntry)
-        }
-        // Clips: their folder on the grid; in the player trim, copy, the video app and Trash
-        SheetIconButton {
-            visible: !root.onShots && !clipsPage.viewing
-            iconName: "folder_open"; tip: Translation.tr("Open clips folder")
-            onClicked: clipsPage.openFolder()
-        }
-        SheetIconButton {
-            visible: !root.onShots && clipsPage.viewing
-            enabled: clipsPage.exportKind === ""
-            active: clipsPage.trimming
-            iconName: "content_cut"; tip: clipsPage.trimming ? Translation.tr("Stop trimming (T)") : Translation.tr("Trim (T)")
-            onClicked: clipsPage.toggleTrim()
-        }
-        SheetIconButton {
-            visible: !root.onShots && clipsPage.viewing
-            iconName: clipsPage.copied ? "check" : "content_copy"
-            tip: clipsPage.copied ? Translation.tr("Copied") : Translation.tr("Copy clip (Ctrl+C)")
-            onClicked: clipsPage.copyClip(clipsPage.current?.path ?? "")
-        }
-        SheetIconButton {
-            visible: !root.onShots && clipsPage.viewing
-            iconName: "open_in_new"; tip: Translation.tr("Open in video app")
-            onClicked: clipsPage.openExternally()
-        }
-        // Trash, kept apart from the rest: the shot or clip open (not an Immich photo: trashCurrent leaves those)
-        Item {
-            id: trashGap
+        RailGroup { // Trash, apart from the rest: the shot or clip open (not an Immich photo), asked twice
             visible: root.onShots ? root.viewing && !root.currentIsRemote : clipsPage.viewing
-            width: 9; height: 30
-            Rectangle { anchors.centerIn: parent; width: 1; height: 16; color: Appearance.colors.colOutlineVariant }
+            SheetIconButton {
+                danger: true
+                active: root.trashArmed
+                iconName: root.trashArmed ? "delete_forever" : "delete"
+                tip: root.trashArmed ? Translation.tr("Click again to move to Trash") : Translation.tr("Move to Trash (Delete)")
+                onClicked: root.requestTrash()
+            }
         }
-        SheetIconButton {
-            visible: trashGap.visible
-            danger: true
-            active: root.trashArmed
-            iconName: root.trashArmed ? "delete_forever" : "delete"
-            tip: root.trashArmed ? Translation.tr("Click again to move to Trash") : Translation.tr("Move to Trash (Delete)")
-            onClicked: root.requestTrash()
+    }
+    // A group of the rail's buttons on one surface, as the header's. With none of them shown it's 0 high, which
+    // the rail's Column skips (not hidden: its buttons would then count as hidden too, and it'd never come back)
+    component RailGroup: Rectangle {
+        default property alias buttons: groupColumn.data
+        readonly property bool any: groupColumn.implicitHeight > 0
+        width: 36
+        height: any ? groupColumn.implicitHeight + 6 : 0
+        radius: Appearance.rounding.container
+        color: any ? Appearance.colors.colLayer2 : "transparent"
+        Column {
+            id: groupColumn
+            anchors.centerIn: parent
+            spacing: 2
         }
     }
 
-    // ── Grid: the shots in rows that fill the width, each at its own shape ──
-    ListView {
+    // ── Grid: the shots in 16:9 tiles, four across, as the Clips page's (shots of another shape are cropped
+    //    to fill theirs; the viewer shows them whole) ──
+    GridView {
         id: gallery
         // Wider than the shots by `pad` on each side, so the clip doesn't cut the edge columns' hover ring
         // (and above the first row: topMargin)
-        anchors { top: header.bottom; topMargin: 14 - pad; bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 20 - pad; rightMargin: 20 - pad }
+        anchors { top: header.bottom; topMargin: 14 - pad; bottom: parent.bottom; left: rail.right; right: parent.right; leftMargin: 14 - pad; rightMargin: 20 - pad }
         topMargin: pad
         bottomMargin: 16
+        leftMargin: pad
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         visible: root.onShots && !root.viewing && root.paths.length > 0
         readonly property int pad: 4 // Room for Tile's ring (3 px outside it)
         readonly property int gap: 8
-        readonly property int rowHeight: 172 // Wanted; a full row is scaled to fit the width exactly
-        property var rowOf: [] // Shot index -> the model row it's in
-        // [{ height, items: [{ entry, index, width, x }] }]
-        model: {
-            const w = width - pad * 2, gap = gallery.gap, target = rowHeight;
-            const rows = [], rowOfIndex = [];
-            if (w <= 0) return rows;
-            let row = [], sum = 0;
-            const flush = last => {
-                if (row.length === 0) return;
-                const free = w - gap * (row.length - 1);
-                const h = last ? Math.min(target, free / sum) : free / sum; // The last row isn't stretched
-                const items = row.map(it => ({ entry: it.entry, index: it.index, width: Math.floor(it.aspect * h) }));
-                if (!last) items[items.length - 1].width += free - items.reduce((s, it) => s + it.width, 0); // Exactly the width
-                let x = 0;
-                for (const it of items) { it.x = x; x += it.width + gap; } // For ↑/↓: the nearest one in the next row
-                for (const it of row) rowOfIndex[it.index] = rows.length;
-                rows.push({ height: Math.round(h), items: items });
-                row = []; sum = 0;
-            };
-            root.paths.forEach((entry, index) => {
-                // Portrait or cropped shots get at least a square tile (the picture fills it, trimmed at the top
-                // and bottom; the viewer shows it whole), so they aren't thin slivers among full-size ones
-                const aspect = Math.max(1, root.aspectOf(entry));
-                row.push({ entry: entry, index: index, aspect: aspect });
-                sum += aspect;
-                if (sum * target + gap * (row.length - 1) >= w) flush(false);
-            });
-            flush(true);
-            rowOf = rowOfIndex;
-            return rows;
-        }
+        readonly property int columns: 4 // As ClipsPage's grid
+        cellWidth: Math.floor((width - pad * 2) / columns)
+        cellHeight: Math.round((cellWidth - gap) * 9 / 16) + gap
+        model: root.paths.length > 0 ? root.paths.concat([""]) : [] // Last, how to take more (CaptureAddTile)
         delegate: Item {
-            id: rowItem
+            id: cell
             required property var modelData
-            width: gallery.width
-            height: modelData.height + gallery.gap
-            Row {
-                x: gallery.pad
-                spacing: gallery.gap
-                Repeater {
-                    model: rowItem.modelData.items
-                    delegate: Tile {
-                        required property var modelData
-                        width: modelData.width
-                        height: rowItem.modelData.height
-                        entry: modelData.entry
-                        current: root.keyboardNav && modelData.index === root.gridIndex
-                        order: gallery.atYBeginning ? modelData.index : 0 // Scrolled to: no wait
-                        onHoveredChanged: if (hovered) { root.gridIndex = modelData.index; root.keyboardNav = false; } // Keys go on from here
-                        onClicked: root.viewerIndex = modelData.index
-                        onRightClicked: root.copyEntry(modelData.entry)
-                    }
-                }
+            required property int index
+            width: gallery.cellWidth; height: gallery.cellHeight
+            CaptureAddTile {
+                anchors { fill: parent; rightMargin: gallery.gap; bottomMargin: gallery.gap }
+                visible: cell.modelData === ""
+                icon: "add_a_photo"
+                text: root.appid !== "" ? Translation.tr("Press F12 while playing to take one")
+                    : Translation.tr("Screenshots the game saves in its own folders show up here")
+            }
+            Tile {
+                anchors { fill: parent; rightMargin: gallery.gap; bottomMargin: gallery.gap }
+                visible: cell.modelData !== ""
+                entry: cell.modelData
+                current: root.keyboardNav && cell.index === root.gridIndex
+                order: gallery.atYBeginning ? cell.index : 0 // Scrolled to: no wait
+                onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; } // Keys go on from here
+                onClicked: root.viewerIndex = cell.index
+                onRightClicked: root.copyEntry(cell.modelData)
             }
         }
     }
@@ -574,6 +544,7 @@ LauncherTopPanel {
     SheetEmptyState {
         anchors.centerIn: parent
         anchors.verticalCenterOffset: 24
+        anchors.horizontalCenterOffset: (rail.width + 16) / 2 // In the room beside the rail
         visible: root.onShots && !root.viewing && root.paths.length === 0
         icon: root.loading ? "hourglass_empty" : "add_a_photo"
         text: root.loading ? Translation.tr("Looking for screenshots…") : Translation.tr("No screenshots yet")
@@ -585,16 +556,20 @@ LauncherTopPanel {
     // ── Clips page ──
     ClipsPage {
         id: clipsPage
-        anchors { top: header.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        anchors { top: header.bottom; bottom: parent.bottom; left: rail.right; leftMargin: -6; right: parent.right }
         visible: !root.onShots
         game: root.game
         active: root.shown && !root.onShots
     }
 
-    // ── Viewer: the shot large, what it is under it, then a filmstrip ──
+    // ── Viewer: the shot large, what it is under it, then a filmstrip, beside the rail ──
+    Item {
+        id: stage
+        anchors { top: header.bottom; bottom: parent.bottom; left: rail.right; right: parent.right }
+    }
     Item {
         id: viewer
-        anchors { top: header.bottom; topMargin: 14; bottom: details.top; bottomMargin: 12; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
+        anchors { top: stage.top; topMargin: 14; bottom: details.top; bottomMargin: 12; left: stage.left; right: stage.right; leftMargin: 14; rightMargin: 20 }
         visible: root.viewing
         readonly property string source: root.currentEntry !== "" ? root.sourceFor(root.currentEntry) : ""
         readonly property real aspect: root.aspectOf(root.currentEntry)
@@ -719,9 +694,9 @@ LauncherTopPanel {
         anchors {
             bottom: filmstrip.visible ? filmstrip.top : parent.bottom
             bottomMargin: filmstrip.visible ? 10 - filmstrip.pad : 16
-            horizontalCenter: parent.horizontalCenter
+            horizontalCenter: viewer.horizontalCenter
         }
-        width: Math.min(parent.width - 40, Math.max(picture.width, dateText.implicitWidth + chips.implicitWidth + 40))
+        width: Math.min(viewer.width, Math.max(picture.width, dateText.implicitWidth + chips.implicitWidth + 40))
         height: 36
         radius: Appearance.rounding.container
         color: Appearance.colors.colLayer1
@@ -759,8 +734,8 @@ LauncherTopPanel {
         id: filmstrip
         // `pad` bigger than the tiles all round, so the clip doesn't cut the current one's ring;
         // centred, as wide as its shots up to the panel's width
-        anchors { bottom: parent.bottom; bottomMargin: 16 - pad; horizontalCenter: parent.horizontalCenter }
-        width: Math.min(parent.width - 2 * (20 - pad), contentWidth + pad * 2)
+        anchors { bottom: parent.bottom; bottomMargin: 16 - pad; horizontalCenter: viewer.horizontalCenter }
+        width: Math.min(viewer.width + 2 * pad, contentWidth + pad * 2)
         readonly property int pad: 4
         readonly property int tileHeight: 60
         height: tileHeight + pad * 2

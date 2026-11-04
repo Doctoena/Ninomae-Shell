@@ -32,6 +32,12 @@ Item {
     readonly property bool viewing: playerIndex >= 0 && playerIndex < clips.length
     readonly property var current: viewing ? clips[playerIndex] : null
     readonly property string folder: GameClips.folderFor(game?.name ?? "")
+    // How to get clips (or what's missing for them): the empty page's hint and the grid's last tile
+    readonly property string howTo: !GameClips.available ? Translation.tr("Install gpu-screen-recorder to record clips")
+        : !(Config.options.gameLauncher.clipsEnabled ?? false) ? Translation.tr("Turn on clips in Settings → In game")
+        : Translation.tr("Press %1 while playing to save the last %2").arg(GameClips.keyLabel).arg(GameClips.seconds >= 60
+            ? (GameClips.seconds === 60 ? Translation.tr("minute") : Translation.tr("%1 minutes").arg(GameClips.seconds / 60))
+            : Translation.tr("%1 seconds").arg(GameClips.seconds))
     // The player (videoLoader), or a stopped stand-in while none is loaded, so everything can use it as is
     readonly property var video: videoLoader.item ?? idleVideo
     QtObject {
@@ -241,15 +247,22 @@ Item {
         cellWidth: Math.floor((width - pad * 2) / columns)
         cellHeight: Math.round((cellWidth - gap) * 9 / 16) + gap
         leftMargin: pad
-        model: root.clips
+        model: root.clips.length > 0 ? root.clips.concat([null]) : [] // Last, how to save more (CaptureAddTile)
         delegate: Item {
             id: cell
             required property var modelData
             required property int index
             width: grid.cellWidth; height: grid.cellHeight
-            ClipTile {
+            CaptureAddTile {
                 anchors { fill: parent; rightMargin: grid.gap; bottomMargin: grid.gap }
-                clipData: cell.modelData
+                visible: cell.modelData === null
+                icon: "movie"
+                text: root.howTo
+            }
+            ClipTile {
+                visible: cell.modelData !== null
+                anchors { fill: parent; rightMargin: grid.gap; bottomMargin: grid.gap }
+                clipData: cell.modelData ?? ({}) // The last cell is the how-to tile
                 order: grid.atYBeginning ? cell.index : 0
                 current: root.keyboardNav && cell.index === root.gridIndex
                 onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; }
@@ -278,12 +291,7 @@ Item {
         visible: !root.viewing && root.clips.length === 0
         icon: root.loading ? "hourglass_empty" : "movie"
         text: root.loading ? Translation.tr("Looking for clips…") : Translation.tr("No clips yet")
-        hint: root.loading ? ""
-            : !GameClips.available ? Translation.tr("Install gpu-screen-recorder to record clips")
-            : !(Config.options.gameLauncher.clipsEnabled ?? false) ? Translation.tr("Turn on clips in Settings → In game")
-            : Translation.tr("Press %1 while playing to save the last %2").arg(GameClips.keyLabel).arg(GameClips.seconds >= 60
-                ? (GameClips.seconds === 60 ? Translation.tr("minute") : Translation.tr("%1 minutes").arg(GameClips.seconds / 60))
-                : Translation.tr("%1 seconds").arg(GameClips.seconds))
+        hint: root.loading ? "" : root.howTo
     }
 
     // ── Player ──
