@@ -62,18 +62,27 @@ LauncherTopPanel {
     }
     Component.onCompleted: _sections()
     readonly property bool canControl: GameLauncherService.canControlDownloads
+    // Nothing to show: no banner and no rows (Steam's runtimes waiting to be played are left out of Up next)
+    readonly property bool empty: featured === null && upNext.length + stopped.length + finished.length === 0
+    // The time, a minute at a time while it's open: "starts in 5 min" and "2 min ago" count on without a change
+    // from the feed
+    property real now: Date.now() / 1000
+    Timer {
+        interval: 60000
+        running: root.shown
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.now = Date.now() / 1000
+    }
 
     function gameFor(appid) { return GameLauncherService._installedGamesMap["steam_" + appid] ?? null; }
-    function coverFor(game) {
-        const custom = game ? (GameLauncherService.customArt[game.id]?.boxArt ?? "") : "";
-        return custom.startsWith("/") ? custom : (game?.boxArt ?? "").startsWith("/") ? game.boxArt : "";
+    function artFor(game, key) { // boxArt or heroArt: the custom one, else the game's, as a file ("" if neither)
+        const custom = game ? (GameLauncherService.customArt[game.id]?.[key] ?? "") : "";
+        return custom.startsWith("/") ? custom : (game?.[key] ?? "").startsWith("/") ? game[key] : "";
     }
-    function heroFor(game) { // The details page's banner art, else "" (the banner then blurs the cover)
-        if (!game) return "";
-        const custom = GameLauncherService.customArt[game.id]?.heroArt ?? "";
-        if (custom.startsWith("/")) return custom;
-        if ((game.heroArt ?? "").startsWith("/")) return game.heroArt;
-        return game.derivedHeroArt ?? "";
+    function busy(appid) { // A button pressed for it, or for the whole queue, that Steam hasn't answered yet
+        const pending = GameLauncherService.downloadControlPending;
+        return !!pending[appid] || !!pending["all"];
     }
     function size(bytes) {
         return bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB"
@@ -100,14 +109,14 @@ LauncherTopPanel {
         case "paused": return join([Translation.tr("Paused"), amount(row)]);
         case "error": return Translation.tr("Steam stopped it: %1").arg((row.error || Translation.tr("an error")).toLowerCase());
         case "suspended": return join([data.gameRunning ? Translation.tr("Held while you play") : Translation.tr("Paused"), amount(row)]);
-        case "scheduled": return Translation.tr("Steam starts it in %1").arg(duration(Math.max(0, row.delayUntil - Date.now() / 1000)));
+        case "scheduled": return Translation.tr("Steam starts it in %1").arg(duration(Math.max(0, row.delayUntil - root.now)));
         case "waiting": return Translation.tr("Updates when you play it");
         case "stopped": return join([Translation.tr("Waiting for Steam to start"), amount(row)]);
         }
         return "";
     }
     function ago(at) {
-        const secs = Date.now() / 1000 - at;
+        const secs = root.now - at;
         return secs < 60 ? Translation.tr("just now") : Translation.tr("%1 ago").arg(duration(secs));
     }
     // A row's button, as Steam's Downloads page: the one downloading pauses the queue (and resumes it once
@@ -169,7 +178,7 @@ LauncherTopPanel {
             Rectangle { // Without pause and resume on, the buttons can't reach Steam: say so, and where to turn it on
                 width: parent.width
                 height: 44
-                visible: !root.canControl && root.items.length > 0 && (root.data.steamRunning ?? false)
+                visible: !root.canControl && !root.empty && (root.data.steamRunning ?? false)
                 radius: Appearance.rounding.normal
                 color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.88)
                 MaterialSymbol {
@@ -202,8 +211,9 @@ LauncherTopPanel {
                 readonly property var game: root.gameFor(row?.appid)
                 readonly property bool live: row?.state === "downloading"
                 readonly property bool failed: row?.state === "error"
-                readonly property string hero: root.heroFor(game)
-                readonly property string cover: root.coverFor(game)
+                // The details page's banner art, else "" (then the cover, blurred)
+                readonly property string hero: root.artFor(game, "heroArt") || (game?.derivedHeroArt ?? "")
+                readonly property string cover: root.artFor(game, "boxArt")
                 width: parent.width
                 height: 118
                 visible: row !== null
@@ -347,7 +357,7 @@ LauncherTopPanel {
 
     SheetEmptyState {
         anchors { centerIn: parent; verticalCenterOffset: 20 }
-        visible: root.items.length === 0 && root.finished.length === 0
+        visible: root.empty
         icon: "download_done"
         text: Translation.tr("Nothing downloading")
         hint: Translation.tr("Installs and updates show here while Steam downloads them")
@@ -408,7 +418,7 @@ LauncherTopPanel {
         property var row: ({})
         property bool finishedRow: false
         readonly property var game: root.gameFor(row.appid)
-        readonly property string cover: root.coverFor(game)
+        readonly property string cover: root.artFor(game, "boxArt")
         height: 54
         radius: Appearance.rounding.normal
         color: rowHover.hovered && game ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
@@ -481,51 +491,42 @@ LauncherTopPanel {
         }
     }
 
-    // Pause, resume, download now or try again (root.actionFor): a squircle, the accent one when it starts something
-    component ActionButton: RippleButton {
-        id: action
+    // Pause, resume, download now or try again (root.actionFor): the accent squircle when it starts something
+    component ActionButton: SquircleButton {
         property var row: null
-        property bool large: false
         readonly property var act: root.actionFor(row)
-        readonly property bool busy: !!GameLauncherService.downloadControlPending[row?.appid] || !!GameLauncherService.downloadControlPending["all"]
         visible: act !== null
-        enabled: !busy
-        width: large ? 40 : 34; height: width; padding: 0
-        buttonRadius: Appearance.rounding.small
-        colBackground: act?.primary ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
-        colBackgroundHover: act?.primary ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer2Hover
+        enabled: !root.busy(row?.appid)
+        primary: act?.primary ?? false
+        symbol: enabled ? act?.icon ?? "" : "more_horiz"
+        tip: (act?.tip ?? "") + (root.canControl ? "" : Translation.tr(" (opens Steam)"))
         onClicked: GameLauncherService.controlDownload(act.verb, act.verb === "resume" ? row.appid : undefined)
-        contentItem: Item {
-            MaterialSymbol {
-                anchors.centerIn: parent
-                text: action.busy ? "more_horiz" : action.act?.icon ?? ""
-                iconSize: action.large ? 22 : 20
-                fill: 1
-                color: action.act?.primary ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
-            }
-        }
-        StyledToolTip { text: (action.act?.tip ?? "") + (root.canControl ? "" : Translation.tr(" (opens Steam)")) }
     }
 
-    // A secondary squircle beside a row's main button, the same size: neutral, red on hover when it removes
+    // A row's button: a neutral squircle (the accent one when primary), red on hover when it removes
     component SquircleButton: RippleButton {
         id: squircle
         property string symbol
         property string tip
         property bool large: false
+        property bool primary: false
         property bool danger: false
         anchors.verticalCenter: parent?.verticalCenter
         width: large ? 40 : 34; height: width; padding: 0
         buttonRadius: Appearance.rounding.small
-        colBackground: Appearance.colors.colLayer2
-        colBackgroundHover: danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.8) : Appearance.colors.colLayer2Hover
-        colRipple: danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.7) : Appearance.colors.colLayer2Active
+        colBackground: primary ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
+        colBackgroundHover: primary ? Appearance.colors.colPrimaryHover
+            : danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.8) : Appearance.colors.colLayer2Hover
+        colRipple: primary ? Appearance.colors.colPrimaryActive
+            : danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.7) : Appearance.colors.colLayer2Active
         contentItem: Item {
             MaterialSymbol {
                 anchors.centerIn: parent
                 text: squircle.symbol
                 iconSize: squircle.large ? 22 : 20
-                color: squircle.danger && squircle.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer2
+                fill: 1
+                color: squircle.primary ? Appearance.colors.colOnPrimary
+                    : squircle.danger && squircle.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer2
                 Behavior on color { ColorAnimation { duration: 120 } }
             }
         }
@@ -540,9 +541,8 @@ LauncherTopPanel {
         property bool headOfQueue: false
         readonly property bool removable: !(row?.installing ?? true)
             && ["downloading", "queued", "scheduled", "paused", "error", "suspended"].includes(row?.state ?? "")
-        readonly property bool busy: !!GameLauncherService.downloadControlPending[row?.appid] || !!GameLauncherService.downloadControlPending["all"]
         visible: removable
-        enabled: !busy
+        enabled: !root.busy(row?.appid)
         symbol: "close"
         danger: true
         tip: Translation.tr("Remove from the queue") + (root.canControl ? "" : Translation.tr(" (opens Steam)"))

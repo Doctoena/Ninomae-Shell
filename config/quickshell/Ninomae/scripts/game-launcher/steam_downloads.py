@@ -165,7 +165,7 @@ class Downloads:
         self.progress[appid] = (key, value)
         return value
 
-    def _manifest(self, path):
+    def _manifest(self, path, appid):
         """(mtime, name, StateFlags, BytesToDownload) of an appmanifest, or None if it's gone"""
         try:
             mtime = os.path.getmtime(path)
@@ -174,8 +174,8 @@ class Downloads:
                 return cached
             text = open(path, encoding="utf-8", errors="replace").read()
         except OSError:
+            self.manifests.pop(path, None)
             return None
-        appid = re.search(r"(\d+)\.acf$", path)[1]
         info = (mtime, field(text, "name") or appid, int(field(text, "StateFlags") or 0), int(field(text, "BytesToDownload") or 0))
         self.manifests[path] = info
         return info
@@ -192,7 +192,7 @@ class Downloads:
         for lib in libraries():
             for path in glob.glob(os.path.join(lib, "steamapps", "appmanifest_*.acf")):
                 appid = re.search(r"(\d+)\.acf$", path)[1]
-                info = self._manifest(path)
+                info = self._manifest(path, appid)
                 if not info:
                     continue
                 mtime, names[appid], flags, to_download = info
@@ -227,11 +227,13 @@ class Downloads:
                 if state == "downloading" and current is None:
                     current = item
         items.sort(key=lambda i: (ORDER.index(i["state"]), i["delayUntil"], i["name"].lower()))
+        listed = {i["appid"] for i in items}
+        self.progress = {a: p for a, p in self.progress.items() if a in listed}  # Forget the ones that left
         self._measure(current, now)
         if current and self.rate > 0 and current["toDownload"] > 0 and current["progress"] >= 0:
             current["eta"] = round(current["toDownload"] * (1 - current["progress"]) / self.rate)
         done = sorted(((a, t) for a, t in self.log.finished.items() if now - t < 86400 and a in names
-                       and not any(i["appid"] == a for i in items)), key=lambda x: -x[1])[:8]
+                       and a not in listed), key=lambda x: -x[1])[:8]
         return {
             "steamRunning": self.steam,
             "remoteControl": self.port,
