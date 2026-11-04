@@ -809,14 +809,19 @@ Singleton {
     // holds a snapshot). 4 = fully installed, 2 = update required, 2048 = uninstalling; the rest of
     // the "busy" bits mean a download, update or validation is running
     readonly property int _busyFlags: 256 | 1024 | 131072 | 262144 | 524288 | 1048576 | 2097152 | 4194304
-    // Steam's own pause bit only covers one paused by hand: the downloads feed also knows the ones held
-    // (the whole queue paused, a game running), stopped by an error, or waiting for Steam to start.
-    // appid → true, while the launcher is open (the feed runs then, and so do the labels that use it)
-    readonly property var _heldDownloads: {
-        const held = {};
-        for (const i of downloadItems)
-            if (["paused", "suspended", "error", "stopped"].includes(i.state)) held[i.appid] = true;
-        return held;
+    // What a download is waiting on, from the downloads feed: "held" (paused, the whole queue paused, a game
+    // running, stopped by an error, or Steam not running: Steam's own pause bit only covers one paused by
+    // hand) or "queued" (in line, or scheduled for later). appid → that, while the launcher is open (the
+    // feed runs then, and so do the labels that use it). Replaced only when it changes: the feed sends a new
+    // speed every second while something downloads, and every game tile's state reads this
+    property var _waitingDownloads: ({})
+    onDownloadItemsChanged: {
+        const waiting = {};
+        for (const i of downloadItems) {
+            if (["paused", "suspended", "error", "stopped"].includes(i.state)) waiting[i.appid] = "held";
+            else if (["queued", "scheduled"].includes(i.state)) waiting[i.appid] = "queued";
+        }
+        if (JSON.stringify(waiting) !== JSON.stringify(_waitingDownloads)) _waitingDownloads = waiting;
     }
     function installState(gameOrId) {
         const id = typeof gameOrId === "string" ? gameOrId : gameOrId?.id;
@@ -828,16 +833,17 @@ Singleton {
         if (!g || flags === 0) return "notInstalled";
         if (!g.id.startsWith("steam_")) return "installed"; // Lutris: present means installed
         if (flags & 2048) return "uninstalling";
-        const held = (flags & 512) || !!root._heldDownloads[id.substring(6)]; // 512: Steam's "UpdatePaused" bit
-        if (!(flags & 4)) return held ? "installPaused" : "installing";
-        if (held) return "updatePaused";
+        const waiting = (flags & 512) ? "held" : root._waitingDownloads[id.substring(6)]; // 512: Steam's "UpdatePaused" bit
+        if (!(flags & 4)) return waiting === "held" ? "installPaused" : waiting === "queued" ? "installQueued" : "installing";
+        if (waiting === "held") return "updatePaused";
+        if (waiting === "queued") return "updateQueued";
         if (flags & root._busyFlags) return "updating";
         if (flags & 2) return "updateRequired";
         return "installed";
     }
     function isGameInstalled(gameId) {
         const state = root.installState(gameId);
-        return state === "installed" || state === "updateRequired" || state === "updatePaused" || state === "updating";
+        return ["installed", "updateRequired", "updatePaused", "updateQueued", "updating"].includes(state);
     }
     // The steamapps folder of the library a Steam game is in (from <library>/steamapps/common/<dir>), or ""
     function _steamappsDir(game) {

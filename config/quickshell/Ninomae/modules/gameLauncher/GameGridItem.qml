@@ -197,6 +197,8 @@ Item {
                 case "updatePaused":   return { icon: "downloading", text: Translation.tr("Update"), tip: Translation.tr("Update paused"), color: Appearance.colors.colPrimary };
                 case "installing":     return { icon: "download", text: Translation.tr("Installing"), tip: Translation.tr("Game is installing"), color: Appearance.colors.colSecondary };
                 case "installPaused":  return { icon: "pause_circle", text: Translation.tr("Paused"), tip: Translation.tr("Install paused"), color: Appearance.colors.colSecondary };
+                case "installQueued":  return { icon: "schedule", text: Translation.tr("Queued"), tip: Translation.tr("Waiting in Steam's download queue"), color: Appearance.colors.colSecondary };
+                case "updateQueued":   return { icon: "schedule", text: Translation.tr("Update"), tip: Translation.tr("Update queued"), color: Appearance.colors.colPrimary };
                 case "updating":       return { icon: "download", text: Translation.tr("Updating"), tip: Translation.tr("Game is updating"), color: Appearance.colors.colSecondary };
                 case "installed":
                     if (GameLauncherService.workshopDownloading[game?.id])
