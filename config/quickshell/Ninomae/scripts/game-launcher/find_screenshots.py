@@ -6,7 +6,7 @@ non-Steam game without a screenshots folder). For a Steam game that's Steam's F1
 exist yet (the button makes it). The time lets the gallery merge them with the game's
 Immich album and group them by day; the size lays them out at their own shape (0 when unreadable).
 
-Usage: find_screenshots.py <steam app id or ""> <game folder or ""> <flatpak id or "">
+Usage: find_screenshots.py <steam app id or ""> <game folder or ""> <flatpak id or ""> [<game name>]
   - Steam: what F12 saved, in every Steam account's userdata/<account>/760/remote/<app id>/screenshots
   - The game's own folders named "screenshots" (any case) in its install folder, and for a Flatpak
     game in its sandboxed data (~/.var/app/<id>), where e.g. Minecraft-style games keep them
@@ -14,6 +14,7 @@ Sizes come from the files' headers (PNG, JPEG, WebP, BMP), so nothing is decoded
 """
 import glob
 import os
+import re
 import struct
 import sys
 
@@ -70,8 +71,30 @@ def screenshot_dirs(root):
                 yield os.path.join(path, d)
 
 
+def shell_folder(name):
+    """Where the shell saves a game's screenshots when it has no other place (game_screenshot.sh):
+    <Pictures>/Screenshots/<the name made safe as a folder name>"""
+    safe = re.sub(r"[\x00-\x1f]", "", name).replace("/", "-").strip(". ") or "Game"
+    return os.path.join(pictures_dir(), "Screenshots", safe)
+
+
+def pictures_dir():
+    """The Pictures folder, as xdg-user-dir PICTURES says, read from user-dirs.dirs (no process to start)"""
+    home = os.path.expanduser("~")
+    path = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config"), "user-dirs.dirs")
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r'\s*XDG_PICTURES_DIR\s*=\s*"(.*)"', line)
+                if m:
+                    return m[1].replace("$HOME", home)
+    except OSError:
+        pass
+    return os.path.join(home, "Pictures")
+
+
 def main():
-    appid, game_dir, flatpak_id = (sys.argv[1:] + ["", "", ""])[:3]
+    appid, game_dir, flatpak_id, name = (sys.argv[1:] + ["", "", "", ""])[:4]
     dirs = []
     if appid:
         dirs += [d for d in glob.glob(os.path.expanduser(f"~/.local/share/Steam/userdata/*/760/remote/{appid}/screenshots")) if os.path.isdir(d)]
@@ -80,6 +103,10 @@ def main():
         roots.append(os.path.expanduser(f"~/.var/app/{flatpak_id}"))
     for root in roots:
         dirs += screenshot_dirs(root)
+    # The shell's own for the game (a game that's not Steam's and has no screenshots folder of its own)
+    own = shell_folder(name) if name and not appid else ""
+    if own and os.path.isdir(own):
+        dirs.append(own)
 
     # Where they go: one that exists, else Steam's for the account used last (its userdata folder is
     # the most recently changed one)
@@ -89,6 +116,7 @@ def main():
         if accounts:
             account = max(accounts, key=os.path.getmtime)
             folder = os.path.join(account, "760", "remote", appid, "screenshots")
+    folder = folder or own
     print(f"folder\t{folder}")
 
     found = []

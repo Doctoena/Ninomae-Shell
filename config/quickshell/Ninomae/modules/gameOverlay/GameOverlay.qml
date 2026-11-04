@@ -226,7 +226,7 @@ Scope {
             Process {
                 running: GameClips.gameStarted > 0
                 command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/find_screenshots.py"),
-                          GameClips.gameAppId, root.game?.gameDir ?? "", root.game?.flatpakId ?? ""]
+                          GameClips.gameAppId, root.game?.gameDir ?? "", root.game?.flatpakId ?? "", GameClips.game]
                 stdout: StdioCollector {
                     onStreamFinished: {
                         const lines = text.split("\n").filter(l => l);

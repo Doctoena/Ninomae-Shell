@@ -106,7 +106,8 @@ LauncherTopPanel {
     }
     Process {
         id: finder
-        command: [Quickshell.shellPath("scripts/game-launcher/find_screenshots.py"), root.appid, root.game?.gameDir || "", root.game?.flatpakId || ""]
+        command: [Quickshell.shellPath("scripts/game-launcher/find_screenshots.py"), root.appid, root.game?.gameDir || "", root.game?.flatpakId || "",
+                  root.game?.name || ""] // The name: where the shell saves a non-Steam game's (game_screenshot.sh)
         stdout: StdioCollector {
             onStreamFinished: {
                 const folderLine = text.split("\n").find(l => l.startsWith("folder\t"));
@@ -502,8 +503,7 @@ LauncherTopPanel {
                 id: howToTile
                 CaptureAddTile {
                     icon: "add_a_photo"
-                    text: root.appid !== "" ? Translation.tr("Press F12 while playing to take one")
-                        : Translation.tr("Screenshots the game saves in its own folders show up here")
+                    text: Translation.tr("Press F12 while playing to take one")
                 }
             }
             Component {

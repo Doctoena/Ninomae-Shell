@@ -223,6 +223,19 @@ Singleton {
         description: "Saves the last seconds of gameplay while a game runs"
         onPressed: root.save()
     }
+    // F12 (config/hypr/hyprland/keybinds.lua, passed on to the game too): a screenshot of a game that isn't
+    // Steam's, as Steam's F12 does for its own (it still does: this leaves those to it). Saved with the game's
+    // screenshots (game_screenshot.sh), so it's on its page's Captures
+    GlobalShortcut {
+        name: "gameScreenshot"
+        description: "Takes a screenshot of a running game that isn't Steam's"
+        onPressed: {
+            if (root.game === "" || root.gameAppId !== "") return;
+            const g = GameLauncherService.games.find(x => x.id === root.gameId);
+            Quickshell.execDetached([Quickshell.shellPath("scripts/game-launcher/game_screenshot.sh"),
+                Hyprland.focusedMonitor?.name ?? "", root.game, "", g?.gameDir ?? "", g?.flatpakId ?? ""]);
+        }
+    }
     IpcHandler {
         target: "clips"
         function save(): void { root.save(); }
