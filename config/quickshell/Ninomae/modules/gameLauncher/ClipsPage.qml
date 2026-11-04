@@ -10,7 +10,7 @@ import Quickshell.Widgets
 
 /**
  * The Screenshots sheet's Clips page: the game's saved gameplay clips (services/GameClips.qml puts them
- * in <clips folder>/<game>/), newest first in a grid of 16:9 tiles with their length; clicking one plays
+ * in <clips folder>/<game>/), newest first in a grid of 16:9 tiles (CaptureGrid) with their length; clicking one plays
  * it in the sheet. scripts/clips/list_clips.py lists them and makes the thumbnails (cached).
  * Keys (from ScreenshotsPanel.handleKey): on the grid the arrows move a ring and Enter plays; in the player
  * Space plays/pauses, ←/→ jump 5 s, Page Up/Down go to the previous/next clip, Esc goes back to the grid.
@@ -234,40 +234,34 @@ Item {
     function sizeLabel(bytes) { return bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB" : Math.round(bytes / 1e6) + " MB"; }
 
     // ── Grid ──
-    GridView {
+    CaptureGrid { // As the Screenshots page's
         id: grid
         anchors { fill: parent; topMargin: 14 - pad; leftMargin: 20 - pad; rightMargin: 20 - pad }
-        topMargin: pad; bottomMargin: 16
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
         visible: !root.viewing && root.clips.length > 0
-        readonly property int pad: 4
-        readonly property int gap: 8
-        readonly property int columns: 4
-        cellWidth: Math.floor((width - pad * 2) / columns)
-        cellHeight: Math.round((cellWidth - gap) * 9 / 16) + gap
-        leftMargin: pad
-        model: root.clips.length > 0 ? root.clips.concat([null]) : [] // Last, how to save more (CaptureAddTile)
+        model: root.clips.length > 0 ? root.clips.concat([null]) : [] // Last, how to save more (null)
         delegate: Item {
             id: cell
             required property var modelData
             required property int index
             width: grid.cellWidth; height: grid.cellHeight
-            CaptureAddTile {
+            Loader { // Only the tile it shows
                 anchors { fill: parent; rightMargin: grid.gap; bottomMargin: grid.gap }
-                visible: cell.modelData === null
-                icon: "movie"
-                text: root.howTo
+                sourceComponent: cell.modelData === null ? howToTile : clipTile
             }
-            ClipTile {
-                visible: cell.modelData !== null
-                anchors { fill: parent; rightMargin: grid.gap; bottomMargin: grid.gap }
-                clipData: cell.modelData ?? ({}) // The last cell is the how-to tile
-                order: grid.atYBeginning ? cell.index : 0
-                current: root.keyboardNav && cell.index === root.gridIndex
-                onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; }
-                onClicked: root.playerIndex = cell.index
-                onRightClicked: root.copyClip(cell.modelData.path)
+            Component {
+                id: howToTile
+                CaptureAddTile { icon: "movie"; text: root.howTo }
+            }
+            Component {
+                id: clipTile
+                ClipTile {
+                    clipData: cell.modelData
+                    order: grid.atYBeginning ? cell.index : 0
+                    current: root.keyboardNav && cell.index === root.gridIndex
+                    onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; }
+                    onClicked: root.playerIndex = cell.index
+                    onRightClicked: root.copyClip(cell.modelData.path)
+                }
             }
         }
     }

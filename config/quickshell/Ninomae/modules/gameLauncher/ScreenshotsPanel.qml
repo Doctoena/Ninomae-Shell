@@ -131,7 +131,6 @@ LauncherTopPanel {
     // the URL would land in proxies' access logs
     property var _fetched: ({}) // asset id -> path
     function sourceFor(entry) {
-        if (!entry) return ""; // The grid's how-to cell
         if (!isRemote(entry)) return "file://" + entry;
         const path = _fetched[entry.substring(7)];
         return path ? "file://" + path : "";
@@ -483,46 +482,40 @@ LauncherTopPanel {
         }
     }
 
-    // ── Grid: the shots in 16:9 tiles, four across, as the Clips page's (shots of another shape are cropped
-    //    to fill theirs; the viewer shows them whole) ──
-    GridView {
+    // ── Grid: the shots in 16:9 tiles, four across, as the Clips page's (CaptureGrid; shots of another shape
+    //    are cropped to fill theirs, the viewer shows them whole) ──
+    CaptureGrid {
         id: gallery
-        // Wider than the shots by `pad` on each side, so the clip doesn't cut the edge columns' hover ring
-        // (and above the first row: topMargin)
         anchors { top: header.bottom; topMargin: 14 - pad; bottom: parent.bottom; left: rail.right; right: parent.right; leftMargin: 14 - pad; rightMargin: 20 - pad }
-        topMargin: pad
-        bottomMargin: 16
-        leftMargin: pad
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
         visible: root.onShots && !root.viewing && root.paths.length > 0
-        readonly property int pad: 4 // Room for Tile's ring (3 px outside it)
-        readonly property int gap: 8
-        readonly property int columns: 4 // As ClipsPage's grid
-        cellWidth: Math.floor((width - pad * 2) / columns)
-        cellHeight: Math.round((cellWidth - gap) * 9 / 16) + gap
-        model: root.paths.length > 0 ? root.paths.concat([""]) : [] // Last, how to take more (CaptureAddTile)
+        model: root.paths.length > 0 ? root.paths.concat([""]) : [] // Last, how to take more ("")
         delegate: Item {
             id: cell
             required property var modelData
             required property int index
             width: gallery.cellWidth; height: gallery.cellHeight
-            CaptureAddTile {
+            Loader { // Only the tile it shows
                 anchors { fill: parent; rightMargin: gallery.gap; bottomMargin: gallery.gap }
-                visible: cell.modelData === ""
-                icon: "add_a_photo"
-                text: root.appid !== "" ? Translation.tr("Press F12 while playing to take one")
-                    : Translation.tr("Screenshots the game saves in its own folders show up here")
+                sourceComponent: cell.modelData === "" ? howToTile : shotTile
             }
-            Tile {
-                anchors { fill: parent; rightMargin: gallery.gap; bottomMargin: gallery.gap }
-                visible: cell.modelData !== ""
-                entry: cell.modelData
-                current: root.keyboardNav && cell.index === root.gridIndex
-                order: gallery.atYBeginning ? cell.index : 0 // Scrolled to: no wait
-                onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; } // Keys go on from here
-                onClicked: root.viewerIndex = cell.index
-                onRightClicked: root.copyEntry(cell.modelData)
+            Component {
+                id: howToTile
+                CaptureAddTile {
+                    icon: "add_a_photo"
+                    text: root.appid !== "" ? Translation.tr("Press F12 while playing to take one")
+                        : Translation.tr("Screenshots the game saves in its own folders show up here")
+                }
+            }
+            Component {
+                id: shotTile
+                Tile {
+                    entry: cell.modelData
+                    current: root.keyboardNav && cell.index === root.gridIndex
+                    order: gallery.atYBeginning ? cell.index : 0 // Scrolled to: no wait
+                    onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; } // Keys go on from here
+                    onClicked: root.viewerIndex = cell.index
+                    onRightClicked: root.copyEntry(cell.modelData)
+                }
             }
         }
     }

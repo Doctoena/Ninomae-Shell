@@ -11,7 +11,6 @@ Item {
     id: root
     property string icon
     property string text
-    property string hint
 
     Canvas { // The dashed outline (QML's borders are solid)
         id: outline
@@ -54,15 +53,6 @@ Item {
             wrapMode: Text.Wrap
             font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium
             color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.3)
-        }
-        StyledText {
-            width: parent.width
-            visible: root.hint !== ""
-            horizontalAlignment: Text.AlignHCenter
-            text: root.hint
-            wrapMode: Text.Wrap
-            font.pixelSize: Appearance.font.pixelSize.smallest
-            color: Appearance.colors.colSubtext
         }
     }
 }

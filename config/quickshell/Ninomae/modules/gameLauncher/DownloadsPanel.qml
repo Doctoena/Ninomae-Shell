@@ -4,7 +4,6 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
-import QtQuick.Effects
 import Quickshell
 import Quickshell.Widgets
 
@@ -191,69 +190,22 @@ LauncherTopPanel {
             }
 
             // ── The banner: the download that's going, or the one stopped ──
-            ClippingRectangle {
+            ArtBanner {
                 id: banner
                 readonly property var row: root.featured
-                readonly property var game: root.gameFor(row?.appid)
                 readonly property bool live: row?.state === "downloading"
                 readonly property bool failed: row?.state === "error"
-                readonly property string hero: GameLauncherService.bannerArt(game) // Else the cover, blurred
-                readonly property string cover: GameLauncherService.localArt(game, "boxArt")
+                game: root.gameFor(row?.appid)
+                coverIcon: game ? "sports_esports" : "build" // Steam's runtimes and Proton have no art
+                shadeMid: 0.8; shadeEnd: 0.62
                 width: parent.width
                 height: 118
                 visible: row !== null
-                radius: Appearance.rounding.normal
-                color: Appearance.colors.colLayer1
-
-                Image { // The art: sharp hero art, else the cover blurred
-                    anchors.fill: parent
-                    source: banner.hero || banner.cover
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    sourceSize.width: banner.hero ? Math.ceil(banner.width * Screen.devicePixelRatio) : 240
-                    visible: status === Image.Ready
-                    layer.enabled: visible && !banner.hero
-                    layer.effect: MultiEffect { blurEnabled: true; blur: 1.0; blurMax: 32; saturation: 0.35 }
-                }
-                Rectangle { // Shade for the text, darkest behind it (the background colour can be translucent: made solid)
-                    id: shade
-                    anchors.fill: parent
-                    readonly property color base: Appearance.m3colors.m3background
-                    function at(a) { return Qt.rgba(base.r, base.g, base.b, a); }
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: shade.at(0.9) }
-                        GradientStop { position: 0.55; color: shade.at(0.8) }
-                        GradientStop { position: 1.0; color: shade.at(0.62) }
-                    }
-                }
                 TapHandler { enabled: !!banner.game; onTapped: root.openGame(banner.game) }
                 HoverHandler { cursorShape: banner.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
 
-                ClippingRectangle {
-                    id: bannerCover
-                    anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                    width: 63; height: 84
-                    radius: Appearance.rounding.small
-                    color: Appearance.colors.colLayer2
-                    Image {
-                        anchors.fill: parent
-                        source: banner.cover
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        sourceSize: Qt.size(126, 168)
-                    }
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        visible: banner.cover === ""
-                        text: banner.game ? "sports_esports" : "build"
-                        iconSize: 24
-                        color: Appearance.colors.colPrimary
-                    }
-                }
-
                 Column {
-                    anchors { left: bannerCover.right; leftMargin: 16; right: bannerSide.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                    anchors { left: banner.coverItem.right; leftMargin: 16; right: bannerSide.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
                     spacing: 6
                     StyledText {
                         width: parent.width

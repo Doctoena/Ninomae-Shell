@@ -3,7 +3,6 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
-import QtQuick.Effects
 import Quickshell.Widgets
 
 /**
@@ -125,63 +124,17 @@ LauncherTopPanel {
     }
 
     // ── Banner: the game's art, how far you are, and the highlights ──
-    ClippingRectangle {
+    ArtBanner {
         id: banner
-        readonly property string hero: GameLauncherService.bannerArt(root.game) // Else the cover, blurred
-        readonly property string cover: GameLauncherService.localArt(root.game, "boxArt")
+        game: root.game
+        coverIcon: "emoji_events"
+        shadeMid: 0.72; shadeEnd: 0.55 // Lighter on the right: the highlights carry their own card
         anchors { top: header.bottom; topMargin: 14; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
         height: root.total > 0 ? 112 : 0
         visible: root.total > 0
-        radius: Appearance.rounding.normal
-        color: Appearance.colors.colLayer1
-
-        Image {
-            anchors.fill: parent
-            source: banner.hero || banner.cover
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            sourceSize.width: banner.hero ? Math.ceil(banner.width * Screen.devicePixelRatio) : 240
-            visible: status === Image.Ready
-            layer.enabled: visible && !banner.hero
-            layer.effect: MultiEffect { blurEnabled: true; blur: 1.0; blurMax: 32; saturation: 0.35 }
-        }
-        Rectangle { // Shade for the text on both sides (the background colour can be translucent: made solid)
-            id: shade
-            anchors.fill: parent
-            readonly property color base: Appearance.m3colors.m3background
-            function at(a) { return Qt.rgba(base.r, base.g, base.b, a); }
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: shade.at(0.9) }
-                GradientStop { position: 0.5; color: shade.at(0.72) }
-                GradientStop { position: 1.0; color: shade.at(0.55) }
-            }
-        }
-
-        ClippingRectangle { // The cover, as the Downloads banner's
-            id: bannerCover
-            anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-            width: 60; height: 80
-            radius: Appearance.rounding.small
-            color: Appearance.colors.colLayer2
-            Image {
-                anchors.fill: parent
-                source: banner.cover
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                sourceSize: Qt.size(120, 160)
-            }
-            MaterialSymbol {
-                anchors.centerIn: parent
-                visible: banner.cover === ""
-                text: "emoji_events"
-                iconSize: 24; fill: 1
-                color: Appearance.colors.colPrimary
-            }
-        }
 
         Column { // How far: the percentage, the count, the bar
-            anchors { left: bannerCover.right; leftMargin: 18; right: highlightRow.left; rightMargin: 36; verticalCenter: parent.verticalCenter }
+            anchors { left: banner.coverItem.right; leftMargin: 18; right: highlightRow.left; rightMargin: 36; verticalCenter: parent.verticalCenter }
             spacing: 4
             StyledText {
                 text: root.unlockedCount === root.total ? Translation.tr("All unlocked")
