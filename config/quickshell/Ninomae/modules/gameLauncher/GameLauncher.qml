@@ -40,6 +40,8 @@ Scope {
         function showTags(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("tags"); }
         // Steam's downloads: `qs -c Ninomae ipc call gameLauncher showDownloads`
         function showDownloads(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("downloads"); }
+        // The library's stats page: `qs -c Ninomae ipc call gameLauncher showStats`
+        function showStats(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("stats"); }
         // The launch drawer for a game, without starting it: steps through every state and ends on
         // "Launched", or on a failure when the query ends in "!" (`previewSplash "Cyberpunk!"`)
         function previewSplash(query: string): void {
@@ -185,9 +187,9 @@ Scope {
                 }
                 function onShowGridPanelRequested(panel) {
                     if (!root.monitorIsFocused) return;
-                    root.showingStats = false;
                     root.showingDetails = false;
-                    root.gridPanel = panel;
+                    root.showingStats = panel === "stats"; // A page of its own, not one of the grid's panels
+                    root.gridPanel = panel === "stats" ? "" : panel;
                 }
             }
             property string openOnShow: "" // From the IPC calls: one of the page's panelTypes
@@ -1258,6 +1260,13 @@ Scope {
                                 onBackPressed: root.showingStats = false
                                 onGameSelected: function(game) {
                                     root.showingStats = false;
+                                    root.selectedGame = game;
+                                    root.showingDetails = true;
+                                }
+                                onCapturesSelected: function(game, page) { // Its Captures, on that page
+                                    GameLauncherService.screenshotsPage = page;
+                                    root.showingStats = false;
+                                    root.openOnShow = "screenshots";
                                     root.selectedGame = game;
                                     root.showingDetails = true;
                                 }

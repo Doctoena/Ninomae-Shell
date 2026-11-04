@@ -16,6 +16,7 @@ ClippingRectangle {
     property string coverIcon: "sports_esports"
     property real shadeMid: 0.78 // The shade's opacity in the middle and at the right edge
     property real shadeEnd: 0.6
+    property real coverInset: 0 // Room left of the cover, for something of the panel's own (the stats page's back button)
     readonly property string hero: GameLauncherService.bannerArt(game)
     readonly property string cover: GameLauncherService.localArt(game, "boxArt")
     readonly property alias coverItem: coverBox
@@ -28,7 +29,9 @@ ClippingRectangle {
         source: root.hero || root.cover
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
-        sourceSize.width: root.hero ? Math.ceil(root.width * Screen.devicePixelRatio) : 240
+        // In steps, as the game page's banner: a decode size following the width exactly decodes it again as
+        // the panel resizes, which flickers
+        sourceSize.width: root.hero ? Math.ceil(root.width * Screen.devicePixelRatio / 256) * 256 : 240
         visible: status === Image.Ready
         layer.enabled: visible && !root.hero
         layer.effect: MultiEffect { blurEnabled: true; blur: 1.0; blurMax: 32; saturation: 0.35 }
@@ -47,8 +50,8 @@ ClippingRectangle {
     }
     ClippingRectangle {
         id: coverBox
-        anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-        height: Math.min(84, root.height - 28); width: Math.round(height * 3 / 4)
+        anchors { left: parent.left; leftMargin: (root.height < 100 ? 12 : 16) + root.coverInset; verticalCenter: parent.verticalCenter }
+        height: Math.min(84, root.height - 24); width: Math.round(height * 3 / 4)
         radius: Appearance.rounding.small
         color: Appearance.colors.colLayer2
         Image {

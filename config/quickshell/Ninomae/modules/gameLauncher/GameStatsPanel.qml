@@ -8,15 +8,19 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
 
-// Library statistics, in the shell's squircle style: headline tiles (playtime, games played, installed, disk,
-// ProtonDB of the whole library), then Most played · Recently played · Storage as cards that scroll inside
-// the launcher's short, wide panel. Every game row opens that game's details.
+// Library statistics: a banner of the art of what you've played most lately (else of all time) with the hours you've played (and the
+// installed size, the last two weeks and the library's ProtonDB on a card over it), then four cards that
+// scroll inside the launcher's short, wide panel: Recently played as covers, Most played, Storage (what's
+// downloading, every install, the drives' free room, what uninstalled games left) and Captures (the
+// library's newest screenshot or clip large, the next four under it, opening their game's Captures).
+// Every game opens its details.
 Item {
     id: root
     signal backPressed()
     signal gameSelected(var game)
+    signal capturesSelected(var game, string page) // A capture's game, on its Captures (page: shots or clips)
     property bool animationReady: false
-    Component.onCompleted: { _animTimer.start(); _readDiskSizes(); _recompute(); }
+    Component.onCompleted: { _animTimer.start(); _readDiskSizes(); _recompute(); _syncDownloads(); }
     Timer { id: _animTimer; interval: 50; onTriggered: root.animationReady = true }
 
     // ─── Helpers ──────────────────────────────────────────────
@@ -105,6 +109,73 @@ Item {
         return GameLauncherService.games.find(g => g.id === "steam_" + e.appid) ?? { name: e.name, _placeholder: true };
     }
 
+    // The library's screenshots and clips (scripts/game-launcher/library_captures.py): counts, room, the newest
+    property var _captures: null
+    Process {
+        running: true
+        command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/library_captures.py"),
+                  GameClips.clipsDir, `${GameLauncherService.cacheDir}/clip-thumbs`]
+        stdout: StdioCollector { onStreamFinished: { try { root._captures = JSON.parse(text); } catch (e) {} } }
+    }
+    // A capture's game: Steam's by its app id, a clip's by its folder (the game's name made safe)
+    function _captureGame(c) {
+        if (c.kind === "shot") return GameLauncherService.games.find(g => g.id === "steam_" + c.appid) ?? null;
+        return GameLauncherService.games.find(g => GameClips.folderFor(g.name) === `${GameClips.clipsDir}/${c.game}`) ?? null;
+    }
+    // Free room on the drives Steam's libraries are on (launch_options.py libraries), each drive once
+    property real _freeBytes: -1
+    Process {
+        running: true
+        command: ["python3", "-I", root._helper, "libraries"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let libs = []; try { libs = JSON.parse(text); } catch (e) {}
+                const drives = {};
+                for (const l of libs) drives[`${l.free}:${l.size}`] = l.free; // Same numbers: the same drive
+                const free = Object.values(drives);
+                root._freeBytes = free.length > 0 ? free.reduce((t, f) => t + f, 0) : -1;
+            }
+        }
+    }
+    // What Steam is downloading for the library's games (the Downloads panel's feed), for Storage's top: which
+    // ones, replaced only when that changes (the feed sends new numbers every second while one downloads, and
+    // a new list would rebuild every row and reload its cover). Each row reads its live numbers (_downloadItem)
+    property var _downloads: [] // [{ appid, game }]
+    Connections {
+        target: GameLauncherService
+        function onActiveDownloadsChanged() { root._syncDownloads(); }
+    }
+    function _syncDownloads() {
+        const next = GameLauncherService.activeDownloads.map(d => ({ appid: d.appid, game: GameLauncherService._installedGamesMap["steam_" + d.appid] ?? null }))
+            .filter(d => d.game);
+        if (next.map(d => d.appid).join() !== _downloads.map(d => d.appid).join()) _downloads = next;
+    }
+    function _downloadItem(appid) { return GameLauncherService.activeDownloads.find(d => d.appid === appid) ?? null; }
+    function _downloadText(d) {
+        const pct = d.progress >= 0 ? ` · ${Math.floor(d.progress * 100)}%` : "";
+        const what = d.state === "downloading" ? (d.installing ? Translation.tr("Installing") : Translation.tr("Updating"))
+            : ["queued", "scheduled"].includes(d.state) ? Translation.tr("Queued") : Translation.tr("Paused");
+        return what + pct;
+    }
+
+    // The cards' models: changed only when their list is a new one (see _recompute's keep)
+    property var _recentRows: []
+    property var _mostRows: []
+    property var _storageRows: [] // Downloads ({ appid, game }) first, then the installs ({ game, size })
+    on_StatsChanged: {
+        if (_recentRows !== (_stats?.recent ?? _recentRows)) _recentRows = _stats.recent;
+        if (_mostRows !== (_stats?.mostPlayed ?? _mostRows)) _mostRows = _stats.mostPlayed;
+        _syncStorage();
+    }
+    on_DownloadsChanged: _syncStorage()
+    property var _storageFor: [null, null] // The two lists _storageRows was made from
+    function _syncStorage() {
+        const biggest = _stats?.biggest ?? [];
+        if (_storageFor[0] === _downloads && _storageFor[1] === biggest) return;
+        _storageFor = [_downloads, biggest];
+        _storageRows = _downloads.concat(biggest);
+    }
+
     // Everything below comes from one pass over the library, redone (debounced) when anything it reads changes
     property var _stats: null
     Timer { id: _statsDebounce; interval: 80; onTriggered: root._recompute() }
@@ -147,14 +218,20 @@ Item {
             rows.push({ game: g, minutes: minutes, recentMin: recentMin, last: last, size: size,
                         sessionMin: lastSession ? Math.round(lastSession.duration / 60000) : -1 });
         }
-        const mostPlayed = _top(rows.filter(r => r.minutes > 0), "minutes", 10);
-        const recent = _top(rows.filter(r => r.last > 0), "last", 10);
-        const biggest = _top(rows.filter(r => r.size > 0), "size", Infinity); // Every install: Storage scrolls
+        // The lists: the same arrays as last time while their rows are the same (a new one rebuilds every row and
+        // reloads its cover, and this runs a few times as the page opens: sizes, sessions, the library)
+        const prev = root._stats;
+        const keep = (old, next, key) => old && old.length === next.length && old.every((r, i) => key(r) === key(next[i])) ? old : next;
+        const mostPlayed = keep(prev?.mostPlayed, _top(rows.filter(r => r.minutes > 0), "minutes", 10), r => `${r.game.id}:${r.minutes}`);
+        const recent = keep(prev?.recent, _top(rows.filter(r => r.last > 0), "last", 10), r => `${r.game.id}:${r.last}:${r.recentMin}:${r.sessionMin}`);
+        const biggest = keep(prev?.biggest, _top(rows.filter(r => r.size > 0), "size", Infinity), r => `${r.game.id}:${r.size}`); // Every install: Storage scrolls
         const tierTotal = tierGames || 1;
         root._stats = {
             totalMin, total: games.length, installed, played, backlog, diskTotal, tierGames, recentTotalMin, recentGames,
             averageMin: played > 0 ? totalMin / played : 0,
             mostPlayed, maxMinutes: mostPlayed.length ? mostPlayed[0].minutes : 1,
+            // The banner's game: the most played lately, else the most played of all
+            lately: _top(rows.filter(r => r.recentMin > 0), "recentMin", 1)[0] ?? null,
             recent, biggest, maxSize: biggest.length ? biggest[0].size : 1,
             // Best to worst, the order _tierColors lists them in
             tiers: Object.keys(root._tierColors).filter(k => tiers[k]).map(k => ({ tier: k, count: tiers[k], fraction: tiers[k] / tierTotal }))
@@ -166,85 +243,125 @@ Item {
         anchors { fill: parent; margins: 16 }
         spacing: 12
 
-        // Header: back on the left (like the details panel), then the quick-setting dialogs' accent squircle,
-        // title and one-line summary
-        RowLayout {
+        // ── Banner: the art of what you've played most lately, back on it, then the headline numbers ──
+        Item {
             Layout.fillWidth: true
-            spacing: 12
-            RippleButton {
-                implicitWidth: 36; implicitHeight: 36; padding: 0
-                buttonRadius: Appearance.rounding.container
-                colBackground: Appearance.colors.colLayer2
-                colBackgroundHover: Appearance.colors.colLayer2Hover
-                colRipple: Appearance.colors.colLayer2Active
-                contentItem: Item { MaterialSymbol { anchors.centerIn: parent; text: "arrow_back"; iconSize: 18; color: Appearance.colors.colOnLayer2 } }
-                onClicked: root.backPressed()
-                StyledToolTip { text: Translation.tr("Back") }
-            }
-            QuickDialogHeader {
-                icon: "insights"
-                title: Translation.tr("Library statistics")
-                subtitle: root._stats ? Translation.tr("%1 games  ·  %2 installed  ·  %3 played").arg(root._thousands(root._stats.total)).arg(root._stats.installed).arg(root._thousands(root._stats.played)) : ""
-            }
-        }
+            Layout.preferredHeight: 84
+            ArtBanner {
+                id: banner
+                anchors.fill: parent
+                coverInset: 36 + 10 // The back button, then the cover
+                // The most played in the last two weeks (else of all time). Not "top": an Item's own
+                readonly property var topGame: root._stats?.lately ?? root._stats?.mostPlayed?.[0] ?? null
+                readonly property bool lately: (root._stats?.lately ?? null) !== null
+                game: topGame?.game ?? null
+                coverIcon: "insights"
+                shadeMid: 0.72; shadeEnd: 0.55 // Lighter on the right: the numbers there carry their own card
+                opacity: root.animationReady ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+                TapHandler { enabled: !!banner.game; onTapped: root.gameSelected(banner.game) }
+                HoverHandler { cursorShape: banner.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
 
-        // ── Headline numbers, as tiles ──
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 10
-            visible: root._stats !== null
-            StatTile {
-                order: 0
-                iconName: "schedule"
-                value: root._formatTime(root._stats?.totalMin ?? 0)
-                label: Translation.tr("played in total")
-            }
-            StatTile {
-                order: 1
-                iconName: "sports_esports"
-                value: root._thousands(root._stats?.played ?? 0)
-                label: Translation.tr("games played  ·  avg %1").arg(root._formatTime(root._stats?.averageMin ?? 0))
-            }
-            StatTile { // What's installed and the room it takes (one tile: they were two for the same games)
-                order: 2
-                iconName: "download_done"
-                value: String(root._stats?.installed ?? 0)
-                label: Translation.tr("installed  ·  %1").arg(root._formatBytes(root._stats?.diskTotal ?? 0))
-                       + ((root._stats?.backlog ?? 0) > 0 ? "  ·  " + Translation.tr("%1 never played").arg(root._stats.backlog) : "")
-            }
-            StatTile { // Recent activity, the Recently played card's numbers added up
-                order: 3
-                iconName: "history"
-                value: root._formatTime(root._stats?.recentTotalMin ?? 0)
-                label: (root._stats?.recentGames ?? 0) === 1 ? Translation.tr("last 2 weeks  ·  1 game")
-                     : (root._stats?.recentGames ?? 0) > 1 ? Translation.tr("last 2 weeks  ·  %1 games").arg(root._stats.recentGames)
-                     : Translation.tr("last 2 weeks")
-            }
-            StatTile { // ProtonDB of the whole library: one bar, the counts under it
-                order: 4
-                weight: 1.5
-                iconName: "verified"
-                label: (root._stats?.tierGames ?? 0) > 0
-                       ? (root._stats?.tiers ?? []).map(t => t.count + " " + t.tier).join("  ·  ")
-                       : Translation.tr("No games rated")
-                Item { // The layout sizes this box and the Row only fills it: segments sized from a layout-managed
-                    // Row changed its implicit width, which re-laid it out in a loop ("possible QQuickItem::polish() loop")
-                    Layout.fillWidth: true
-                    Layout.topMargin: 4; Layout.bottomMargin: 4
-                    implicitHeight: 8
-                    Rectangle { anchors.fill: parent; radius: 4; color: Appearance.colors.colLayer3; visible: (root._stats?.tierGames ?? 0) === 0 }
-                    Row {
-                        id: tierBar
+                RippleButton { // Back, on the art: see-through as the numbers' card
+                    anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                    implicitWidth: 36; implicitHeight: 36; padding: 0
+                    buttonRadius: Appearance.rounding.container
+                    colBackground: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
+                    colBackgroundHover: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.1)
+                    colRipple: Appearance.colors.colLayer2Active
+                    contentItem: Item { MaterialSymbol { anchors.centerIn: parent; text: "arrow_back"; iconSize: 18; color: Appearance.colors.colOnLayer0 } }
+                    onClicked: root.backPressed()
+                    StyledToolTip { text: Translation.tr("Back") }
+                    Rectangle { // Hairline edge
                         anchors.fill: parent
-                        spacing: 2
-                        Repeater {
-                            model: root._stats?.tiers ?? []
-                            Rectangle {
-                                required property var modelData
-                                width: Math.max(4, (tierBar.width - 2 * ((root._stats?.tiers?.length ?? 1) - 1)) * modelData.fraction)
-                                height: tierBar.height
-                                radius: 4
-                                color: ColorUtils.mix(root._tierColors[modelData.tier] ?? Appearance.colors.colPrimary, Appearance.colors.colPrimary, 0.5)
+                        radius: Appearance.rounding.container
+                        color: "transparent"
+                        border.width: 1
+                        border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
+                    }
+                }
+
+                Column { // How much you've played, and what most of it was
+                    anchors { left: banner.coverItem.right; leftMargin: 16; right: facts.left; rightMargin: 28; verticalCenter: parent.verticalCenter }
+                    spacing: 2
+                    Row {
+                        spacing: 8
+                        StyledText {
+                            anchors.baseline: playedWord.baseline
+                            text: root._formatTime(root._stats?.totalMin ?? 0)
+                            font.pixelSize: Appearance.font.pixelSize.title; font.weight: Font.DemiBold
+                            font.family: Appearance.font.family.numbers
+                            font.variableAxes: ({}) // Not Roboto Flex's tuning (its light wght would win over font.weight)
+                            color: Appearance.colors.colOnLayer0
+                        }
+                        StyledText {
+                            id: playedWord
+                            text: Translation.tr("played")
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.2)
+                        }
+                    }
+                    StyledText {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: [Translation.tr("%1 of %2 games played").arg(root._thousands(root._stats?.played ?? 0)).arg(root._thousands(root._stats?.total ?? 0)),
+                               Translation.tr("avg %1").arg(root._formatTime(root._stats?.averageMin ?? 0)),
+                               !banner.topGame ? ""
+                                 : banner.lately ? Translation.tr("lately %1, %2").arg(banner.topGame.game.name).arg(root._formatTime(banner.topGame.recentMin))
+                                 : Translation.tr("most %1").arg(banner.topGame.game.name)]
+                            .filter(t => t !== "").join("  ·  ")
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.3)
+                    }
+                }
+
+                Rectangle { // The other numbers, on a see-through card with a hairline edge (as Achievements' highlights)
+                    id: facts
+                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                    width: factRow.implicitWidth + 6
+                    height: factRow.implicitHeight + 6
+                    radius: Appearance.rounding.normal
+                    color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
+                    border.width: 1
+                    border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
+                    Row {
+                        id: factRow
+                        anchors.centerIn: parent
+                        BannerFact {
+                            icon: "download_done"; label: Translation.tr("Installed")
+                            value: Translation.tr("%1  ·  %2").arg(root._stats?.installed ?? 0).arg(root._formatBytes(root._stats?.diskTotal ?? 0))
+                            tip: (root._stats?.backlog ?? 0) === 1 ? Translation.tr("1 of them never played")
+                                : (root._stats?.backlog ?? 0) > 1 ? Translation.tr("%1 of them never played").arg(root._stats.backlog) : ""
+                        }
+                        BannerFact {
+                            divider: true
+                            icon: "history"; label: Translation.tr("Last 2 weeks")
+                            value: (root._stats?.recentGames ?? 0) === 1 ? Translation.tr("%1  ·  1 game").arg(root._formatTime(root._stats.recentTotalMin))
+                                : Translation.tr("%1  ·  %2 games").arg(root._formatTime(root._stats?.recentTotalMin ?? 0)).arg(root._stats?.recentGames ?? 0)
+                        }
+                        BannerFact { // The library's ProtonDB: one bar, the counts in its tooltip
+                            divider: true
+                            icon: "verified"; label: Translation.tr("ProtonDB")
+                            value: (root._stats?.tierGames ?? 0) > 0 ? Translation.tr("%1 rated").arg(root._thousands(root._stats.tierGames)) : Translation.tr("None rated")
+                            tip: (root._stats?.tiers ?? []).map(t => t.count + " " + t.tier).join("  ·  ")
+                            Item { // Sized here, the Row only fills it (segments sized from a layout-managed Row looped)
+                                width: 120; height: 6
+                                visible: (root._stats?.tierGames ?? 0) > 0
+                                Row {
+                                    id: tierBar
+                                    anchors.fill: parent
+                                    spacing: 2
+                                    Repeater {
+                                        model: root._stats?.tiers ?? []
+                                        Rectangle {
+                                            required property var modelData
+                                            width: Math.max(4, (tierBar.width - 2 * ((root._stats?.tiers?.length ?? 1) - 1)) * modelData.fraction)
+                                            height: tierBar.height
+                                            radius: 3
+                                            color: ColorUtils.mix(root._tierColors[modelData.tier] ?? Appearance.colors.colPrimary, Appearance.colors.colPrimary, 0.5)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -252,21 +369,50 @@ Item {
             }
         }
 
-        // ── Lists: each scrolls inside its card ──
+        // ── Cards: each scrolls inside itself ──
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 10
             visible: root._stats !== null
 
+            Card { // The latest games, as their covers
+                order: 1
+                weight: 1.3
+                iconName: "history"
+                title: Translation.tr("Recently played")
+                caption: Translation.tr("Last 2 weeks") // What the times under the covers count
+                StatList {
+                    id: recentList
+                    visible: count > 0
+                    orientation: ListView.Horizontal
+                    spacing: 10
+                    snapMode: ListView.SnapToItem // Scrolled a cover at a time: none left cut off
+                    // As many whole covers as fit at about 2:3, widened a little to fill the card exactly
+                    readonly property int fits: Math.max(1, Math.floor((width + spacing) / ((height - 40) * 2 / 3 + spacing)))
+                    readonly property real posterWidth: Math.floor((width - spacing * (fits - 1)) / fits)
+                    model: root._recentRows
+                    delegate: PosterTile {
+                        required property var modelData
+                        width: recentList.posterWidth
+                        height: ListView.view.height
+                        game: modelData.game
+                        // Under the name: when, and the time in the last two weeks (else the last session)
+                        detail: root._ago(modelData.last) + (modelData.recentMin > 0 ? "  ·  " + root._formatTime(modelData.recentMin)
+                            : modelData.sessionMin > 0 ? "  ·  " + root._formatTime(modelData.sessionMin) : "")
+                    }
+                }
+                Empty { visible: recentList.count === 0; text: Translation.tr("Nothing played yet") }
+            }
+
             Card {
-                order: 5
+                order: 2
                 iconName: "emoji_events"
                 title: Translation.tr("Most played")
                 StatList {
                     id: mostList
                     visible: count > 0
-                    model: root._stats?.mostPlayed ?? []
+                    model: root._mostRows
                     delegate: GameRow {
                         required property var modelData
                         required property int index
@@ -280,43 +426,25 @@ Item {
                 Empty { visible: mostList.count === 0; text: Translation.tr("Nothing played yet") }
             }
 
+            // What's downloading, then every install, biggest first; or (Review) what uninstalled games left behind
             Card {
-                order: 6
-                iconName: "history"
-                title: Translation.tr("Recently played")
-                caption: Translation.tr("Last 2 weeks") // What the times on the right count
-                StatList {
-                    id: recentList
-                    visible: count > 0
-                    model: root._stats?.recent ?? []
-                    delegate: GameRow {
-                        required property var modelData
-                        width: ListView.view.width
-                        game: modelData.game
-                        // Right: time played in the last two weeks (all-time is Most played's). Under the name: when,
-                        // and the last session if the launcher saw it
-                        subtitle: root._ago(modelData.last) + (modelData.sessionMin > 0 ? "  ·  " + Translation.tr("%1 session").arg(root._formatTime(modelData.sessionMin)) : "")
-                        trailing: modelData.recentMin > 0 ? root._formatTime(modelData.recentMin) : ""
-                    }
-                }
-                Empty { visible: recentList.count === 0; text: Translation.tr("Nothing played yet") }
-            }
-
-            // Every install, biggest first, or (Review) what uninstalled games left behind
-            Card {
-                order: 7
+                order: 3
                 iconName: "hard_drive"
                 title: root._showLeftovers ? Translation.tr("Left behind") : Translation.tr("Storage")
+                caption: !root._showLeftovers && root._freeBytes >= 0 ? Translation.tr("%1 free").arg(root._formatBytes(root._freeBytes)) : ""
                 StatList {
                     id: storageList
                     visible: !root._showLeftovers && count > 0
-                    model: root._showLeftovers ? [] : (root._stats?.biggest ?? [])
+                    // Downloads ({ item, game }) first, then the installs ({ game, size })
+                    model: root._showLeftovers ? [] : root._storageRows
                     delegate: GameRow {
                         required property var modelData
+                        readonly property var item: modelData.appid ? root._downloadItem(modelData.appid) : null // Live
                         width: ListView.view.width
                         game: modelData.game
-                        trailing: root._formatBytes(modelData.size)
-                        fraction: modelData.size / root._stats.maxSize
+                        subtitle: item ? root._downloadText(item) : ""
+                        trailing: item ? root._formatBytes(item.toDownload) : modelData.appid ? "" : root._formatBytes(modelData.size)
+                        fraction: modelData.appid ? Math.max(0, item?.progress ?? 0) : modelData.size / root._stats.maxSize
                     }
                 }
                 Empty { visible: storageList.count === 0 && !root._showLeftovers; text: Translation.tr("No install sizes found") }
@@ -384,6 +512,51 @@ Item {
                     }
                 }
             }
+
+            Card { // The library's captures: the newest large, the next four under it, the totals as the caption
+                order: 4
+                iconName: "perm_media"
+                title: Translation.tr("Captures")
+                caption: root._captures ? [
+                    root._captures.shots === 1 ? Translation.tr("1 shot") : Translation.tr("%1 shots").arg(root._captures.shots),
+                    root._captures.clips === 1 ? Translation.tr("1 clip") : Translation.tr("%1 clips").arg(root._captures.clips),
+                    root._formatBytes(root._captures.shotBytes + root._captures.clipBytes)
+                ].join("  ·  ") : ""
+                Item { // Sized by the card: the newest fills what the strip leaves
+                    id: capturesArea
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: (root._captures?.latest?.length ?? 0) > 0
+                    readonly property var latest: root._captures?.latest ?? []
+                    readonly property int gap: 6
+                    readonly property real stripHeight: latest.length > 1 ? Math.round((width - 3 * gap) / 4 * 9 / 16) : 0
+                    CaptureThumb {
+                        anchors { left: parent.left; right: parent.right; top: parent.top; bottom: strip.top
+                                  bottomMargin: capturesArea.stripHeight > 0 ? capturesArea.gap : 0 }
+                        capture: capturesArea.latest[0] ?? ({})
+                        large: true
+                    }
+                    Row {
+                        id: strip
+                        anchors { left: parent.left; bottom: parent.bottom }
+                        height: capturesArea.stripHeight
+                        spacing: capturesArea.gap
+                        Repeater {
+                            model: capturesArea.latest.slice(1, 5)
+                            CaptureThumb {
+                                required property var modelData
+                                width: (capturesArea.width - 3 * capturesArea.gap) / 4
+                                height: strip.height
+                                capture: modelData
+                            }
+                        }
+                    }
+                }
+                Empty {
+                    visible: root._captures !== null && (root._captures.latest?.length ?? 0) === 0
+                    text: Translation.tr("No screenshots or clips yet")
+                }
+            }
         }
     }
 
@@ -400,40 +573,193 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 260 + order * 50; easing.type: Easing.OutCubic } }
     }
 
-    // A headline number: accent squircle icon, the value and a label (extra content goes under them)
-    component StatTile: Surface {
-        id: tile
-        property string iconName
-        property string value
+    // One of the banner's numbers: a tinted squircle, a small label and the value (extra content under them)
+    component BannerFact: Row {
+        id: fact
+        property string icon
         property string label
-        default property alias content: tileCol.data
-        implicitHeight: 64
-        RowLayout {
-            anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
-            spacing: 12
-            QuickDialogIcon { icon: tile.iconName; active: true } // Tinted, like the resource monitor's cards
-            ColumnLayout {
-                id: tileCol
-                Layout.fillWidth: true
-                spacing: 0
+        property string value
+        property string tip: ""
+        property bool divider: false
+        default property alias content: factCol.data
+        height: 48
+        Rectangle {
+            visible: fact.divider
+            width: 1; height: 22
+            anchors.verticalCenter: parent.verticalCenter
+            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
+        }
+        Item {
+            width: factInner.implicitWidth + 22
+            height: parent.height
+            Row {
+                id: factInner
+                anchors.centerIn: parent
+                spacing: 9
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 28; height: 28; radius: 9
+                    color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.8)
+                    MaterialSymbol { anchors.centerIn: parent; text: fact.icon; iconSize: 16; fill: 1; color: Appearance.colors.colPrimary }
+                }
+                Column {
+                    id: factCol
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 1
+                    StyledText {
+                        text: fact.label
+                        font.pixelSize: 10; font.weight: Font.Medium
+                        color: Appearance.colors.colPrimary
+                    }
+                    StyledText {
+                        text: fact.value
+                        font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.DemiBold
+                        color: Appearance.colors.colOnLayer0
+                    }
+                }
+            }
+            HoverHandler { id: factHover }
+            StyledToolTip { text: fact.tip; visible: fact.tip !== "" && factHover.hovered }
+        }
+    }
+
+    // A recently played game: its cover, the name and a line under it. Opens its details
+    component PosterTile: RippleButton { // Its width is the list's (a whole number of them fill it)
+        id: poster
+        property var game
+        property string detail
+        readonly property string art: GameLauncherService.localArt(game, "boxArt")
+        padding: 0
+        buttonRadius: Appearance.rounding.normal
+        colBackground: "transparent"
+        colBackgroundHover: "transparent"
+        colRipple: "transparent"
+        onClicked: if (poster.game) root.gameSelected(poster.game)
+        contentItem: Item {
+            ClippingRectangle {
+                id: posterArt
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: parent.height - 40
+                radius: Appearance.rounding.normal
+                color: Appearance.colors.colLayer3
+                Image {
+                    anchors.fill: parent
+                    source: poster.art
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    // One fixed size: the cover's own follows the page's height, which eases as it opens, and a
+                    // changing sourceSize decodes it again each frame (it flickered, as the grid's once did)
+                    sourceSize.width: 400
+                    scale: poster.hovered ? 1.04 : 1
+                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                }
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    visible: poster.art === ""
+                    text: "sports_esports"; iconSize: 24
+                    color: Appearance.colors.colSubtext
+                }
+                Rectangle { // Hover edge (the clip's own radius: its parent here is its content item)
+                    anchors.fill: parent
+                    radius: posterArt.radius
+                    color: "transparent"
+                    border.width: poster.hovered ? 2 : 1
+                    border.color: poster.hovered ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
+                }
+            }
+            Column {
+                anchors { left: parent.left; right: parent.right; top: posterArt.bottom; topMargin: 6 }
+                spacing: 1
                 StyledText {
-                    visible: tile.value !== ""
-                    text: tile.value
-                    font.pixelSize: Appearance.font.pixelSize.larger
-                    font.family: Appearance.font.family.numbers
-                    font.variableAxes: ({}) // Not Roboto Flex's tuning (its light wght would win over font.weight)
-                    font.weight: Font.DemiBold
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: poster.game?.name ?? ""
+                    font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
                     color: Appearance.colors.colOnLayer2
                 }
                 StyledText {
-                    Layout.fillWidth: true
+                    width: parent.width
                     elide: Text.ElideRight
-                    text: tile.label
-                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    text: poster.detail
+                    font.pixelSize: Appearance.font.pixelSize.smallest
                     color: Appearance.colors.colSubtext
                 }
             }
         }
+    }
+
+    // One of the newest captures: its picture (a play mark on clips); opens its game's Captures on it. Large: the
+    // card's newest, its full picture with the game and when over it
+    component CaptureThumb: ClippingRectangle {
+        id: thumb
+        property var capture
+        property bool large: false
+        readonly property var game: capture?.kind ? root._captureGame(capture) : null
+        readonly property bool lit: thumbHover.hovered && !!thumb.game
+        radius: large ? Appearance.rounding.normal : Appearance.rounding.small
+        color: Appearance.colors.colLayer3
+        Image {
+            anchors.fill: parent
+            readonly property string file: (thumb.large ? thumb.capture?.full : thumb.capture?.image) ?? ""
+            source: file ? "file://" + file : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            // By width only, in steps (a fixed one for the small ones): the card's height eases as the page opens,
+            // and a changing sourceSize decodes it again each frame, which flickers
+            sourceSize.width: thumb.large ? Math.ceil(thumb.width * 1.5 / 256) * 256 : 320
+            scale: thumb.lit ? 1.03 : 1
+            Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        }
+        Rectangle { // Large: shade under the caption
+            visible: thumb.large
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: Math.min(parent.height, 64)
+            gradient: Gradient {
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 1; color: ColorUtils.transparentize("black", 0.35) }
+            }
+        }
+        Row { // Large: what it is, from what game, when
+            visible: thumb.large
+            anchors { left: parent.left; leftMargin: 12; right: parent.right; rightMargin: 12; bottom: parent.bottom; bottomMargin: 10 }
+            spacing: 8
+            MaterialSymbol {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: thumb.capture?.kind === "clip"
+                text: "play_circle"; iconSize: 20; fill: 1
+                color: "white"
+            }
+            Column {
+                anchors.verticalCenter: parent.verticalCenter
+                StyledText {
+                    text: thumb.game?.name ?? thumb.capture?.game ?? ""
+                    font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.DemiBold
+                    color: "white"
+                }
+                StyledText {
+                    text: (thumb.capture?.time ?? 0) > 0 ? root._ago(thumb.capture.time * 1000) + "  ·  "
+                        + new Date(thumb.capture.time * 1000).toLocaleTimeString(Qt.locale(), Locale.ShortFormat) : ""
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    color: ColorUtils.transparentize("white", 0.25)
+                }
+            }
+        }
+        MaterialSymbol { // Small: the play mark
+            anchors { right: parent.right; bottom: parent.bottom; margins: 5 }
+            visible: !thumb.large && thumb.capture?.kind === "clip"
+            text: "play_circle"; iconSize: 16; fill: 1
+            color: "white"
+        }
+        Rectangle { // Hover edge (the clip's own radius: its parent here is its content item)
+            anchors.fill: parent
+            radius: thumb.radius
+            color: "transparent"
+            border.width: thumb.lit ? 2 : 1
+            border.color: thumb.lit ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
+        }
+        HoverHandler { id: thumbHover; cursorShape: thumb.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
+        TapHandler { enabled: !!thumb.game; onTapped: root.capturesSelected(thumb.game, thumb.capture.kind === "clip" ? "clips" : "shots") }
+        StyledToolTip { text: thumb.game?.name ?? ""; visible: !thumb.large && thumbHover.hovered && text !== "" }
     }
 
     // A card's list: fills what the card leaves, scrolls inside it
