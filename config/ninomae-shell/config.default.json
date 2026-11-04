@@ -158,7 +158,6 @@
     "newsUpdatesOnly": false,
     "sortOrder": "recency",
     "steamAtLogin": false,
-    "steamRemoteControl": false,
     "steamApiKey": "",
     "steamGridDbApiKey": ""
   },

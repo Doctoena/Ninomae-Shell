@@ -24,7 +24,6 @@ Singleton {
         // outlives a shell restart
         Quickshell.execDetached(["sh", "-c",
             'm="$XDG_RUNTIME_DIR/ninomae-steam-started"; [ -e "$m" ] && exit 0; : > "$m"; '
-            + 'command -v steam >/dev/null && ! pgrep -x steam >/dev/null && exec steam -silent "$@"', "sh",
-            ...((Config.options.gameLauncher.steamRemoteControl ?? false) ? ["-cef-enable-debugging"] : [])]);
+            + 'command -v steam >/dev/null && ! pgrep -x steam >/dev/null && exec steam -silent']);
     }
 }

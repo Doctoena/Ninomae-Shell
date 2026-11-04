@@ -746,7 +746,7 @@ Item {
             }
             MoreItem {
                 // Asks here instead of in Steam: the first click arms it, a second one uninstalls. Steam games
-                // go without opening Steam: straight to it when it answers on its debugging port, else it
+                // go without opening Steam: straight to it through the shell's Millennium plugin, else it
                 // restarts in the tray if it's open; Lutris still asks itself
                 id: uninstallItem
                 property bool armed: false

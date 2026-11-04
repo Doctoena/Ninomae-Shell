@@ -6,145 +6,129 @@
   steam_control.py remove-and-resume <appid>
                                       → the same for the paused one at the queue's head: the rest go again
   steam_control.py pause-all | resume-all
+  steam_control.py status             → on (Steam runs with the plugin), outdated (Steam runs an older copy
+                                        than the one on disk: a restart loads it), installed (Steam isn't
+                                        running) or missing
 
-Steam's window is a Chromium page, and its buttons call SteamClient.Downloads.* in Steam's main page
-("SharedJSContext"). With Settings → Games → "Pause and resume from the launcher" on, Steam starts with
--cef-enable-debugging, which opens its debugging port on localhost only, and this runs the call there
-over the Chrome DevTools protocol. Errors (JSON "error"):
-off (no port: the setting is off, or Steam isn't running), no-page (Steam's page isn't there yet),
-failed (Steam refused the call, as when Valve renames it).
+The calls run inside Steam, in the shell's Millennium plugin (themes/steam/ninomae-plugin). The two talk
+through a mailbox in $XDG_RUNTIME_DIR/ninomae-steam, a folder only this account can open: a request is a
+file in requests/, the plugin answers in replies/ and keeps "alive" ("<now> <loaded>") up to date while
+Steam runs. The plugin checks every 2 s, and every 0.15 s while "wanted" is fresh: the launcher's
+downloads feed (steam_downloads.py) touches it while it's open, and so does each request. Errors (JSON "error"): off (Steam or the plugin isn't running), failed (Steam refused the
+call, as when Valve renames it, or didn't answer in time; "detail" says what Steam said).
 """
-import base64, json, os, socket, struct, sys, urllib.request
+import json, os, sys, time, uuid
 
-PORT = 8080
-LOCAL_CLIENT = "0"  # Steam's id for this PC (the Downloads page can also show another PC's downloads)
-
-
-def targets():
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # Straight to localhost, never a proxy
-    with opener.open(f"http://127.0.0.1:{PORT}/json", timeout=2) as r:
-        return json.load(r)
+MAILBOX = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "ninomae-steam")
+ALIVE_SECS = 5  # The plugin writes "alive" every second while Steam runs: older than this, it's gone
+PLUGIN = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "millennium", "plugins", "ninomae")
+PLUGIN_FILES = ("backend/main.lua", ".millennium/Dist/index.js", "plugin.json")
+MILLENNIUM_CONFIG = os.path.expanduser("~/.config/millennium/config.json")
 
 
-class WebSocket:
-    """Just enough of a WebSocket client (RFC 6455) for a few DevTools messages: text frames, masked."""
-
-    def __init__(self, url):
-        rest = url.split("://", 1)[1]
-        hostport, path = rest.split("/", 1)
-        host, port = hostport.rsplit(":", 1)
-        self.sock = socket.create_connection((host, int(port)), timeout=5)
-        key = base64.b64encode(os.urandom(16)).decode()
-        self.sock.sendall((f"GET /{path} HTTP/1.1\r\nHost: {hostport}\r\nUpgrade: websocket\r\n"
-                           f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
-        head = b""
-        while b"\r\n\r\n" not in head:
-            chunk = self.sock.recv(1024)
-            if not chunk:
-                raise OSError("closed during handshake")
-            head += chunk
-        if b" 101 " not in head.split(b"\r\n", 1)[0]:
-            raise OSError("handshake refused")
-        self.buf = head.split(b"\r\n\r\n", 1)[1]
-
-    def send(self, text):
-        data = text.encode()
-        mask = os.urandom(4)
-        n = len(data)
-        header = bytes([0x81]) + (bytes([0x80 | n]) if n < 126 else bytes([0x80 | 126]) + struct.pack(">H", n)
-                                  if n < 65536 else bytes([0x80 | 127]) + struct.pack(">Q", n))
-        self.sock.sendall(header + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
-
-    def _read(self, n):
-        while len(self.buf) < n:
-            chunk = self.sock.recv(65536)
-            if not chunk:
-                raise OSError("closed")
-            self.buf += chunk
-        out, self.buf = self.buf[:n], self.buf[n:]
-        return out
-
-    def recv(self):
-        message = b""
-        while True:
-            b0, b1 = self._read(2)
-            n = b1 & 0x7F
-            if n == 126: n = struct.unpack(">H", self._read(2))[0]
-            elif n == 127: n = struct.unpack(">Q", self._read(8))[0]
-            payload = self._read(n)
-            if b0 & 0x0F in (0x1, 0x0):
-                message += payload
-                if b0 & 0x80:
-                    return message.decode(errors="replace")
-
-    def close(self):
-        try: self.sock.close()
-        except OSError: pass
-
-
-def value(expression):
-    """Runs expression in Steam's main page (awaited if it's a promise): (its value, None), or (None, error)"""
+def _alive():
+    """When the running plugin was loaded, or None if Steam isn't running with it"""
     try:
-        pages = targets()
+        path = os.path.join(MAILBOX, "alive")
+        if time.time() - os.path.getmtime(path) >= ALIVE_SECS:
+            return None
+        with open(path, encoding="utf-8") as f:
+            parts = f.read().split()
+        return int(parts[1]) if len(parts) > 1 else 0
+    except (OSError, ValueError):
+        return None
+
+
+def available():
+    """Steam is running with the plugin, which looks at the mailbox every moment"""
+    return _alive() is not None
+
+
+def outdated(loaded):
+    """The plugin's files changed after Steam loaded them (an update): Steam runs the older copy"""
+    try:
+        return any(os.path.getmtime(os.path.join(PLUGIN, f)) > loaded + 1 for f in PLUGIN_FILES)
+    except OSError:
+        return False
+
+
+def want():
+    """Asks the plugin for quick checks for the next few seconds (it slows down again on its own)"""
+    try:
+        with open(os.path.join(MAILBOX, "wanted"), "a"):
+            pass
+        os.utime(os.path.join(MAILBOX, "wanted"))
+    except OSError:
+        pass
+
+
+def installed():
+    """The plugin is in Millennium's plugins folder, and turned on there"""
+    if not os.path.isdir(PLUGIN):
+        return False
+    try:
+        with open(MILLENNIUM_CONFIG, encoding="utf-8") as f:
+            return "ninomae" in json.load(f).get("plugins", {}).get("enabledPlugins", [])
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def request(cmd, timeout=6, **args):
+    """Runs one of the plugin's commands in Steam: (its value, None), or (None, error). The error is
+    "off", "failed", or "failed: <what Steam said>"
+    """
+    if not available():
+        return None, "off"
+    want()
+    rid = uuid.uuid4().hex
+    req = os.path.join(MAILBOX, "requests", rid + ".json")
+    rep = os.path.join(MAILBOX, "replies", rid + ".json")
+    try:
+        with open(req + ".tmp", "w", encoding="utf-8") as f:  # Whole, or not at all: the plugin only reads *.json
+            json.dump({"cmd": cmd, "args": args}, f)
+        os.rename(req + ".tmp", req)
     except OSError:
         return None, "off"
-    page = next((t for t in pages if t.get("title") == "SharedJSContext" and t.get("webSocketDebuggerUrl")), None)
-    if not page:
-        return None, "no-page"
-    try:
-        ws = WebSocket(page["webSocketDebuggerUrl"])
-    except OSError:
-        return None, "off"
-    try:
-        ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate",
-                            "params": {"expression": expression, "awaitPromise": True, "returnByValue": True}}))
-        while True:
-            reply = json.loads(ws.recv())
-            if reply.get("id") == 1:
-                break
-    finally:
-        ws.close()
-    result = reply.get("result", {})
-    if "error" in reply or "exceptionDetails" in result:
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        try:
+            with open(rep, encoding="utf-8") as f:
+                reply = json.load(f)
+            os.remove(rep)
+            break
+        except FileNotFoundError:
+            time.sleep(0.03)
+        except (OSError, ValueError):
+            return None, "failed"
+    else:
+        for leftover in (req, rep):  # Not taken in time: it isn't run later, when it would surprise you
+            try: os.remove(leftover)
+            except OSError: pass
         return None, "failed"
-    return result.get("result", {}).get("value"), None
-
-
-def evaluate(expression):
-    """Runs expression, which says true when it worked; (ok, error)"""
-    result, err = value(expression)
-    return result is True, err or (None if result is True else "failed")
-
-
-def call(fn, *args):
-    """SteamClient.Downloads.<fn>(args…, this PC), true if Steam has it and took the call"""
-    arglist = ", ".join(json.dumps(a) for a in (*args, LOCAL_CLIENT))
-    return evaluate(f"(async () => {{ const d = globalThis.SteamClient?.Downloads;"
-                    f" if (typeof d?.{fn} !== 'function') return false; await d.{fn}({arglist}); return true; }})()")
+    return (reply.get("value"), None) if reply.get("ok") else (None, f"failed: {reply.get('error') or 'unknown'}")
 
 
 def main():
     a = sys.argv[1:]
+    if a == ["status"]:
+        loaded = _alive()
+        print("missing" if not installed() else "installed" if loaded is None else "outdated" if outdated(loaded) else "on")
+        return 0
     if len(a) == 2 and a[0] == "resume" and a[1].isdigit():
-        ok, err = call("ResumeAppUpdate", int(a[1]))
+        value, err = request("resume", appid=int(a[1]))
     elif len(a) == 2 and a[0] in ("remove", "remove-and-resume") and a[1].isdigit():
-        # As Steam's ✕: off the list, and for the paused one at the queue's head, the rest going again
-        resume = f"await d.EnableAllDownloads(true, {json.dumps(LOCAL_CLIENT)});" if a[0] == "remove-and-resume" else ""
-        ok, err = evaluate(f"""(async () => {{ const d = globalThis.SteamClient?.Downloads;
-            if (typeof d?.RemoveFromDownloadList !== 'function') return false;
-            await d.RemoveFromDownloadList({int(a[1])}, {json.dumps(LOCAL_CLIENT)}); {resume} return true; }})()""")
+        value, err = request("remove", appid=int(a[1]), resumeAll=a[0] == "remove-and-resume")
     elif a in (["pause-all"], ["resume-all"]):
-        ok, err = call("EnableAllDownloads", a[0] == "resume-all")
+        value, err = request("enableAll", on=a[0] == "resume-all")
     else:
         print(__doc__)
         return 1
-    print(json.dumps({"ok": ok, "error": err}))
+    ok = value is True
+    err = err or (None if ok else "failed")
+    code, _, detail = (err or "").partition(": ")
+    print(json.dumps({"ok": ok, "error": code or None, **({"detail": detail} if detail else {})}))
     return 0 if ok else 1
 
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except OSError as e:
-        print(json.dumps({"ok": False, "error": "off" if isinstance(e, ConnectionRefusedError) else "failed"}))
-        sys.exit(1)
+    sys.exit(main())

@@ -10,7 +10,7 @@ content log (logs/content_log.txt), which records every state change ("AppID 142
 Update Required,Update Queued,Update Running,"), why a download stopped, and the rate about once a
 minute; and from the download folder filling up, measured every couple of seconds for the speed.
 
-  {"steamRunning", "remoteControl" (pause and resume work: Steam's debugging port answers),
+  {"steamRunning", "canControl" (pause and resume work: Steam runs with the shell's Millennium plugin),
    "gameRunning" (a Steam game is open: Steam holds downloads), "queuePaused" (every download paused),
    "rate" (bytes a second, -1 when nothing downloads), "history" (recent rates, oldest first),
    "items": [...], "finished": [...]}
@@ -23,10 +23,11 @@ minute; and from the download folder filling up, measured every couple of second
             starts when you play it) | stopped (Steam isn't running)
   finished  installs and updates done in the last day, newest first: {"appid", "name", "at"}
 """
-import glob, json, os, re, socket, subprocess, sys, time
+import glob, json, os, re, subprocess, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # Run with -I, which leaves its own folder out
 from launch_watch import manifest_progress  # noqa: E402
+from steam_control import available as plugin_available, want as plugin_wanted  # noqa: E402
 
 STEAM = os.path.expanduser("~/.local/share/Steam")
 LOG = os.path.join(STEAM, "logs", "content_log.txt")
@@ -63,14 +64,6 @@ def libraries():
 def field(text, key):
     m = re.search(rf'"{key}"\s+"([^"]*)"', text)
     return m[1] if m else ""
-
-
-def port_open(port=8080):
-    try:
-        socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
-        return True
-    except OSError:
-        return False
 
 
 def running(pattern, exact=False):
@@ -150,7 +143,7 @@ class Downloads:
         self.rate, self.history = -1.0, []
         self.manifests = {}  # path → (mtime, name, StateFlags, BytesToDownload): read again when it changes
         self.checked = 0  # When Steam's processes were last looked at
-        self.steam = self.port = self.game = False
+        self.steam = self.control = self.game = False
 
     def _progress(self, appid, path, state, mtime, live):
         """How far it is: measured again when it changes state or Steam rewrites its manifest, and every
@@ -186,7 +179,7 @@ class Downloads:
         if now - self.checked >= 4:  # Processes: a few seconds out is fine
             self.checked = now
             self.steam = running("steam", exact=True)
-            self.port = self.steam and port_open()
+            self.control = self.steam and plugin_available()
             self.game = self.steam and running("SteamLaunch AppId=")
         items, current, names = [], None, {}
         for lib in libraries():
@@ -236,7 +229,7 @@ class Downloads:
                        and a not in listed), key=lambda x: -x[1])[:8]
         return {
             "steamRunning": self.steam,
-            "remoteControl": self.port,
+            "canControl": self.control,
             "gameRunning": self.game,
             "queuePaused": any(i["state"] == "suspended" for i in items) and not self.game and current is None,
             "rate": round(self.rate) if current and self.rate > 0 else -1,
@@ -275,6 +268,7 @@ def main():
         return
     last = None
     while True:
+        plugin_wanted()  # The launcher is open: its buttons get the plugin's quick checks
         snap = downloads.snapshot()
         out = json.dumps(snap)
         if out != last:

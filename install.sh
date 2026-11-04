@@ -28,7 +28,7 @@
 #                    us, de, fr, gb, us:dvorak, de:nodeadkeys… (qwerty and dvorak work too).
 #                    Default: the one this computer uses now
 #    --only a,b      Only these components (install mode): packages, codecs, configs,
-#                    shell, apps, steam, steamguard, sddm, boot, fish
+#                    shell, apps, steam, sddm, boot, fish
 #    --skip a,b      Everything except these components
 #    -h, --help      Show this help
 # ─────────────────────────────────────────────────────────────────────────────
@@ -225,7 +225,7 @@ update)
     ;;
 
 check)
-    steps=(check_links check_settings check_packages check_plugin check_colours check_python check_running)
+    steps=(check_links check_settings check_packages check_plugin check_steam_plugin check_colours check_python check_running)
     STEP_TOTAL=${#steps[@]}
     for s in "${steps[@]}"; do "$s"; done
     report "Fix what's flagged with ${c_bold}ninomae update${c_off}"
@@ -236,12 +236,12 @@ uninstall)
     echo; box "Uninstall will" \
         "• remove the config links that point into ${DOTFILES/#$HOME/\~}" \
         "• put back the files they replaced, from your newest backups" \
-        "• offer to remove the Steam notifications plugin and port guard$( (( keep_fish )) || echo ', and switch back to bash')" \
+        "• remove the Ninomae Steam plugin, and offer to remove the notifications one$( (( keep_fish )) || echo ', and switch back to bash')" \
         "" "${c_dim}Packages, the login screen and boot themes, and this folder stay${c_off}"
     echo
     confirm "Uninstall?" no || die "Cancelled; nothing was changed."
-    STEP_TOTAL=$(( 4 - keep_fish ))
-    uninstall_links; uninstall_steam_plugin; uninstall_port_guard
+    STEP_TOTAL=$(( 3 - keep_fish ))
+    uninstall_links; uninstall_steam_plugin
     (( keep_fish )) || uninstall_shell
     report "Log out to leave this desktop; the packages are still installed if you come back" \
            "Remove packages yourself if you like, e.g. ${c_bold}sudo dnf remove hyprland quickshell${c_off}"

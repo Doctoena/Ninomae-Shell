@@ -15,12 +15,51 @@ NOTIF_ID="me.tysmith.steam-native-notifications"
 PLUGINS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/millennium/plugins"
 NOTIF_PLUGIN="$PLUGINS_DIR/$NOTIF_ID.star"
 NOTIF_PLUGIN_URL="https://github.com/tyvsmith/steam-native-notifications/releases/download/latest/$NOTIF_ID.star"
+NINOMAE_PLUGIN="$PLUGINS_DIR/ninomae" # A link to ninomae-plugin here, so it updates with the repo
 
 # Downloads the plugin to $NOTIF_PLUGIN.part (removed again if the download fails)
 download_plugin() {
     mkdir -p "$PLUGINS_DIR"
     curl -fsSL -o "$NOTIF_PLUGIN.part" "$NOTIF_PLUGIN_URL" || { rm -f "$NOTIF_PLUGIN.part"; return 1; }
 }
+
+# The shell's own plugin: the launcher pauses, resumes and orders Steam's downloads, and saves launch
+# options without a restart, through it (scripts/game-launcher/steam_control.py). A link to the copy here,
+# so it updates with the repo (Steam loads the new one when it next starts)
+link_ninomae() {
+    mkdir -p "$PLUGINS_DIR"
+    if [[ -e $NINOMAE_PLUGIN && ! -L $NINOMAE_PLUGIN ]]; then
+        warn "$NINOMAE_PLUGIN is a folder of its own, so it was left as it is"; return 1
+    fi
+    ln -sfn "$HERE/ninomae-plugin" "$NINOMAE_PLUGIN"
+}
+# Turns the Ninomae plugin on, as the switch in Settings → Millennium → Plugins does. Only while Steam is
+# closed: Millennium writes its config back when Steam exits
+enable_ninomae() {
+    python3 - "$MILLENNIUM_CONFIG" <<'PY'
+import json, os, sys
+path = sys.argv[1]
+config = json.load(open(path)) if os.path.exists(path) else {}
+enabled = config.setdefault("plugins", {}).setdefault("enabledPlugins", [])
+if "ninomae" not in enabled:
+    enabled.append("ninomae")
+    with open(path + ".tmp", "w") as f:
+        json.dump(config, f, indent=4)
+    os.replace(path + ".tmp", path)
+PY
+}
+ninomae_enabled() { grep -q '"ninomae"' "$MILLENNIUM_CONFIG" 2>/dev/null; }
+
+# --plugin: only the Ninomae plugin, for ninomae update. Exit 0 = on (or already), 3 = Steam is open, so
+# it's linked but turned on only once Steam is closed, 1 = couldn't
+if [[ ${1:-} == --plugin ]]; then
+    link_ninomae || exit 1
+    if ninomae_enabled; then ok "Ninomae plugin is on"; exit 0; fi
+    if pgrep -x steam >/dev/null; then warn "Steam is open, so the Ninomae plugin can't be turned on yet"; exit 3; fi
+    mkdir -p "$(dirname "$MILLENNIUM_CONFIG")"
+    enable_ninomae && ok "Ninomae plugin on (pause and resume downloads from the launcher)" || exit 1
+    exit 0
+fi
 
 # --update-plugin: only refresh the notifications plugin (a rolling pre-release), without closing Steam.
 # Exit 0 = already the latest, 10 = updated (Steam needs a restart to load it), 1 = download failed
@@ -75,7 +114,7 @@ else
     warn "Couldn't download the Steam notifications plugin; Steam keeps its own pop-ups"
 fi
 
-# 4. Select the theme (and enable the plugin), with the saved options (Color: Matugen, font, shapes, …) from millennium-theme.json
+# 4. Select the theme (and enable the notifications plugin), with the saved options (Color: Matugen, font, shapes, …) from millennium-theme.json
 mkdir -p "$(dirname "$MILLENNIUM_CONFIG")"
 python3 - "$MILLENNIUM_CONFIG" "$HERE/millennium-theme.json" "$NOTIF_PLUGIN" "$NOTIF_ID" <<'PY'
 import json, sys, os
@@ -110,6 +149,9 @@ PY
 ok "Material-Theme selected (Color: Matugen)"
 [[ -f "$NOTIF_PLUGIN" ]] && ok "Steam notifications plugin enabled (Steam's pop-ups show in the shell, also in games)"
 
-# 5. Current wallpaper colours
+# 5. The Ninomae plugin
+link_ninomae && enable_ninomae && ok "Ninomae plugin on (pause and resume downloads from the launcher)"
+
+# 6. Current wallpaper colours
 "$HERE/apply-theme.sh"
 [[ -f "$HERE/matugen.css" ]] && ok "Colours copied" || warn "No colours yet; they're copied on the next wallpaper change"

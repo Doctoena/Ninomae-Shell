@@ -16,18 +16,15 @@
   launch_options.py downloads-set <json> [--restart]
                                               → writes them: {"duringGameplay": bool, "windowEnabled": bool,
                                                 "windowStart": hour, "windowEnd": hour}
-  launch_options.py restart-steam [--remote on|off]
-                                              → closes Steam and starts it again in the tray (with its
-                                                debugging port for pause and resume, or without)
   launch_options.py roundtrip                 → self-test: parse + rewrite Steam's files unchanged
 
 Launch options live in userdata/<account>/config/localconfig.vdf (…/apps/<appid>/LaunchOptions) and
 Proton choices in config/config.vdf (CompatToolMapping/<appid>), and the auto-update mode in the game's
 <library>/steamapps/appmanifest_<appid>.acf (AppState/AutoUpdateBehavior: 0 keep updated, 1 only on
 launch, 2 high priority). Steam rewrites these files when it exits, so they're only edited while it's
-closed, unless Steam answers on its debugging port (Settings → Games → "Pause and resume from the
-launcher"): then launch options, Proton, the update mode and uninstalling go straight to Steam, as its
-own properties page and Uninstall button do, and nothing restarts. Steam's own download settings (downloads while a game runs, the hours it may
+closed, unless the shell's Millennium plugin answers (steam_control.py): then launch options, Proton,
+the update mode and uninstalling go straight to Steam, as its own properties page and Uninstall button
+do, and nothing restarts. Steam's own download settings (downloads while a game runs, the hours it may
 update games in) are in config/config.vdf (Software/Valve/Steam). Steam rewrites these files when it exits, so they're only edited while it's
 closed. A copy of each file is kept before every write.
 
@@ -205,21 +202,18 @@ def default_gamescope_args():
         return "-f"
 
 # ── Commands ────────────────────────────────────────────────────────────────
-# ── Straight to Steam, through its debugging port (steam_control.py) ────────
+# ── Straight to Steam, through the shell's Millennium plugin (steam_control.py) ──
 def live():
-    """steam_control when Steam answers on its port, else None (then it's files and a restart)"""
+    """steam_control when Steam runs with the plugin, else None (then it's files and a restart)"""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))) # Run with -I, which leaves its own folder out
     import steam_control
-    return steam_control if steam_control.value("true")[0] is True else None
+    return steam_control if steam_control.available() else None
 
 def live_details(sc, appid):
     """A game's launch options, Proton choice ("" for Steam's default) and update mode, as Steam has them
-    now (its files only catch up when it exits). Proton priority 250 is a choice made for the game"""
-    found, _ = sc.value(f"""new Promise(res => {{ const h = SteamClient.Apps.RegisterForAppDetails({int(appid)}, d => {{
-        h?.unregister?.(); res(JSON.stringify({{ options: d.strLaunchOptions ?? "",
-            proton: d.nCompatToolPriority >= 250 ? d.strCompatToolName : "", autoUpdate: d.eAutoUpdateValue }})); }});
-        setTimeout(() => res(null), 2000); }})""")
-    return json.loads(found) if isinstance(found, str) else None
+    now (its files only catch up when it exits)"""
+    found, _ = sc.request("details", appid=int(appid))
+    return found if isinstance(found, dict) else None
 
 def cmd_get(appid):
     lc = localconfig_path()
@@ -280,24 +274,11 @@ def steam_closed_or_error(restart):
     if not restart: return ("steam-running", 2)
     return None if close_steam() else ("steam-wont-close", 1)
 
-# Settings → Games → "Pause and resume from the launcher" (gameLauncher.steamRemoteControl in the shell's
-# config): Steam starts with -cef-enable-debugging, which opens its debugging port on localhost for
-# steam_control.py. Steam's own marker file (.cef-enable-remote-debugging) follows a setting it keeps to
-# itself, and it deletes the file on start while that's off, so the flag is what's used
-SHELL_CONFIG = os.path.expanduser("~/.config/ninomae-shell/config.json")
-
-def remote_control_wanted():
-    try:
-        return bool(json.load(open(SHELL_CONFIG, encoding="utf-8")).get("gameLauncher", {}).get("steamRemoteControl"))
-    except (OSError, ValueError, AttributeError):
-        return False
-
-def start_steam(remote=None):
+def start_steam():
     """Steam again: in the tray, or with its window if close_steam found it open. Then makes sure it
     stayed up: a Steam that was still closing can take the start for itself and then exit, leaving
     nothing running, so if Steam isn't there a while later it's started once more"""
-    remote = remote_control_wanted() if remote is None else remote
-    cmd = ["steam", *([] if _window_was_open else ["-silent"]), *(["-cef-enable-debugging"] if remote else [])]
+    cmd = ["steam", *([] if _window_was_open else ["-silent"])]
     for attempt in range(2):
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         # Steam's updater starts first and hands over to the client (a gap of a second or two):
@@ -314,12 +295,9 @@ def cmd_set(appid, data, restart):
     options = (data.get("launchOptions") or "").strip()
     sc = live() if steam_running() else None
     if sc:
-        update = (f"SteamClient.Apps.SetAppAutoUpdateBehavior({int(appid)}, {data['autoUpdate']});"
-                  if manifest_path(appid) and data.get("autoUpdate") in (0, 1, 2) else "")
-        ok, _ = sc.evaluate(f"""(async () => {{ const a = SteamClient.Apps;
-            a.SetAppLaunchOptions({int(appid)}, {json.dumps(options)});
-            a.SpecifyCompatTool({int(appid)}, {json.dumps(data.get("proton") or "")}); {update} return true; }})()""")
-        if ok:
+        update = data["autoUpdate"] if manifest_path(appid) and data.get("autoUpdate") in (0, 1, 2) else None
+        ok, _ = sc.request("setApp", appid=int(appid), options=options, proton=data.get("proton") or "", autoUpdate=update)
+        if ok is True:
             print(json.dumps({"ok": True, "launchOptions": options, "live": True})); return 0
     err = steam_closed_or_error(restart)
     if err:
@@ -392,17 +370,6 @@ def cmd_downloads_set(data, restart):
     print(json.dumps({"ok": True}))
     return 0
 
-def cmd_restart_steam(remote):
-    """Steam again, in the tray: for the debugging port to open (remote True) or close"""
-    if steam_running() and _steam_game_running(): # Closing Steam would end the game
-        print(json.dumps({"ok": False, "error": "game-running"})); return 2
-    err = steam_closed_or_error(True)
-    if err:
-        print(json.dumps({"ok": False, "error": err[0]})); return err[1]
-    start_steam(remote)
-    print(json.dumps({"ok": True}))
-    return 0
-
 def _uses_dir(path):
     """True when a running process has its executable or working folder inside path (the game is open)"""
     prefix = path + os.sep
@@ -447,8 +414,8 @@ def cmd_uninstall(appid, restart, dry_run=False):
     # Steam's own uninstall, as its Uninstall button after you confirm (the true): no dialog, no restart
     sc = live() if steam_running() else None
     if sc:
-        ok, _ = sc.evaluate(f"(async () => {{ await SteamClient.Installs.OpenUninstallWizard([{int(appid)}], '0', true); return true; }})()")
-        if ok:
+        ok, _ = sc.request("uninstall", appid=int(appid))
+        if ok is True:
             print(json.dumps({"ok": True, "live": True})); return 0
     was_running = steam_running()
     err = steam_closed_or_error(restart)
@@ -618,7 +585,7 @@ def outlive_caller():
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    if a[:1] == ["restart-steam"] or ("--restart" in a and "--dry-run" not in a):
+    if "--restart" in a and "--dry-run" not in a:
         outlive_caller()
     if a[:1] == ["get"] and len(a) == 2: cmd_get(a[1])
     elif a[:1] == ["set"] and len(a) >= 3: sys.exit(cmd_set(a[1], json.loads(a[2]), "--restart" in a[3:]))
@@ -631,8 +598,5 @@ if __name__ == "__main__":
         sys.exit(cmd_install(a[1], lib, "--restart" in a[2:], "--dry-run" in a[2:]))
     elif a[:1] == ["downloads-get"]: cmd_downloads_get()
     elif a[:1] == ["downloads-set"] and len(a) >= 2: sys.exit(cmd_downloads_set(json.loads(a[1]), "--restart" in a[2:]))
-    elif a[:1] == ["restart-steam"]:
-        remote = a[a.index("--remote") + 1] == "on" if "--remote" in a[1:-1] else None
-        sys.exit(cmd_restart_steam(remote))
     elif a[:1] == ["roundtrip"]: sys.exit(cmd_roundtrip())
     else: print(__doc__); sys.exit(1)

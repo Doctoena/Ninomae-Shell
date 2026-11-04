@@ -13,9 +13,8 @@ import Quickshell.Io
  * On the left, the tools: GameMode, MangoHud and gamescope switch their word in front of %command% (MangoHud
  * with a layout, as MANGOHUD_CONFIG=preset=N, and gamescope with its own options, while on). On the right, the whole line as Steam holds it, and the Proton and Updates
  * menus (Updates once it's installed: the mode lives in the game's appmanifest).
- * Saving goes straight to Steam when it answers on its debugging port (Settings → Games → "Pause and resume
- * from the launcher"). Otherwise Steam rewrites its settings when it quits, so saving while it's open
- * closes and restarts it.
+ * Saving goes straight to Steam when it runs with the shell's Millennium plugin (themes/steam/ninomae-plugin).
+ * Otherwise Steam rewrites its settings when it quits, so saving while it's open closes and restarts it.
  * Keys: Enter in a box saves, Esc closes.
  */
 LauncherTopPanel {

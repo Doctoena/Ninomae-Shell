@@ -160,79 +160,36 @@ ContentPage {
             currentValue: steamDownloads.shown.windowEnd ?? 7
             onSelected: v => steamDownloads.change("windowEnd", v)
         }
-        ConfigSwitch { // Steam restarts with its debugging port open (or closed): -cef-enable-debugging
-            visible: steamDownloads.current !== null
-            enabled: !writeProc.running && !restartProc.running
-            buttonIcon: "pause_circle"
-            text: Translation.tr("Pause and resume from the launcher")
-            option: "gameLauncher.steamRemoteControl"
-            onClicked: Qt.callLater(() => { // After the switch has saved the option (its own click handler)
-                const on = Config.options.gameLauncher.steamRemoteControl ?? false;
-                restartProc.command = ["python3", "-I", steamDownloads.helper, "restart-steam", "--remote", on ? "on" : "off"];
-                restartProc.running = true;
-            })
-            tooltip: Translation.tr("Opens Steam's debugging port (localhost:8080, as Decky Loader does) so the launcher can press\nSteam's own pause and resume, and save launch options, Proton and uninstalls without restarting it.\nOnly this PC can reach it, and with the guard below only your desktop: not Flatpak apps.\nA Steam update can break it: then the launcher falls back to restarting Steam, or opening it")
-        }
-        // The port guard (scripts/game-launcher/steam_port_guard.sh): a firewall rule so only the desktop session
-        // reaches the port, not Flatpak apps. It needs root, so it's a command to run once, copied from here
+        // Pause and resume from the launcher go through the shell's Millennium plugin
+        // (themes/steam/ninomae-plugin, scripts/game-launcher/steam_control.py): whether it's there
         RowLayout {
-            id: portGuard
-            readonly property string script: Quickshell.shellPath("scripts/game-launcher/steam_port_guard.sh")
-            property bool on: false
-            visible: steamDownloads.current !== null && (Config.options.gameLauncher.steamRemoteControl ?? false)
+            id: plugin
+            property string status: "" // steam_control.py status: on, outdated, installed (Steam isn't running) or missing
             Layout.fillWidth: true
             Layout.leftMargin: 8
             Layout.rightMargin: 8
             spacing: 10
-            onVisibleChanged: if (visible) guardCheck.running = true
-            Component.onCompleted: if (visible) guardCheck.running = true
+            Component.onCompleted: pluginCheck.running = true
             Process {
-                id: guardCheck
-                command: [portGuard.script, "status"]
-                stdout: StdioCollector { onStreamFinished: portGuard.on = text.trim() === "on" }
+                id: pluginCheck
+                command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_control.py"), "status"]
+                stdout: StdioCollector { onStreamFinished: plugin.status = text.trim() }
             }
             MaterialSymbol {
-                text: portGuard.on ? "shield_lock" : "shield"
+                text: plugin.status === "missing" ? "extension_off" : "extension"
                 iconSize: Appearance.font.pixelSize.larger
-                color: portGuard.on ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                color: plugin.status === "on" || plugin.status === "outdated" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
             }
             StyledText {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colOnLayer1
-                text: portGuard.on ? Translation.tr("Only your desktop can reach it. Flatpak apps can't.")
-                    : Translation.tr("Flatpak apps can reach it too. Run the guard's command once in a terminal to allow only your desktop.")
-            }
-            DialogButton {
-                visible: !portGuard.on
-                buttonText: copied.running ? Translation.tr("Copied") : Translation.tr("Copy command")
-                onClicked: {
-                    Quickshell.execDetached(["wl-copy", `sudo ${portGuard.script} install`]);
-                    copied.restart();
-                    guardRecheck.left = 40; // Two minutes
-                    guardRecheck.restart();
-                }
-                Timer { id: copied; interval: 2000 }
-            }
-            Timer { // After copying: check again for a while, so it turns on here once the command has run
-                id: guardRecheck
-                interval: 3000
-                repeat: true
-                property int left: 0
-                onTriggered: { guardCheck.running = true; if (portGuard.on || --left <= 0) stop(); }
-            }
-        }
-        Process {
-            id: restartProc
-            stdout: StdioCollector {
-                onStreamFinished: {
-                    let r = null; try { r = JSON.parse(text); } catch (e) {}
-                    if (r?.ok) return;
-                    steamDownloads.error = r?.error === "game-running"
-                        ? Translation.tr("A game is running, so Steam wasn't restarted. It changes the next time Steam starts.")
-                        : Translation.tr("Steam didn't restart. It changes the next time Steam starts.");
-                }
+                text: plugin.status === "on" ? Translation.tr("The launcher can pause, resume and order Steam's downloads, and save launch options without restarting Steam.")
+                    : plugin.status === "outdated" ? Translation.tr("The Ninomae plugin was updated. Restart Steam to load it.")
+                    : plugin.status === "installed" ? Translation.tr("Pause and resume in the launcher work while Steam is running.")
+                    : plugin.status === "missing" ? Translation.tr("To pause and resume downloads from the launcher, Steam needs Millennium and the Ninomae plugin. Run ninomae update to set them up.")
+                    : ""
             }
         }
         StyledText {
@@ -243,7 +200,7 @@ ContentPage {
             color: steamDownloads.error !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext
             font.pixelSize: Appearance.font.pixelSize.smaller
             text: steamDownloads.error !== "" ? steamDownloads.error
-                : writeProc.running || applyTimer.running || restartProc.running ? Translation.tr("Restarting Steam in the tray…")
+                : writeProc.running || applyTimer.running ? Translation.tr("Restarting Steam in the tray…")
                 : Translation.tr("Changing these restarts Steam in the tray. Speed limits are in Steam's Downloads page.")
         }
     }

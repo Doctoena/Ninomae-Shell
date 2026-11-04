@@ -156,7 +156,7 @@ Turned it down? Run `themes/steam/install-theme.sh` any time.
 | `--uninstall` | Remove the links and restore your backups (packages and this folder stay) |
 | `--dry-run` | Show what would happen without changing anything |
 | `-y` | Don't ask questions, use the defaults |
-| `--only a,b` / `--skip a,b` | Pick components: `packages` `codecs` `configs` `shell` `apps` `steam` `steamguard` `sddm` `boot` `fish` |
+| `--only a,b` / `--skip a,b` | Pick components: `packages` `codecs` `configs` `shell` `apps` `steam` `sddm` `boot` `fish` |
 | `--boot` | Also install the boot splash (off by default) |
 | `--keyboard LAYOUT` | Set the layout without asking: `us`, `de`, `fr`, `us:dvorak`, `de:nodeadkeys`… |
 
@@ -288,8 +288,9 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
   them up to an album named after the game.
 - **Game mode.** A sidebar toggle that turns off animations, blur and gaps for more performance.
 - **Steam theme.** [Millennium](https://github.com/SteamClientHomebrew/Millennium) with
-  [Material-Theme](https://github.com/kuska1/Material-Theme). A Steam update can break it for a day
-  or two.
+  [Material-Theme](https://github.com/kuska1/Material-Theme). A small Ninomae plugin lets the
+  launcher pause, resume and order Steam's downloads, and save launch options without restarting
+  Steam. A Steam update can break them for a day or two: the launcher then opens Steam's own pages.
 
 <br>
 

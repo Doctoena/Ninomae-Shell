@@ -8,6 +8,8 @@
 QS_CONFIG="Ninomae"
 VENV="$HOME/.local/state/quickshell/.venv"
 STEAM_PLUGIN="${XDG_DATA_HOME:-$HOME/.local/share}/millennium/plugins/me.tysmith.steam-native-notifications.star"
+NINOMAE_PLUGIN="${XDG_DATA_HOME:-$HOME/.local/share}/millennium/plugins/ninomae"
+STEAM_CONTROL="$DOTFILES/config/quickshell/Ninomae/scripts/game-launcher/steam_control.py"
 
 PACKAGES=(
     # Hyprland and its tools (COPR lionheartp/Hyprland, hypridle from Terra)
@@ -99,7 +101,6 @@ COMPONENTS=(
     "Shell extras — Python helpers · gooey drawer plugin · wallpaper colours|shell|on"
     "App themes — VS Code · Zen · Discord (the ones installed)|apps|on"
     "Steam — Material theme · notifications in the shell|steam|on"
-    "Steam port guard — only your desktop can use Steam's remote control, not Flatpak apps (needs sudo)|steamguard|on"
     "Login screen — SDDM theme (needs sudo)|sddm|on"
     "Boot splash — Plymouth theme · rebuilds the boot image (needs sudo)|boot|off"
     "fish as your login shell (needs sudo)|fish|on"
@@ -502,25 +503,9 @@ comp_steam() {
         needs_you "Steam: run ${c_bold}themes/steam/install-theme.sh${c_off} when it's convenient to close Steam"
         result skip "Left Steam open"; return
     fi
-    info "Millennium (Steam client patcher), Material theme, notifications plugin:"
+    info "Millennium (Steam client patcher), Material theme, notifications and Ninomae plugins:"
     if run_visible "$DOTFILES/themes/steam/install-theme.sh"; then
-        result done "Theme and notifications plugin"
-    else result fail "See the log"; fi
-}
-
-# ── Steam port guard ────────────────────────────────────────────────────────
-# Settings → Games → "Pause and resume from the launcher" opens Steam's debugging port (localhost:8080).
-# A firewall rule lets only the desktop session (the shell, its helpers, Steam) reach it, not Flatpak apps:
-# steam_port_guard.sh, which also puts in a small service that loads the rule at every login
-STEAM_PORT_GUARD="$DOTFILES/config/quickshell/Ninomae/scripts/game-launcher/steam_port_guard.sh"
-comp_steamguard() {
-    step "Steam port guard"
-    if ! command -v nft >/dev/null; then info "nftables isn't installed"; result skip "No nftables"; return; fi
-    if [[ $("$STEAM_PORT_GUARD" status) == uwsm ]]; then
-        info "Your desktop runs under uwsm, where the rule would block the shell as well"; result skip "Not for uwsm"; return
-    fi
-    if spin "Firewall rule for Steam's debugging port" sudo "$STEAM_PORT_GUARD" install
-    then result done "Only your desktop can reach Steam's debugging port"
+        result done "Theme, notifications and Ninomae plugins"
     else result fail "See the log"; fi
 }
 
@@ -622,8 +607,19 @@ update_shell() {
     if (( failed )); then result fail "See the log"; else result done "Python helpers upgraded, plugin up to date"; fi
 }
 update_steam_plugin() {
-    step "Steam notifications plugin"
-    if [[ ! -f $STEAM_PLUGIN ]]; then info "Not installed"; result skip "Not installed"; return; fi
+    step "Steam plugins"
+    remove_old_port_guard
+    # The Ninomae plugin updates with this folder. It's put in here too if it isn't yet (turning it on
+    # waits for Steam to be closed), and Steam has to restart to load a new copy
+    if [[ -d /usr/lib/millennium ]]; then
+        local plugin
+        run "$DOTFILES/themes/steam/install-theme.sh" --plugin; plugin=$?
+        (( plugin == 3 )) && needs_you "Steam: close it and run ${c_bold}ninomae update${c_off} again, to turn on pause and resume in the launcher"
+        (( plugin == 1 )) && warn "Couldn't put in the Ninomae plugin; see the log"
+        [[ $(python3 -I "$STEAM_CONTROL" status) == outdated ]] \
+            && needs_you "Steam: restart it (Exit Steam, then start it) to load the updated Ninomae plugin"
+    fi
+    if [[ ! -f $STEAM_PLUGIN ]]; then info "Notifications plugin not installed"; result skip "Notifications plugin not installed"; return; fi
     local status
     run_visible "$DOTFILES/themes/steam/install-theme.sh" --update-plugin; status=$?
     case $status in
@@ -686,6 +682,16 @@ check_plugin() {
     elif [[ "$("$plugin/ensure-built.sh" --stamp 2>/dev/null)" != "$(cat "$built")" ]]; then result todo "Out of date, run ninomae update"
     else result done "Up to date"; fi
 }
+check_steam_plugin() {
+    step "Ninomae Steam plugin"
+    if [[ ! -d /usr/lib/millennium ]]; then result skip "No Millennium (the Steam theme step puts it in)"; return; fi
+    case $(python3 -I "$STEAM_CONTROL" status) in
+        on) result done "Working" ;;
+        installed) result done "Installed, works while Steam runs" ;;
+        outdated) result todo "Restart Steam to load the update" ;;
+        *) result todo "Not on, close Steam and run ninomae update" ;;
+    esac
+}
 check_colours() {
     step "Wallpaper colours"
     local gen="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/generated" f missing=()
@@ -740,32 +746,41 @@ uninstall_links() {
     result done "$removed removed · $restored restored"
 }
 uninstall_steam_plugin() {
-    step "Steam notifications plugin"
-    if [[ ! -f $STEAM_PLUGIN ]]; then info "Not installed"; result skip "Not installed"; return; fi
-    if ! confirm "Remove the Steam notifications plugin? (Steam goes back to its own pop-ups)"; then result skip "Kept"; return; fi
-    run rm -f "$STEAM_PLUGIN"
+    step "Steam plugins"
+    remove_old_port_guard
+    local drop=() # Millennium plugin ids to turn off
+    if [[ -L $NINOMAE_PLUGIN ]]; then # The shell's own: it goes with the shell
+        run rm -f "$NINOMAE_PLUGIN" && drop+=(ninomae) && ok "Ninomae plugin removed"
+    fi
+    if [[ -f $STEAM_PLUGIN ]] && confirm "Remove the Steam notifications plugin? (Steam goes back to its own pop-ups)"; then
+        run rm -f "$STEAM_PLUGIN" && drop+=(me.tysmith.steam-native-notifications) && ok "Notifications plugin removed"
+    fi
+    if (( ! ${#drop[@]} )); then result skip "Nothing removed"; return; fi
     local cfg="$HOME/.config/millennium/config.json"
     if [[ -f $cfg ]] && (( ! DRY_RUN )); then
-        python3 - "$cfg" <<'PY' >>"$LOG" 2>&1
+        python3 - "$cfg" "${drop[@]}" <<'PY' >>"$LOG" 2>&1
 import json, sys
-p = sys.argv[1]
+p, drop = sys.argv[1], sys.argv[2:]
 c = json.load(open(p))
 enabled = c.get("plugins", {}).get("enabledPlugins", [])
-if "me.tysmith.steam-native-notifications" in enabled:
-    enabled.remove("me.tysmith.steam-native-notifications")
+if any(d in enabled for d in drop):
+    enabled[:] = [e for e in enabled if e not in drop]
     json.dump(c, open(p, "w"), indent=4)
 PY
     fi
-    ok "Removed (takes effect when Steam restarts)"
+    info "Takes effect when Steam restarts"
     result done "Removed"
 }
-uninstall_port_guard() {
-    step "Steam port guard"
-    if [[ $("$STEAM_PORT_GUARD" status) != on ]]; then info "Not installed"; result skip "Not installed"; return; fi
-    if ! confirm "Remove the Steam port guard? (the firewall rule that keeps Flatpak apps off port 8080)"; then result skip "Kept"; return; fi
-    if spin "Firewall rule for Steam's debugging port" sudo "$STEAM_PORT_GUARD" remove
-    then result done "Removed"
-    else result fail "See the log"; fi
+# Until 2026-11-03 pause and resume went through Steam's debugging port, kept to the desktop by a firewall rule
+# (a system service, installed with sudo). The plugin needs neither: what an older install put in goes
+remove_old_port_guard() {
+    [[ -e /etc/systemd/system/ninomae-steam-port-guard@.service ]] || return 0
+    info "Removing the Steam port guard, which the Ninomae plugin replaces (needs sudo)"
+    run sudo sh -c 'systemctl disable --now "ninomae-steam-port-guard@$1.service" 2>/dev/null
+        rm -f /etc/systemd/system/ninomae-steam-port-guard@.service /etc/ninomae/steam-port-guard.nft.in
+        rmdir /etc/ninomae 2>/dev/null; systemctl daemon-reload
+        nft destroy table inet ninomae_steam_port 2>/dev/null; true' sh "$(id -u)" \
+        && ok "Steam port guard removed" || warn "Couldn't remove the Steam port guard"
 }
 uninstall_shell() {
     step "Login shell"

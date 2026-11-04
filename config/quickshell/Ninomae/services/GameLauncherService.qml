@@ -928,7 +928,7 @@ Singleton {
     // Settings → Games → "Pause and resume from the launcher" is on. When Steam can't be reached that way,
     // its Downloads page opens instead. While one runs (and a moment after, for Steam to log it), appid
     // (or "all") → when it was pressed is in downloadControlPending
-    readonly property bool canControlDownloads: steamDownloads.remoteControl ?? false
+    readonly property bool canControlDownloads: steamDownloads.canControl ?? false
     property var downloadControlPending: ({})
     // action: resume (that game first, as Steam's "Move to top"; also its retry), remove or remove-and-resume
     // (off the queue, Steam's ✕), pause-all or resume-all (the queue, as the pause button on the one downloading)
@@ -1344,10 +1344,7 @@ Singleton {
             const cmd = option >= 0 && game.id.startsWith("steam_")
                 ? ["steam", "-silent", `steam://launch/${game.id.substring(6)}/x/${option}`]
                 : game.launchCommand;
-            // Steam started by this launch opens its debugging port too, for pause and resume (a running
-            // Steam just takes the URL)
-            const remote = (Config.options?.gameLauncher?.steamRemoteControl ?? false) && cmd[0] === "steam";
-            Quickshell.execDetached(remote ? ["steam", "-cef-enable-debugging", ...cmd.slice(1)] : cmd);
+            Quickshell.execDetached(cmd);
             root.gameLaunching(game);
             // Toast confirming the launch, unless the splash already shows it
             if (Config.options?.gameLauncher?.launchAnimation ?? true) return;
