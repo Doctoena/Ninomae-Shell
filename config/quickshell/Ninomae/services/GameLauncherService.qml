@@ -809,6 +809,15 @@ Singleton {
     // holds a snapshot). 4 = fully installed, 2 = update required, 2048 = uninstalling; the rest of
     // the "busy" bits mean a download, update or validation is running
     readonly property int _busyFlags: 256 | 1024 | 131072 | 262144 | 524288 | 1048576 | 2097152 | 4194304
+    // Steam's own pause bit only covers one paused by hand: the downloads feed also knows the ones held
+    // (the whole queue paused, a game running), stopped by an error, or waiting for Steam to start.
+    // appid → true, while the launcher is open (the feed runs then, and so do the labels that use it)
+    readonly property var _heldDownloads: {
+        const held = {};
+        for (const i of downloadItems)
+            if (["paused", "suspended", "error", "stopped"].includes(i.state)) held[i.appid] = true;
+        return held;
+    }
     function installState(gameOrId) {
         const id = typeof gameOrId === "string" ? gameOrId : gameOrId?.id;
         const g = root._installedGamesMap[id];
@@ -819,8 +828,9 @@ Singleton {
         if (!g || flags === 0) return "notInstalled";
         if (!g.id.startsWith("steam_")) return "installed"; // Lutris: present means installed
         if (flags & 2048) return "uninstalling";
-        if (!(flags & 4)) return "installing";
-        if (flags & 512) return "updatePaused"; // Steam's "UpdatePaused" bit
+        const held = (flags & 512) || !!root._heldDownloads[id.substring(6)]; // 512: Steam's "UpdatePaused" bit
+        if (!(flags & 4)) return held ? "installPaused" : "installing";
+        if (held) return "updatePaused";
         if (flags & root._busyFlags) return "updating";
         if (flags & 2) return "updateRequired";
         return "installed";

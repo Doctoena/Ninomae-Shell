@@ -21,7 +21,7 @@ Item {
         return GameLauncherService.installState(game);
     }
     readonly property bool _downloading: installState === "installing" || installState === "updating"
-    readonly property bool _paused: installState === "updatePaused" // Still shows how far it got
+    readonly property bool _paused: installState === "updatePaused" || installState === "installPaused" // Still shows how far it got
     // Workshop mods downloading for an installed game (GameLauncherService.workshopDownloading)
     readonly property bool _modsOnly: !_downloading && installState === "installed" && !!GameLauncherService.workshopDownloading[game?.id]
     // What's downloading, if anything: progress starts over when this changes (not on a pause)
@@ -363,6 +363,8 @@ Item {
             out.push({ icon: "sports_esports", label: Translation.tr("Status"), value: Translation.tr("Playing"), accent: Appearance.colors.colPrimary });
         else if (st === "installing")
             out.push({ icon: "download", label: Translation.tr("Status"), value: Translation.tr("Installing") + pct, accent: Appearance.colors.colTertiary });
+        else if (st === "installPaused")
+            out.push({ icon: "pause_circle", label: Translation.tr("Status"), value: Translation.tr("Install paused") + pct, accent: Appearance.colors.colTertiary });
         else if (st === "updating")
             out.push({ icon: "downloading", label: Translation.tr("Status"), value: Translation.tr("Updating") + pct, accent: Appearance.colors.colTertiary });
         else if (st === "updateRequired")
@@ -754,7 +756,7 @@ Item {
                 readonly property bool isSteam: (game?.source ?? "").toLowerCase() === "steam"
                 // Mid-install it cancels it: the same uninstall stops the download and deletes what's been
                 // downloaded
-                readonly property bool cancels: root.installState === "installing"
+                readonly property bool cancels: root.installState === "installing" || root.installState === "installPaused"
                 iconName: cancels ? "cancel" : "delete_forever"
                 label: armed ? Translation.tr("Click to confirm") : cancels ? Translation.tr("Cancel install") : Translation.tr("Uninstall")
                 detail: !armed || !isSteam ? ""
@@ -766,7 +768,7 @@ Item {
                 closesMenu: armed
                 // Steam games mid-install or mid-update too (Lutris only uninstalls installed games)
                 visible: (["installed", "updateRequired", "updatePaused"].includes(root.installState)
-                          || (isSteam && ["installing", "updating"].includes(root.installState)))
+                          || (isSteam && ["installing", "installPaused", "updating"].includes(root.installState)))
                     && !GameLauncherService.isCustomGame(game?.id)
                 onTriggered: {
                     if (!armed) {
@@ -1151,7 +1153,7 @@ Item {
                     }
                     // While a download runs, the button shows the launcher's Downloads panel instead of starting it
                     // again. A paused one resumes (or opens Steam's downloads, without pause and resume on)
-                    else if (root.installState === "updatePaused") GameLauncherService.controlDownload("resume", game.id.substring(6));
+                    else if (root._paused) GameLauncherService.controlDownload("resume", game.id.substring(6));
                     else if (root._downloading) root.openPanel = root.openPanel === "downloads" ? "" : "downloads";
                     // More than one Steam library: ask which here, instead of Steam's install dialog
                     else if (root.installState === "notInstalled" && (game?.id ?? "").startsWith("steam_")
@@ -1171,6 +1173,7 @@ Item {
                 readonly property var _look: playing ? { icon: "", text: Translation.tr("Playing") } : ({
                     "notInstalled":   { icon: "download",    text: Translation.tr("Install") },
                     "installing":     { icon: "downloading", text: Translation.tr("Installing") },
+                    "installPaused":  { icon: "downloading", text: Translation.tr("Resume install") },
                     "updating":       { icon: "downloading", text: Translation.tr("Updating") },
                     "updateRequired": { icon: "update",      text: Translation.tr("Update & play") },
                     "updatePaused":   { icon: "downloading", text: Translation.tr("Resume update") },
