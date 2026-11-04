@@ -512,10 +512,14 @@ comp_steam() {
 # Settings → Games → "Pause and resume from the launcher" opens Steam's debugging port (localhost:8080).
 # A firewall rule lets only the desktop session (the shell, its helpers, Steam) reach it, not Flatpak apps:
 # steam_port_guard.sh, which also puts in a small service that loads the rule at every login
+STEAM_PORT_GUARD="$DOTFILES/config/quickshell/Ninomae/scripts/game-launcher/steam_port_guard.sh"
 comp_steamguard() {
     step "Steam port guard"
     if ! command -v nft >/dev/null; then info "nftables isn't installed"; result skip "No nftables"; return; fi
-    if spin "Firewall rule for Steam's debugging port" sudo "$DOTFILES/config/quickshell/Ninomae/scripts/game-launcher/steam_port_guard.sh" install
+    if [[ $("$STEAM_PORT_GUARD" status) == uwsm ]]; then
+        info "Your desktop runs under uwsm, where the rule would block the shell as well"; result skip "Not for uwsm"; return
+    fi
+    if spin "Firewall rule for Steam's debugging port" sudo "$STEAM_PORT_GUARD" install
     then result done "Only your desktop can reach Steam's debugging port"
     else result fail "See the log"; fi
 }
@@ -754,6 +758,14 @@ PY
     fi
     ok "Removed (takes effect when Steam restarts)"
     result done "Removed"
+}
+uninstall_port_guard() {
+    step "Steam port guard"
+    if [[ $("$STEAM_PORT_GUARD" status) != on ]]; then info "Not installed"; result skip "Not installed"; return; fi
+    if ! confirm "Remove the Steam port guard? (the firewall rule that keeps Flatpak apps off port 8080)"; then result skip "Kept"; return; fi
+    if spin "Firewall rule for Steam's debugging port" sudo "$STEAM_PORT_GUARD" remove
+    then result done "Removed"
+    else result fail "See the log"; fi
 }
 uninstall_shell() {
     step "Login shell"

@@ -236,12 +236,12 @@ uninstall)
     echo; box "Uninstall will" \
         "• remove the config links that point into ${DOTFILES/#$HOME/\~}" \
         "• put back the files they replaced, from your newest backups" \
-        "• offer to remove the Steam notifications plugin$( (( keep_fish )) || echo ' and switch back to bash')" \
+        "• offer to remove the Steam notifications plugin and port guard$( (( keep_fish )) || echo ', and switch back to bash')" \
         "" "${c_dim}Packages, the login screen and boot themes, and this folder stay${c_off}"
     echo
     confirm "Uninstall?" no || die "Cancelled; nothing was changed."
-    STEP_TOTAL=$(( 3 - keep_fish ))
-    uninstall_links; uninstall_steam_plugin
+    STEP_TOTAL=$(( 4 - keep_fish ))
+    uninstall_links; uninstall_steam_plugin; uninstall_port_guard
     (( keep_fish )) || uninstall_shell
     report "Log out to leave this desktop; the packages are still installed if you come back" \
            "Remove packages yourself if you like, e.g. ${c_bold}sudo dnf remove hyprland quickshell${c_off}"
