@@ -1719,6 +1719,13 @@ Singleton {
             _customArtStore.commit(art);
         }
     }
+    // A game's boxArt or heroArt as a file on this PC: the custom one, else the game's ("" if neither)
+    function localArt(game, key) {
+        const custom = game ? (root.customArt[game.id]?.[key] ?? "") : "";
+        return custom.startsWith("/") ? custom : (game?.[key] ?? "").startsWith("/") ? game[key] : "";
+    }
+    // The details page's banner art, else "" (a banner then shows the cover, blurred)
+    function bannerArt(game) { return localArt(game, "heroArt") || (game?.derivedHeroArt ?? ""); }
     function setCustomHeroArt(gameId, filePath) { _setCustomArtField(gameId, "heroArt", filePath); }
     function setCustomBoxArt(gameId, filePath) { _setCustomArtField(gameId, "boxArt", filePath); }
     function setCustomLogo(gameId, filePath) { _setCustomArtField(gameId, "logo", filePath); }

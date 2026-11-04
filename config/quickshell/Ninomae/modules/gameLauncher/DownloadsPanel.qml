@@ -75,10 +75,6 @@ LauncherTopPanel {
     }
 
     function gameFor(appid) { return GameLauncherService._installedGamesMap["steam_" + appid] ?? null; }
-    function artFor(game, key) { // boxArt or heroArt: the custom one, else the game's, as a file ("" if neither)
-        const custom = game ? (GameLauncherService.customArt[game.id]?.[key] ?? "") : "";
-        return custom.startsWith("/") ? custom : (game?.[key] ?? "").startsWith("/") ? game[key] : "";
-    }
     function busy(appid) { // A button pressed for it, or for the whole queue, that Steam hasn't answered yet
         const pending = GameLauncherService.downloadControlPending;
         return !!pending[appid] || !!pending["all"];
@@ -201,9 +197,8 @@ LauncherTopPanel {
                 readonly property var game: root.gameFor(row?.appid)
                 readonly property bool live: row?.state === "downloading"
                 readonly property bool failed: row?.state === "error"
-                // The details page's banner art, else "" (then the cover, blurred)
-                readonly property string hero: root.artFor(game, "heroArt") || (game?.derivedHeroArt ?? "")
-                readonly property string cover: root.artFor(game, "boxArt")
+                readonly property string hero: GameLauncherService.bannerArt(game) // Else the cover, blurred
+                readonly property string cover: GameLauncherService.localArt(game, "boxArt")
                 width: parent.width
                 height: 118
                 visible: row !== null
@@ -408,7 +403,7 @@ LauncherTopPanel {
         property var row: ({})
         property bool finishedRow: false
         readonly property var game: root.gameFor(row.appid)
-        readonly property string cover: root.artFor(game, "boxArt")
+        readonly property string cover: GameLauncherService.localArt(game, "boxArt")
         height: 54
         radius: Appearance.rounding.normal
         color: rowHover.hovered && game ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
