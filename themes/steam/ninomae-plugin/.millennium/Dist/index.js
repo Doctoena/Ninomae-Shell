@@ -63,8 +63,23 @@ async function check() {
     setTimeout(check, fast ? 150 : 2000);
 }
 check();
+// Steam's own screenshot key (Settings → In game → Screenshot shortcut) set to "Not bound" each time Steam starts,
+// as its Clear button does: F12 is the shell's in every game (services/GameClips.qml), so Steam saving one too
+// would make two. It's screenshot_key, field 4003 of Steam's settings message: a hotkey of key code 0, no
+// modifiers, written out by hand as Steam's settings page encodes it
+(function unbindScreenshotKey() {
+    const name = [...new TextEncoder().encode("Not bound")];
+    const key = [0x08, 0, 0x10, 0, 0x18, 0, 0x20, 0, 0x28, 0, 0x32, name.length, ...name];
+    const bytes = [0x9a, 0xfa, 0x01, key.length, ...key];
+    try {
+        Promise.resolve(SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes))))
+            .catch(err => console.warn("[Ninomae] screenshot key", err));
+    } catch (err) {
+        console.warn("[Ninomae] screenshot key", err);
+    }
+})();
 // Millennium's plugin list shows this page
-const Page = () => window.SP_REACT.createElement(api.Field, { label: "Ninomae launcher", description: "Lets the Ninomae launcher pause, resume and order downloads, and save launch options and Proton without restarting Steam. Nothing to set here.", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), bottomSeparator: "none", focusable: false });
+const Page = () => window.SP_REACT.createElement(api.Field, { label: "Ninomae launcher", description: "Lets the Ninomae launcher pause, resume and order downloads, and save launch options and Proton without restarting Steam. Turns off Steam's screenshot key: F12 is the shell's. Nothing to set here.", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), bottomSeparator: "none", focusable: false });
 exports.default = api.definePlugin(() => ({ title: "Ninomae Shell", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), content: window.SP_REACT.createElement(Page, null) }));
 Object.defineProperty(exports, "__esModule", { value: true });
 return exports;

@@ -76,8 +76,10 @@ Scope {
 
     // ── Capture: the overlay goes at once (no fade), then a frame later the capture, so it shows the game ──
     property string _pendingCapture: ""
+    property var _captureGame: null // The game as it was on the click: it may have quit by the time the capture's taken
     function capture(kind) {
         root._pendingCapture = kind;
+        root._captureGame = { name: GameClips.game, appid: GameClips.gameAppId, dir: root.game?.gameDir ?? "", flatpak: root.game?.flatpakId ?? "" };
         root.close();
         unloadTimer.stop();
         root.loaded = false;
@@ -90,8 +92,8 @@ Scope {
             if (root._pendingCapture === "clip") GameClips.save();
             else if (root._pendingCapture === "screenshot") Quickshell.execDetached([
                 Quickshell.shellPath("scripts/game-launcher/game_screenshot.sh"),
-                root.screenName || (Hyprland.focusedMonitor?.name ?? ""), GameClips.game || "Game",
-                GameClips.gameAppId, root.game?.gameDir ?? "", root.game?.flatpakId ?? ""]);
+                root.screenName || (Hyprland.focusedMonitor?.name ?? ""), root._captureGame.name || "Game",
+                root._captureGame.appid, root._captureGame.dir, root._captureGame.flatpak]);
             root._pendingCapture = "";
         }
     }
@@ -219,8 +221,8 @@ Scope {
                     }
                 }
             }
-            // Screenshots taken since then: Steam's F12 folder and the game's own (find_screenshots.py, as the
-            // launcher's gallery), the overlay's among them. Its first line says where they go
+            // Screenshots taken since then: the shell's (F12, the overlay's) and the game's own (find_screenshots.py,
+            // as the launcher's gallery). Its first line says where they go
             property var sessionShots: []
             property string shotsFolder: ""
             Process {

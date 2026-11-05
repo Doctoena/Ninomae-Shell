@@ -8,8 +8,8 @@ import Quickshell.Io
 import Quickshell.Widgets
 
 /**
- * The game page's Captures: a game's screenshots in a panel growing up out of the launcher (LauncherTopPanel): what Steam's F12
- * saved and the game's own screenshot folders (scripts/game-launcher/find_screenshots.py), newest
+ * The game page's Captures: a game's screenshots in a panel growing up out of the launcher (LauncherTopPanel): what the shell's
+ * F12 and the overlay saved and the game's own screenshot folders (scripts/game-launcher/find_screenshots.py), newest
  * first, in 16:9 tiles four across as the Clips page's (other shapes cropped to fill them); clicking one
  * opens it large with its details and a filmstrip under it. Keys come from the details page while it's
  * open (handleKey): on the grid the arrows (Home/End) move a ring and Enter opens that one; in the viewer
@@ -107,7 +107,7 @@ LauncherTopPanel {
     Process {
         id: finder
         command: [Quickshell.shellPath("scripts/game-launcher/find_screenshots.py"), root.appid, root.game?.gameDir || "", root.game?.flatpakId || "",
-                  root.game?.name || ""] // The name: where the shell saves a non-Steam game's (game_screenshot.sh)
+                  root.game?.name || ""] // The name: where the shell saves them (game_screenshot.sh)
         stdout: StdioCollector {
             onStreamFinished: {
                 const folderLine = text.split("\n").find(l => l.startsWith("folder\t"));
@@ -186,10 +186,17 @@ LauncherTopPanel {
             });
         });
     }
+    // The panel is made anew each time it opens: a request still out when it closes is dropped, or its answer
+    // would come back to a panel that's gone
+    property var _requests: []
+    Component.onDestruction: { for (const r of _requests) { r.dropped = true; r.xhr.abort(); } }
     function _immichRequest(method, path, body, failed, done) {
         const xhr = new XMLHttpRequest();
+        const req = { xhr, dropped: false };
+        _requests.push(req);
         xhr.onreadystatechange = () => {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            if (xhr.readyState !== XMLHttpRequest.DONE || req.dropped) return;
+            _requests = _requests.filter(r => r !== req);
             if (xhr.status >= 200 && xhr.status < 300) {
                 try { done(JSON.parse(xhr.responseText)); return; } catch (e) { console.warn("[Screenshots] Immich:", e); }
             } else {
@@ -215,7 +222,7 @@ LauncherTopPanel {
     Timer { id: copiedTimer; interval: 1500; onTriggered: root.copiedEntry = "" }
     function copyCurrent() { copyEntry(currentEntry); }
     // Always copied as PNG: Chromium/Electron apps (Vesktop, browsers) only paste image/png,
-    // and Steam saves JPEGs. The tick/badge only shows once it's really copied
+    // and a game's own folder may hold JPEGs. The tick/badge only shows once it's really copied
     function copyEntry(entry) {
         if (!entry) return;
         copier.running = false;
@@ -242,12 +249,11 @@ LauncherTopPanel {
     }
     Timer { id: trashDisarm; interval: 4000; onTriggered: root.trashArmed = false }
     Connections { target: clipsPage; function onPlayerIndexChanged() { root.trashArmed = false; } }
-    // To the Trash (so it can be got back). For Steam's, its small copy in thumbnails/ goes too
+    // To the Trash (so it can be got back)
     function trashCurrent() {
         const i = viewerIndex, path = currentEntry;
         if (isRemote(path)) return;
-        const thumb = path.includes("/760/remote/") ? path.replace(/\/([^/]*)$/, "/thumbnails/$1") : "";
-        Quickshell.execDetached(["bash", "-c", 'gio trash -- "$0"; [ -n "$1" ] && [ -f "$1" ] && gio trash -- "$1"', path, thumb]);
+        Quickshell.execDetached(["gio", "trash", "--", path]);
         // Merged again (and remembered, or it'd show again for a moment next time): the counts and the filter
         // follow, so trashing the last one on disk under "This PC" lands on all of them, not an empty page.
         // An uploaded copy of it in the album shows again in its place

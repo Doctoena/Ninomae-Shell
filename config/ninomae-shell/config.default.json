@@ -242,7 +242,7 @@
       "showAimLines": true
     },
     "save": true,
-    "saveDir": "~/Pictures/Screenshots",
+    "saveDir": "~/Pictures/Screenshots/Desktop",
     "targetRegions": {
       "content": true,
       "contentRegionOpacity": 0.8,

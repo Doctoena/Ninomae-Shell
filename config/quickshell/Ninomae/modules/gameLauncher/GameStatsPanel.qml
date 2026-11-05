@@ -117,10 +117,9 @@ Item {
                   GameClips.clipsDir, `${GameLauncherService.cacheDir}/clip-thumbs`]
         stdout: StdioCollector { onStreamFinished: { try { root._captures = JSON.parse(text); } catch (e) {} } }
     }
-    // A capture's game: Steam's by its app id, a clip's by its folder (the game's name made safe)
+    // A capture's game, by its folder (the game's name made safe)
     function _captureGame(c) {
-        if (c.kind === "shot") return GameLauncherService.games.find(g => g.id === "steam_" + c.appid) ?? null;
-        return GameLauncherService.games.find(g => GameClips.folderFor(g.name) === `${GameClips.clipsDir}/${c.game}`) ?? null;
+        return GameLauncherService.games.find(g => GameClips.safeName(g.name) === c.game) ?? null;
     }
     // Free room on the drives Steam's libraries are on (launch_options.py libraries), each drive once
     property real _freeBytes: -1

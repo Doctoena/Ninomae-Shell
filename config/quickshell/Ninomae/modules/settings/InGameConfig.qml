@@ -152,7 +152,6 @@ ContentPage {
             readonly property string gameKeyNote: {
                 if (parsed.mask !== 0) return "";
                 const k = parsed.key;
-                if (k === "f12") return Translation.tr("F12 is Steam's screenshot key: pressing it would also save a clip");
                 if (/^[a-z0-9]$/.test(k) || ["space", "tab", "return", "backspace", "left", "right", "up", "down", "shift_l", "control_l"].includes(k))
                     return Translation.tr("Games use this key: every press in a game would also save a clip. A key with Super, or an F key, is safer");
                 return "";

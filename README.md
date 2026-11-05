@@ -282,7 +282,9 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
   unpacked) and removes old versions no game uses.
 - **Crosshair.** Design one in **Settings → Crosshair**, then turn it on per game with the crosshair
   button under Play on its page. `Super+G` shows or hides it.
-- **Captures.** Each game's page shows its screenshots (Steam's F12 and the game's own folder) and
+- **Captures.** `F12` takes a screenshot in any game, Steam's too (the Ninomae Steam plugin turns
+  Steam's own key off). They're saved to
+  `~/Pictures/Screenshots/Games/<game>`, and each game's page shows them with the game's own folder and its
   clips. Clips play right there. `T` trims one into a new clip, and `Ctrl+C` copies it, ready to
   paste into Discord. With an Immich server set in **Settings → In game**, the cloud button backs
   them up to an album named after the game.

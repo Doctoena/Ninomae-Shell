@@ -81,10 +81,10 @@ hl.define_submap("global", function()
         end
     end
 
-    -- Screenshot of a game that isn't Steam's (services/GameClips.qml: Steam's own F12 takes those). Passed on
-    -- to the game too, and works while it holds the keyboard
+    -- Screenshot of the running game, Steam's too (services/GameClips.qml: the shell's Steam plugin turns Steam's
+    -- own F12 off). Passed on to the game too, and works while it holds the keyboard
     hl.bind("F12", global("gameScreenshot"), { non_consuming = true, dont_inhibit = true,
-        description = "Shell: Screenshot (in a non-Steam game)" })
+        description = "Shell: Screenshot (in a game)" })
 
     -- Crosshair overlay (services/Crosshair.qml): dont_inhibit, so it works while a game holds the keyboard
     bind("SUPER + G", global("crosshairToggle"), { dont_inhibit = true, description = "Shell: Show/hide crosshair" })

@@ -3,7 +3,7 @@
 
 	"name": "ninomae",
 	"common_name": "Ninomae Shell",
-	"description": "Lets the Ninomae launcher pause and resume downloads and save launch options, without opening Steam's window.",
+	"description": "Lets the Ninomae launcher pause and resume downloads and save launch options, without opening Steam's window. Turns off Steam's screenshot key, as F12 is the shell's.",
 	"version": "1.0.0",
 	"backendType": "lua"
 }

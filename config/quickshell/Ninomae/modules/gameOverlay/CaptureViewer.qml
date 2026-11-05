@@ -50,7 +50,7 @@ Item {
     function openCurrent() {
         if (current) Quickshell.execDetached(["xdg-open", current.path]);
     }
-    // To the Trash. For Steam's screenshots, their small copy in thumbnails/ goes too
+    // To the Trash
     // Trash asks twice, as the launcher's Captures: the first click (or Delete) arms it, red, a second one within
     // 4 s trashes. Another capture, or waiting, puts it back
     property bool trashArmed: false
@@ -64,9 +64,8 @@ Item {
     function trashCurrent() {
         if (!current) return;
         const path = current.path;
-        const thumb = path.includes("/760/remote/") ? path.replace(/\/([^/]*)$/, "/thumbnails/$1") : "";
         videoLoader.active = false; // Let go of a clip before it goes
-        Quickshell.execDetached(["bash", "-c", 'gio trash -- "$0"; [ -n "$1" ] && [ -f "$1" ] && gio trash -- "$1"', path, thumb]);
+        Quickshell.execDetached(["gio", "trash", "--", path]);
         root.trashed(path);
         videoLoader.active = Qt.binding(() => root.isClip);
     }

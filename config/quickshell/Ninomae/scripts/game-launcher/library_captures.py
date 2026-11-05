@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""The whole library's captures, for the launcher's stats page: what Steam's F12 saved (every account's
-userdata/<account>/760/remote/<appid>/screenshots) and the gameplay clips (<clips folder>/<game>/).
+"""The whole library's captures, for the launcher's stats page: the screenshots the shell saved
+(<Pictures>/Screenshots/Games/<game>/, as find_screenshots.py names them) and the gameplay clips
+(<clips folder>/<game>/).
 
 Usage: library_captures.py <clips folder> <clip thumbnail cache>
 Prints one JSON object:
   {"shots", "shotBytes", "clips", "clipBytes", "latest": [{"kind": "shot"|"clip", "time", "image", "full",
-   "appid" (shots) | "game" (clips: its folder's name, the game's name made safe)}]}
-latest: the newest few of both, each with a small picture to show ("image": Steam's own thumbnail of a shot,
-or the frame the Clips page made for a clip, list_clips.py's cache key; "" when there's none yet) and a big
-one ("full": the shot itself, or that same frame).
+   "game": its folder's name, the game's name made safe (GameClips.safeName)}]}
+latest: the newest few of both, each with a small picture to show ("image": the shot, or the frame the Clips
+page made for a clip, list_clips.py's cache key; "" when there's none yet) and a big one ("full": the shot,
+or that same frame).
 """
-import glob, hashlib, json, os, sys
+import hashlib, json, os, sys
 
-STEAM = os.path.expanduser("~/.local/share/Steam")
-SHOTS = (".jpg", ".jpeg", ".png")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # -I leaves the script's own folder out
+from find_screenshots import EXTENSIONS as SHOTS, games_dir
 VIDEO = (".mp4", ".mkv", ".webm", ".mov")
 LATEST = 5  # The stats page's Captures card: the newest large, four under it
 
@@ -25,41 +26,37 @@ def clip_thumb(path, st, cache):
     return thumb if os.path.exists(thumb) else ""
 
 
+def per_game(root, extensions, kind, out, found):
+    """The files in each game's folder under root: counted into out[kind + "s"] and out[kind + "Bytes"], and
+    listed in found as (time, kind, path, the folder's name, stat)"""
+    try:
+        games = [g for g in os.scandir(root) if g.is_dir()] if root else []
+    except OSError:
+        return
+    for game in games:
+        try:
+            entries = list(os.scandir(game.path))
+        except OSError:
+            continue
+        for e in entries:
+            if e.name.lower().endswith(extensions) and e.is_file():
+                st = e.stat()
+                out[kind + "s"] += 1
+                out[kind + "Bytes"] += st.st_size
+                found.append((st.st_mtime, kind, e.path, game.name, st))
+
+
 def main():
     clips_root, cache = (sys.argv[1:3] + ["", ""])[:2]
     out = {"shots": 0, "shotBytes": 0, "clips": 0, "clipBytes": 0}
-    found = []  # (time, kind, path, key, stat)
-    for folder in glob.glob(os.path.join(STEAM, "userdata", "*", "760", "remote", "*", "screenshots")):
-        appid = os.path.basename(os.path.dirname(folder))
-        try:
-            entries = list(os.scandir(folder))
-        except OSError:
-            continue
-        for e in entries:  # Not into thumbnails/: Steam's small copies
-            if e.name.lower().endswith(SHOTS) and e.is_file():
-                st = e.stat()
-                out["shots"] += 1
-                out["shotBytes"] += st.st_size
-                found.append((st.st_mtime, "shot", e.path, appid, st))
-    if clips_root and os.path.isdir(clips_root):
-        for game in os.scandir(clips_root):
-            if not game.is_dir():
-                continue
-            for e in os.scandir(game.path):
-                if e.name.lower().endswith(VIDEO) and e.is_file():
-                    st = e.stat()
-                    out["clips"] += 1
-                    out["clipBytes"] += st.st_size
-                    found.append((st.st_mtime, "clip", e.path, game.name, st))
+    found = []
+    per_game(games_dir(), SHOTS, "shot", out, found)
+    per_game(clips_root, VIDEO, "clip", out, found)
     found.sort(key=lambda f: f[0], reverse=True)
     latest = []
-    for time, kind, path, key, st in found[:LATEST]:
-        if kind == "shot":
-            thumb = os.path.join(os.path.dirname(path), "thumbnails", os.path.basename(path))
-            latest.append({"kind": kind, "time": time, "image": thumb if os.path.exists(thumb) else path, "full": path, "appid": key})
-        else:
-            frame = clip_thumb(path, st, cache)
-            latest.append({"kind": kind, "time": time, "image": frame, "full": frame, "game": key})
+    for time, kind, path, game, st in found[:LATEST]:
+        image = path if kind == "shot" else clip_thumb(path, st, cache)
+        latest.append({"kind": kind, "time": time, "image": image, "full": image, "game": game})
     out["latest"] = latest
     print(json.dumps(out))
 

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Lists a game's screenshots for the launcher's gallery, newest first, at most 300:
 "<mtime>\t<width>\t<height>\t<path>" per line, after a first line "folder\t<path>": where the game's
-screenshots go, for the gallery's Open folder button even with none yet ("" when there's nowhere: a
-non-Steam game without a screenshots folder). For a Steam game that's Steam's F12 folder, which may not
-exist yet (the button makes it). The time lets the gallery merge them with the game's
-Immich album and group them by day; the size lays them out at their own shape (0 when unreadable).
+screenshots go, for the gallery's Open folder button even with none yet (the button makes it; "" with no
+name given). The time lets the gallery merge them with the game's Immich album; the size lays them out at
+their own shape (0 when unreadable).
 
 Usage: find_screenshots.py <steam app id or ""> <game folder or ""> <flatpak id or ""> [<game name>]
-  - Steam: what F12 saved, in every Steam account's userdata/<account>/760/remote/<app id>/screenshots
+       find_screenshots.py --folder <the same>: only the folder line (game_screenshot.sh)
+  - The shell's own: <Pictures>/Screenshots/Games/<game> (game_screenshot.sh saves there: F12, the
+    overlay). Steam's own F12 is off (the shell's Steam plugin unbinds it)
   - The game's own folders named "screenshots" (any case) in its install folder, and for a Flatpak
     game in its sandboxed data (~/.var/app/<id>), where e.g. Minecraft-style games keep them
 Sizes come from the files' headers (PNG, JPEG, WebP, BMP), so nothing is decoded.
 """
-import glob
 import os
 import re
 import struct
@@ -72,10 +72,15 @@ def screenshot_dirs(root):
 
 
 def shell_folder(name):
-    """Where the shell saves a game's screenshots when it has no other place (game_screenshot.sh):
-    <Pictures>/Screenshots/<the name made safe as a folder name>"""
+    """Where the shell saves a game's screenshots (game_screenshot.sh): <Pictures>/Screenshots/Games/<the name
+    made safe as a folder name, as GameClips.safeName does>. The screenshot tool's are in Screenshots/Desktop"""
     safe = re.sub(r"[\x00-\x1f]", "", name).replace("/", "-").strip(". ") or "Game"
-    return os.path.join(pictures_dir(), "Screenshots", safe)
+    return os.path.join(games_dir(), safe)
+
+
+def games_dir():
+    """Where the games' screenshot folders are (library_captures.py counts them all)"""
+    return os.path.join(pictures_dir(), "Screenshots", "Games")
 
 
 def pictures_dir():
@@ -94,30 +99,27 @@ def pictures_dir():
 
 
 def main():
-    appid, game_dir, flatpak_id, name = (sys.argv[1:] + ["", "", "", ""])[:4]
+    folder_only = sys.argv[1:2] == ["--folder"]
+    args = sys.argv[2:] if folder_only else sys.argv[1:]
+    appid, game_dir, flatpak_id, name = (args + ["", "", "", ""])[:4]
+    own = shell_folder(name) if name else ""
+    if appid and folder_only:  # A Steam game's always go to the shell's: no need to look through the game's files
+        print(f"folder\t{own}")
+        return
     dirs = []
-    if appid:
-        dirs += [d for d in glob.glob(os.path.expanduser(f"~/.local/share/Steam/userdata/*/760/remote/{appid}/screenshots")) if os.path.isdir(d)]
     roots = [game_dir] if game_dir and os.path.isdir(game_dir) else []
     if flatpak_id and os.path.isdir(os.path.expanduser(f"~/.var/app/{flatpak_id}")):
         roots.append(os.path.expanduser(f"~/.var/app/{flatpak_id}"))
     for root in roots:
         dirs += screenshot_dirs(root)
-    # The shell's own for the game (a game that's not Steam's and has no screenshots folder of its own)
-    own = shell_folder(name) if name and not appid else ""
+    # Where they go: a Steam game's to the shell's folder; another's to its own screenshots folder when it has
+    # one, so they're with the ones it takes itself; else the shell's
+    folder = own if appid or not dirs else dirs[0]
+    print(f"folder\t{folder}")
+    if folder_only:
+        return
     if own and os.path.isdir(own):
         dirs.append(own)
-
-    # Where they go: one that exists, else Steam's for the account used last (its userdata folder is
-    # the most recently changed one)
-    folder = dirs[0] if dirs else ""
-    if not folder and appid:
-        accounts = [a for a in glob.glob(os.path.expanduser("~/.local/share/Steam/userdata/*")) if os.path.basename(a).isdigit()]
-        if accounts:
-            account = max(accounts, key=os.path.getmtime)
-            folder = os.path.join(account, "760", "remote", appid, "screenshots")
-    folder = folder or own
-    print(f"folder\t{folder}")
 
     found = []
     for d in dict.fromkeys(dirs):
@@ -125,7 +127,7 @@ def main():
             entries = os.scandir(d)
         except OSError:
             continue
-        with entries:  # Not into thumbnails/ subfolders: Steam keeps a small copy of each screenshot there
+        with entries:
             for e in entries:
                 if e.name.lower().endswith(EXTENSIONS) and e.is_file():
                     found.append((e.stat().st_mtime, e.path))

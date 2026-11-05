@@ -338,9 +338,10 @@ Singleton {
                     property int strokeWidth: 6
                     property int padding: 10
                 }
-                // Screenshots are always copied; with save on they're also kept in saveDir (~ allowed)
+                // Screenshots are always copied; with save on they're also kept in saveDir (~ allowed). Beside
+                // Screenshots/Games, where the game launcher keeps each game's (find_screenshots.py)
                 property bool save: true
-                property string saveDir: "~/Pictures/Screenshots"
+                property string saveDir: "~/Pictures/Screenshots/Desktop"
             }
             property JsonObject resources: JsonObject {
                 property int updateInterval: 3000
