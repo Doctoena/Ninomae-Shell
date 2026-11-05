@@ -396,21 +396,37 @@ Item {
             focusPolicy: Qt.NoFocus
             onMoved: root.video.position = value * root.video.duration
         }
-        // Trimming: the part kept, as a band over the bar, between two handles to drag. Dragging one
+        // Trimming: the parts cut away dimmed, the part kept framed between two grips to drag. Dragging one
         // pauses and scrubs the video to it, so the cut lands on the frame you see; the rest of the bar
         // still seeks
         Item {
             id: range
             visible: root.trimming && root.clipLength > 0
             anchors.fill: parent
+            readonly property real startX: xOf(root.trimStart)
+            readonly property real endX: xOf(root.trimEnd)
             function xOf(ms) { return seek.x + seek.handleMargins + ms / root.clipLength * seek.effectiveDraggingWidth; }
             function msAt(x) { return Math.max(0, Math.min(root.clipLength, (x - seek.x - seek.handleMargins) / seek.effectiveDraggingWidth * root.clipLength)); }
-            Rectangle {
-                x: range.xOf(root.trimStart); width: Math.max(2, range.xOf(root.trimEnd) - x)
+            component CutAway: Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
-                height: 18
-                radius: Appearance.rounding.unsharpenmore
-                color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.78)
+                height: seek.trackWidth
+                color: ColorUtils.transparentize(controls.color, 0.3)
+            }
+            CutAway {
+                x: seek.x; width: root.trimStart > 0 ? range.startX - x : 0 // None until that end moves
+                topLeftRadius: seek.trackRadius; bottomLeftRadius: seek.trackRadius
+            }
+            CutAway {
+                x: range.endX; width: root.trimEnd < root.clipLength ? seek.x + seek.width - x : 0
+                topRightRadius: seek.trackRadius; bottomRightRadius: seek.trackRadius
+            }
+            Rectangle { // The frame round the part kept
+                x: range.startX; width: Math.max(0, range.endX - x)
+                anchors.verticalCenter: parent.verticalCenter
+                height: seek.trackWidth + 8
+                radius: seek.trackRadius + 2
+                color: "transparent"
+                border { width: 2; color: Appearance.colors.colPrimary }
             }
             TrimHandle { isEnd: false }
             TrimHandle { isEnd: true }
@@ -623,7 +639,7 @@ Item {
         }
     }
 
-    // One end of the trim range on the seek bar: a grip to drag (wider hit area than it looks)
+    // One end of the trim range on the seek bar: a grip on the frame's edge to drag (wider hit area than it looks)
     component TrimHandle: Item {
         id: th
         property bool isEnd: false
@@ -633,8 +649,8 @@ Item {
         width: 20; height: parent.height
         Rectangle {
             anchors.centerIn: parent
-            width: th.engaged ? 8 : 6; height: th.engaged ? 28 : 24
-            radius: width / 2
+            width: th.engaged ? 10 : 8; height: seek.trackWidth + (th.engaged ? 14 : 10)
+            radius: Appearance.rounding.unsharpenmore
             color: Appearance.colors.colPrimary
             Behavior on width { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
             Behavior on height { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -642,7 +658,6 @@ Item {
                 anchors.centerIn: parent
                 width: 2; height: parent.height * 0.45; radius: 1
                 color: Appearance.colors.colOnPrimary
-                opacity: 0.8
             }
         }
         MouseArea {
