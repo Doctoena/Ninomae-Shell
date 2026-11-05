@@ -193,13 +193,18 @@ def manifest_path(appid):
             return p
     return None
 
-def default_gamescope_args():
+def monitors():
+    """The screens, focused first: [{"name", "width", "height", "refresh"}] (the panel's gamescope menus)"""
     try:
         mons = json.loads(subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True).stdout)
-        m = next((x for x in mons if x.get("focused")), mons[0])
-        return f"-f -W {m['width']} -H {m['height']} -r {round(m['refreshRate'])}"
     except Exception:
-        return "-f"
+        return []
+    mons.sort(key=lambda m: not m.get("focused"))
+    return [{"name": m["name"], "width": m["width"], "height": m["height"], "refresh": round(m["refreshRate"])} for m in mons]
+
+def default_gamescope_args(mons):
+    m = mons[0] if mons else None
+    return f"-f -W {m['width']} -H {m['height']} -r {m['refresh']}" if m else "-f"
 
 # ── Commands ────────────────────────────────────────────────────────────────
 # ── Straight to Steam, through the shell's Millennium plugin (steam_control.py) ──
@@ -236,12 +241,15 @@ def cmd_get(appid):
     if details:
         options, proton = details["options"], details["proton"]
         if auto_update is not None and details["autoUpdate"] in (0, 1, 2): auto_update = details["autoUpdate"]
+    mons = monitors()
     print(json.dumps({
         "appid": appid, "launchOptions": options, "proton": proton, "autoUpdate": auto_update,
         "protonVersions": proton_versions(),
         "tools": {t: shutil.which(b) is not None for t, b in
                   [("gamemode", "gamemoderun"), ("mangohud", "mangohud"), ("gamescope", "gamescope")]},
-        "defaultGamescopeArgs": default_gamescope_args(),
+        "monitors": mons,
+        "defaultGamescopeArgs": default_gamescope_args(mons),
+        "ntsync": os.path.exists("/dev/ntsync"), # PROTON_USE_NTSYNC needs the kernel's ntsync module loaded
         "steamRunning": steam_running(),
         "live": details is not None, # Saving goes straight to Steam: no restart
     }))

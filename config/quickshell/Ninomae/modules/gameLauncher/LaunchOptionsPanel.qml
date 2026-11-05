@@ -10,32 +10,41 @@ import Quickshell.Io
 /**
  * A Steam game's launch options, in a panel growing up out of the launcher (LauncherTopPanel). Written into
  * Steam's own settings by scripts/game-launcher/launch_options.py, so Steam's Launch Options box shows the same.
- * On the left, the tools: GameMode, MangoHud and gamescope switch their word in front of %command% (MangoHud
- * with a layout, as MANGOHUD_CONFIG=preset=N, and gamescope with its own options, while on). On the right, the whole line as Steam holds it, and the Proton and Updates
- * menus (Updates once it's installed: the mode lives in the game's appmanifest).
- * Saving goes straight to Steam when it runs with the shell's Millennium plugin (themes/steam/ninomae-plugin).
- * Otherwise Steam rewrites its settings when it quits, so saving while it's open closes and restarts it.
+ * On top, an art banner (ArtBanner, the game's logo) with how saving works, the Proton and Updates menus
+ * (Updates once it's installed: the mode lives in the game's appmanifest) and close. Under it on the left, the
+ * tools: GameMode, MangoHud and gamescope switch their word in front of %command% (MangoHud with a layout, as
+ * MANGOHUD_CONFIG=preset=N; gamescope with its screen, refresh rate, mode and FSR upscaling, and any other
+ * flags). On the right, the whole line as Steam holds it, and Proton's switches (Wayland, HDR, NTSYNC), each
+ * a variable in front of it.
+ * With the shell's Millennium plugin in Steam (themes/steam/ninomae-plugin) every change goes straight to
+ * Steam as it's made (typing, after a pause), and Undo puts back what it was on opening. Without it Steam
+ * rewrites its settings when it quits, so there's a Save, which closes and restarts Steam while it's open.
  * Keys: Enter in a box saves, Esc closes.
  */
 LauncherTopPanel {
     id: root
     required property var game
-    panelWidth: 1120
-    panelHeight: 500
+    panelWidth: 1160
+    panelHeight: 600
     readonly property string appid: game?.id?.startsWith("steam_") ? game.id.substring(6) : ""
     readonly property string helper: Quickshell.shellPath("scripts/game-launcher/launch_options.py")
 
-    // What the helper reported, and the edited copy
+    // What the helper reported, the edited copy, and what it was on opening (Undo)
     property var info: null
     property string options: ""
     property string proton: ""
     property int autoUpdate: -1 // -1: no manifest (not installed)
+    property var openedWith: null
     property string status: "" // "", "loading", "saving", "saved", "error:<text>"
     readonly property bool loaded: info !== null
+    readonly property bool live: info?.live ?? false // Saving goes straight to Steam, so it's done as you go
     readonly property bool steamRunning: info?.steamRunning ?? false
-    readonly property bool restartNeeded: steamRunning && !(info?.live ?? false) // Else saving goes straight to Steam
-    readonly property bool changed: loaded && (options.trim() !== (info.launchOptions ?? "").trim() || proton !== (info.proton ?? "")
-                                               || autoUpdate !== (info.autoUpdate ?? -1))
+    readonly property bool restartNeeded: steamRunning && !live
+    function differs(a) {
+        return !!a && (options.trim() !== (a.options ?? "").trim() || proton !== (a.proton ?? "") || autoUpdate !== (a.autoUpdate ?? -1));
+    }
+    readonly property bool changed: loaded && differs({ options: info.launchOptions, proton: info.proton, autoUpdate: info.autoUpdate })
+    readonly property bool canUndo: loaded && differs(openedWith)
     readonly property bool busy: status === "saving"
     readonly property bool hasProton: (info?.protonVersions?.length ?? 0) > 0
     readonly property var protonOptions: [{ displayName: Translation.tr("Steam default"), value: "" },
@@ -71,14 +80,23 @@ LauncherTopPanel {
         return wrap.length ? `${wrap.join(" ")} %command% ${p.game}`.trim() : p.game;
     }
     readonly property var parsed: parse(options)
+    // Proton's switches: a variable each, in front of the rest (HDR needs Wayland, so it brings it)
+    readonly property var envs: ({ wayland: "PROTON_ENABLE_WAYLAND=1", hdr: "PROTON_ENABLE_HDR=1", ntsync: "PROTON_USE_NTSYNC=1" })
     readonly property var toolsOn: ({ gamemode: parsed.pre.includes("gamemoderun"), mangohud: parsed.pre.includes("mangohud"),
-                                      gamescope: parsed.gamescope !== null })
+                                      gamescope: parsed.gamescope !== null, wayland: parsed.pre.includes(envs.wayland),
+                                      hdr: parsed.pre.includes(envs.hdr), ntsync: parsed.pre.includes(envs.ntsync) })
     function toggle(tool) {
         const p = parse(options);
         if (tool === "gamescope") {
             // Back on: the options it had (this opening), else ones for this screen
             if (p.gamescope !== null) _gamescopeArgs = p.gamescope;
             p.gamescope = p.gamescope === null ? (_gamescopeArgs || (info?.defaultGamescopeArgs ?? "")) : null;
+        } else if (envs[tool]) {
+            const on = !p.pre.includes(envs[tool]);
+            const words = on && tool === "hdr" ? [envs.wayland, envs.hdr] : [envs[tool]];
+            const drop = !on && tool === "wayland" ? [envs.wayland, envs.hdr] : on ? [] : [envs[tool]];
+            p.pre = p.pre.filter(t => !drop.includes(t));
+            if (on) p.pre = words.filter(w => !p.pre.includes(w)).concat(p.pre);
         } else {
             const word = tool === "gamemode" ? "gamemoderun" : "mangohud";
             // Off: its word, and MangoHud's layout with it
@@ -112,16 +130,84 @@ LauncherTopPanel {
         if (preset !== "") p.pre.unshift(`MANGOHUD_CONFIG=preset=${preset},${mangohudLog}`); // Env vars first
         options = build(p);
     }
+
+    // ── gamescope's flags ↔ its controls: output size and refresh, mode, FSR (the game drawn smaller, scaled
+    //    up), and the rest kept as they were ──
     property string _gamescopeArgs: ""
-    function setGamescopeArgs(args) {
+    readonly property var scope: parseGamescope(parsed.gamescope)
+    function parseGamescope(args) {
+        const t = (args ?? "").trim().split(/\s+/).filter(x => x);
+        const g = { W: 0, H: 0, w: 0, h: 0, r: 0, mode: "", filter: "", rest: [] };
+        const num = i => parseInt(t[i + 1]) || 0;
+        for (let i = 0; i < t.length; i++) {
+            const a = t[i];
+            if (a === "-W" || a === "--output-width") g.W = num(i++);
+            else if (a === "-H" || a === "--output-height") g.H = num(i++);
+            else if (a === "-w" || a === "--nested-width") g.w = num(i++);
+            else if (a === "-h" || a === "--nested-height") g.h = num(i++);
+            else if (a === "-r" || a === "--nested-refresh") g.r = num(i++);
+            else if (a === "-f" || a === "--fullscreen") g.mode = "fullscreen";
+            else if (a === "-b" || a === "--borderless") g.mode = "borderless";
+            else if (a === "-F" || a === "--filter") g.filter = t[++i] ?? "";
+            else g.rest.push(a);
+        }
+        return g;
+    }
+    function setScope(change) {
+        const g = Object.assign(parseGamescope(parsed.gamescope), change);
+        // FSR keeps its share of the output as the output changes
+        if (change.W && g.filter === "fsr" && scope.W) { const k = scope.w / scope.W; g.w = Math.round(g.W * k); g.h = Math.round(g.H * k); }
+        const out = [];
+        if (g.mode === "fullscreen") out.push("-f"); else if (g.mode === "borderless") out.push("-b");
+        if (g.W && g.H) out.push("-W", g.W, "-H", g.H);
+        if (g.w && g.h) out.push("-w", g.w, "-h", g.h);
+        if (g.r) out.push("-r", g.r);
+        if (g.filter) out.push("-F", g.filter);
         const p = parse(options);
-        if (p.gamescope === null) return;
-        p.gamescope = args;
+        p.gamescope = out.concat(g.rest).join(" ");
         options = build(p);
     }
+    // FSR's levels: the share of the output the game is drawn at
+    readonly property var fsrLevels: [
+        { value: "", label: Translation.tr("No FSR") }, { value: "0.77", label: Translation.tr("Ultra") },
+        { value: "0.67", label: Translation.tr("Quality") }, { value: "0.59", label: Translation.tr("Balanced") },
+        { value: "0.5", label: Translation.tr("Performance") }
+    ]
+    readonly property string fsrLevel: {
+        if (scope.filter !== "fsr" || !scope.w || !scope.W) return "";
+        const k = scope.w / scope.W;
+        return fsrLevels.slice(1).reduce((best, l) => Math.abs(l.value - k) < Math.abs(best.value - k) ? l : best).value;
+    }
+    function setFsr(level) {
+        const W = scope.W || (info?.monitors?.[0]?.width ?? 0), H = scope.H || (info?.monitors?.[0]?.height ?? 0);
+        if (level === "") setScope({ w: 0, h: 0, filter: "" });
+        else setScope({ W: W, H: H, w: Math.round(W * level), h: Math.round(H * level), filter: "fsr" });
+    }
+    // The screens' sizes, and the one in use if it's another
+    readonly property var sizeOptions: {
+        const seen = new Set(), out = [];
+        for (const m of info?.monitors ?? []) {
+            const v = `${m.width}x${m.height}`;
+            if (!seen.has(v)) { seen.add(v); out.push({ displayName: `${m.width} × ${m.height}`, value: v }); }
+        }
+        if (scope.W && !seen.has(`${scope.W}x${scope.H}`)) out.push({ displayName: `${scope.W} × ${scope.H}`, value: `${scope.W}x${scope.H}` });
+        return out;
+    }
+    // The fastest screen's rate and the usual ones under it, and the one in use if it's another
+    readonly property var refreshOptions: {
+        const top = Math.max(60, ...(info?.monitors ?? []).map(m => m.refresh));
+        const rates = [top, ...[240, 165, 144, 120, 90, 60, 30].filter(r => r < top)];
+        if (scope.r && !rates.includes(scope.r)) rates.push(scope.r);
+        return rates.sort((a, b) => b - a).map(r => ({ displayName: `${r} Hz`, value: r }));
+    }
+    readonly property var modeOptions: [
+        { displayName: Translation.tr("Fullscreen"), value: "fullscreen" },
+        { displayName: Translation.tr("Borderless"), value: "borderless" },
+        { displayName: Translation.tr("Window"), value: "" }
+    ]
 
     // ── Steam's settings, read and written by the helper ──
-    onShownChanged: if (shown && appid) load()
+    onShownChanged: if (shown && appid) { openedWith = null; load(); }
     function load() {
         if (info?.appid !== appid) info = null; // Don't show the last game's options while this one loads
         status = "loading";
@@ -133,14 +219,29 @@ LauncherTopPanel {
         proton = info?.proton ?? "";
         autoUpdate = info?.autoUpdate ?? -1;
     }
+    function undo() {
+        if (!openedWith) return;
+        options = openedWith.options; proton = openedWith.proton; autoUpdate = openedWith.autoUpdate;
+        if (!live) return;
+        autoSave.stop();
+        save();
+    }
+    property var _sending: null // What's being saved, live: Steam has it once it's done
     function save() {
         if (!changed || busy) return;
         status = "saving";
-        const cmd = ["python3", "-I", helper, "set", appid, JSON.stringify({ launchOptions: options, proton: proton, autoUpdate: autoUpdate })];
-        if (steamRunning) cmd.push("--restart");
+        _sending = { launchOptions: options, proton: proton, autoUpdate: autoUpdate };
+        const cmd = ["python3", "-I", helper, "set", appid, JSON.stringify(_sending)];
+        if (restartNeeded) cmd.push("--restart");
         setProc.command = cmd;
         setProc.running = true;
     }
+    // Live: each change goes to Steam on its own, typing once it pauses
+    onOptionsChanged: queueSave()
+    onProtonChanged: queueSave()
+    onAutoUpdateChanged: queueSave()
+    function queueSave() { if (live && changed) autoSave.restart(); }
+    Timer { id: autoSave; interval: 600; onTriggered: root.save() }
     Process {
         id: getProc
         stdout: StdioCollector {
@@ -148,6 +249,7 @@ LauncherTopPanel {
                 try {
                     root.info = JSON.parse(text);
                     root.revert();
+                    if (!root.openedWith) root.openedWith = { options: root.options, proton: root.proton, autoUpdate: root.autoUpdate };
                     root.status = "";
                 } catch (e) { root.status = "error:" + Translation.tr("Couldn't read Steam's settings"); }
             }
@@ -158,9 +260,18 @@ LauncherTopPanel {
         stdout: StdioCollector {
             onStreamFinished: {
                 let r = null; try { r = JSON.parse(text); } catch (e) {}
-                if (r?.ok) { root.status = "saved"; root.load(); savedReset.restart(); }
-                else root.status = "error:" + (r?.error === "steam-wont-close" ? Translation.tr("Steam didn't close. Try again")
+                if (!r?.ok) {
+                    root.status = "error:" + (r?.error === "steam-wont-close" ? Translation.tr("Steam didn't close. Try again")
                                                 : Translation.tr("Couldn't save. See the shell log"));
+                    return;
+                }
+                root.status = "saved";
+                savedReset.restart();
+                // Live: Steam has what was sent. Not read back, which would undo typing since; anything newer goes next
+                if (root.live) {
+                    root.info = Object.assign({}, root.info, root._sending);
+                    root.queueSave();
+                } else root.load();
             }
         }
     }
@@ -168,11 +279,9 @@ LauncherTopPanel {
 
     function handleKey(key) {
         if (key === Qt.Key_Escape) { closeRequested(); return true; }
-        if ((key === Qt.Key_Return || key === Qt.Key_Enter) && changed) { save(); return true; }
+        if ((key === Qt.Key_Return || key === Qt.Key_Enter) && changed) { autoSave.stop(); save(); return true; }
         return key === Qt.Key_Left || key === Qt.Key_Right; // Don't leave the page from under the panel
     }
-
-    // No header (the Save button says when Steam restarts). Close sits by Save, as a dialog's
 
     SheetEmptyState { // Reading, or couldn't
         anchors.centerIn: parent
@@ -181,51 +290,171 @@ LauncherTopPanel {
         text: root.status.startsWith("error:") ? root.status.substring(6) : Translation.tr("Reading Steam's settings…")
     }
 
-    // ── Left: the tools ──
-    ColumnLayout {
-        id: toolsColumn
+    // ── Banner: the game, how saving works (and how it's going), Proton and Updates, close ──
+    ArtBanner {
+        id: banner
         visible: root.loaded
-        anchors { top: parent.top; topMargin: 18; left: parent.left; leftMargin: 20 }
-        width: 440
-        spacing: 8
-        SectionLabel { text: Translation.tr("Tools") }
-        ToolCard {
-            tool: "gamemode"; iconName: "speed"; title: "GameMode"; word: "gamemoderun"; pkg: "gamemode"
-            description: Translation.tr("Tunes the CPU and GPU for games while it runs")
-        }
-        ToolCard {
-            tool: "mangohud"; iconName: "monitoring"; title: "MangoHud"; word: "mangohud"; pkg: "mangohud"
-            description: Translation.tr("FPS, frame times and temperatures over the game")
-            // What it shows, while it's on
-            extra: Segmented {
-                value: root.mangohudPreset
-                options: [
-                    { value: "", label: Translation.tr("Default") },
-                    { value: "1", label: Translation.tr("FPS only") },
-                    { value: "2", label: Translation.tr("Horizontal") },
-                    { value: "3", label: Translation.tr("Extended") },
-                    { value: "4", label: Translation.tr("Detailed") }
-                ]
-                onPicked: v => root.setMangohudPreset(v)
+        game: root.game
+        showLogo: true
+        coverIcon: "tune"
+        shadeMid: 0.8; shadeEnd: 0.7 // The menus sit on its right
+        anchors { top: parent.top; topMargin: 12; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
+        height: 96
+        Column {
+            anchors { left: banner.coverItem.right; leftMargin: 18; right: bannerMenus.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
+            spacing: 3
+            StyledText {
+                text: Translation.tr("Launch options")
+                font.pixelSize: Appearance.font.pixelSize.larger; font.weight: Font.DemiBold
+                color: Appearance.colors.colOnLayer0
+            }
+            Row {
+                spacing: 6
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.status.startsWith("error:") ? "error" : root.busy ? "progress_activity"
+                        : root.status === "saved" ? "check_circle" : root.live ? "bolt" : root.changed ? "edit" : "info"
+                    iconSize: 16; fill: 1
+                    color: stateText.color
+                    RotationAnimation on rotation { running: root.busy; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
+                }
+                StyledText {
+                    id: stateText
+                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: root.status.startsWith("error:") ? Appearance.colors.colError
+                        : root.status === "saved" ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.25)
+                    text: root.status.startsWith("error:") ? root.status.substring(6)
+                        : root.busy ? (root.restartNeeded ? Translation.tr("Restarting Steam…") : Translation.tr("Saving…"))
+                        : root.status === "saved" ? Translation.tr("Saved to Steam")
+                        : root.live ? Translation.tr("Changes go straight to Steam")
+                        : root.changed ? (root.restartNeeded ? Translation.tr("Not saved yet · Steam restarts to apply it") : Translation.tr("Not saved yet"))
+                        : root.steamRunning ? Translation.tr("Saving restarts Steam") : Translation.tr("Saved into Steam's settings")
+                }
             }
         }
-        ToolCard {
-            id: gamescopeCard
-            tool: "gamescope"; iconName: "fit_screen"; title: "gamescope"; word: "gamescope"; pkg: "gamescope"
-            description: Translation.tr("A set resolution and refresh rate, and upscaling")
-            // Its options, while it's on
-            extra: OptionBox {
-                text: root.parsed.gamescope ?? ""
-                placeholder: root.info?.defaultGamescopeArgs ?? "-f -W 1920 -H 1080 -r 60"
-                onEdited: t => root.setGamescopeArgs(t)
+        RowLayout {
+            id: bannerMenus
+            anchors { right: closeButton.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            spacing: 10
+            SettingMenu {
+                visible: root.hasProton
+                Layout.preferredWidth: 200
+                label: Translation.tr("Proton")
+                options: root.protonOptions
+                value: root.proton
+                // A tool Steam has mapped that isn't installed any more: named, so it isn't shown as the default
+                fallbackText: root.proton
+                onSelected: v => root.proton = v
+            }
+            SettingMenu {
+                visible: root.autoUpdate >= 0
+                Layout.preferredWidth: 200
+                label: Translation.tr("Updates")
+                options: root.updateOptions
+                value: root.autoUpdate
+                onSelected: v => root.autoUpdate = v
+            }
+        }
+        SheetIconButton { // As far in from the right edge as the logo is from the left
+            id: closeButton
+            anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+            grouped: false
+            width: 30
+            buttonRadius: Appearance.rounding.segment
+            iconName: "close"
+            tip: Translation.tr("Close")
+            onClicked: root.closeRequested()
+        }
+    }
+
+    // ── Left: the tools (scrolls when gamescope's controls and MangoHud's layouts are both out) ──
+    Flickable {
+        id: toolsScroll
+        visible: root.loaded
+        anchors { top: banner.bottom; topMargin: 14; left: parent.left; leftMargin: 20; bottom: parent.bottom; bottomMargin: 16 }
+        width: 500
+        contentHeight: toolsColumn.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height
+        ColumnLayout {
+            id: toolsColumn
+            width: toolsScroll.width
+            spacing: 8
+            SectionLabel { text: Translation.tr("Tools") }
+            ToolCard {
+                tool: "gamemode"; iconName: "speed"; title: "GameMode"; pkg: "gamemode"
+                description: Translation.tr("Tunes the CPU and GPU for games while it runs")
+            }
+            ToolCard {
+                tool: "mangohud"; iconName: "monitoring"; title: "MangoHud"; pkg: "mangohud"
+                description: Translation.tr("FPS, frame times and temperatures over the game")
+                // What it shows, while it's on
+                extra: Segmented {
+                    value: root.mangohudPreset
+                    options: [
+                        { value: "", label: Translation.tr("Default") },
+                        { value: "1", label: Translation.tr("FPS only") },
+                        { value: "2", label: Translation.tr("Horizontal") },
+                        { value: "3", label: Translation.tr("Extended") },
+                        { value: "4", label: Translation.tr("Detailed") }
+                    ]
+                    onPicked: v => root.setMangohudPreset(v)
+                }
+            }
+            ToolCard {
+                tool: "gamescope"; iconName: "fit_screen"; title: "gamescope"; pkg: "gamescope"
+                description: Translation.tr("A set resolution and refresh rate, and upscaling")
+                // Its controls, while it's on
+                extra: ColumnLayout {
+                    spacing: 8
+                    RowLayout {
+                        spacing: 8
+                        StyledComboBox {
+                            Layout.fillWidth: true; Layout.preferredWidth: 4; minimumWidth: 0
+                            options: root.sizeOptions
+                            value: root.scope.W ? `${root.scope.W}x${root.scope.H}` : ""
+                            fallbackText: Translation.tr("Size")
+                            onSelected: v => { const [W, H] = v.split("x").map(Number); root.setScope({ W: W, H: H }); }
+                        }
+                        StyledComboBox {
+                            Layout.fillWidth: true; Layout.preferredWidth: 3; minimumWidth: 0
+                            options: root.refreshOptions
+                            value: root.scope.r
+                            fallbackText: Translation.tr("Refresh")
+                            onSelected: v => root.setScope({ r: v })
+                        }
+                        StyledComboBox {
+                            Layout.fillWidth: true; Layout.preferredWidth: 4; minimumWidth: 0
+                            options: root.modeOptions
+                            value: root.scope.mode
+                            onSelected: v => root.setScope({ mode: v })
+                        }
+                    }
+                    Segmented { // FSR upscaling
+                        Layout.fillWidth: true
+                        value: root.fsrLevel
+                        options: root.fsrLevels
+                        onPicked: v => root.setFsr(v)
+                    }
+                    OptionBox { // Any other flags, as typed
+                        Layout.fillWidth: true
+                        implicitHeight: 36
+                        followWhileTyping: false
+                        text: root.scope.rest.join(" ")
+                        placeholder: Translation.tr("Other gamescope flags")
+                        onEdited: t => root.setScope({ rest: t.trim().split(/\s+/).filter(x => x) })
+                    }
+                }
             }
         }
     }
 
-    // ── Right: the whole line, Proton and updates ──
+    // ── Right: the whole line, and Proton's switches ──
     ColumnLayout {
         visible: root.loaded
-        anchors { top: parent.top; topMargin: 18; left: toolsColumn.right; leftMargin: 24; right: parent.right; rightMargin: 20 }
+        anchors { top: banner.bottom; topMargin: 14; left: toolsScroll.right; leftMargin: 20; right: parent.right; rightMargin: 20 }
         spacing: 8
         SectionLabel { text: Translation.tr("Launch options") }
         OptionBox {
@@ -242,114 +471,43 @@ LauncherTopPanel {
             font.pixelSize: Appearance.font.pixelSize.smaller
             color: Appearance.colors.colSubtext
         }
-        RowLayout {
-            // Not each menu's visible: a child of a hidden row reads as hidden, so the row would never show
-            visible: root.hasProton || root.autoUpdate >= 0
-            Layout.fillWidth: true
-            Layout.topMargin: 14
-            spacing: 12
-            SettingMenu {
-                visible: root.hasProton
-                label: Translation.tr("Proton")
-                options: root.protonOptions
-                value: root.proton
-                // A tool Steam has mapped that isn't installed any more: named, so it isn't shown as the default
-                fallbackText: root.proton
-                onSelected: v => root.proton = v
-            }
-            SettingMenu {
-                visible: root.autoUpdate >= 0
-                label: Translation.tr("Updates")
-                options: root.updateOptions
-                value: root.autoUpdate
-                onSelected: v => root.autoUpdate = v
-            }
+        SectionLabel { Layout.topMargin: 8; text: Translation.tr("Proton (for games it runs)") }
+        ToolCard {
+            tool: "wayland"; iconName: "web_asset"; title: Translation.tr("Wayland")
+            description: Translation.tr("Draws straight on Wayland, not through Xwayland")
+        }
+        ToolCard {
+            tool: "hdr"; iconName: "hdr_on"; title: "HDR"
+            description: Translation.tr("HDR in games that have it (with Wayland)")
+        }
+        ToolCard {
+            tool: "ntsync"; iconName: "sync"; title: "NTSYNC"
+            description: Translation.tr("Faster game threads, through the kernel")
+            missing: Translation.tr("Needs the kernel's ntsync module")
         }
     }
 
-    // ── Footer: what's going on, Revert, Save ──
+    // ── Under the right side: Undo, and Save without the plugin (the tools keep the left down to the bottom) ──
     RowLayout {
+        id: footer
         visible: root.loaded
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20; bottomMargin: 18 }
-        spacing: 8
-        MaterialSymbol {
-            visible: statusText.text !== ""
-            text: root.status.startsWith("error:") ? "error" : root.status === "saved" ? "check_circle"
-                : root.busy ? "progress_activity" : root.changed ? "edit" : "info"
-            iconSize: 18
-            fill: 1
-            color: statusText.color
-            RotationAnimation on rotation { running: root.busy; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
+        anchors { left: toolsScroll.right; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20; bottomMargin: 16 }
+        height: 32
+        spacing: 6
+        Item { Layout.fillWidth: true }
+        FooterButton {
+            visible: root.live ? root.canUndo : root.changed && !root.busy
+            symbol: "undo"; label: root.live ? Translation.tr("Undo") : Translation.tr("Revert")
+            onClicked: root.live ? root.undo() : root.revert()
         }
-        StyledText {
-            id: statusText
-            Layout.fillWidth: true
-            elide: Text.ElideRight
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: root.status.startsWith("error:") ? Appearance.colors.colError
-                 : root.status === "saved" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-            text: root.status.startsWith("error:") ? root.status.substring(6)
-                : root.busy ? (root.restartNeeded ? Translation.tr("Restarting Steam…") : Translation.tr("Saving…"))
-                : root.status === "saved" ? Translation.tr("Saved to Steam")
-                : root.changed ? (root.restartNeeded ? Translation.tr("Not saved yet · Steam restarts to apply it") : Translation.tr("Not saved yet"))
-                : ""
-        }
-        RippleButton {
-            visible: root.changed && !root.busy
-            implicitHeight: 40
-            implicitWidth: revertRow.implicitWidth + 32
-            buttonRadius: Appearance.rounding.container
-            colBackground: Appearance.colors.colLayer1
-            colBackgroundHover: Appearance.colors.colLayer1Hover
-            colRipple: Appearance.colors.colLayer1Active
-            onClicked: root.revert()
-            contentItem: Row {
-                id: revertRow
-                anchors.centerIn: parent; spacing: 6
-                MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "undo"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                StyledText { anchors.verticalCenter: parent.verticalCenter; text: Translation.tr("Revert"); color: Appearance.colors.colOnLayer1; font.weight: Font.Medium }
-            }
-        }
-        RippleButton {
-            implicitHeight: 40
-            implicitWidth: closeRow.implicitWidth + 32
-            buttonRadius: Appearance.rounding.container
-            colBackground: Appearance.colors.colLayer1
-            colBackgroundHover: Appearance.colors.colLayer1Hover
-            colRipple: Appearance.colors.colLayer1Active
-            onClicked: root.closeRequested()
-            contentItem: Row {
-                id: closeRow
-                anchors.centerIn: parent; spacing: 6
-                MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "close"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                StyledText { anchors.verticalCenter: parent.verticalCenter; text: Translation.tr("Close"); color: Appearance.colors.colOnLayer1; font.weight: Font.Medium }
-            }
-        }
-        RippleButton {
+        FooterButton {
             id: saveButton
-            implicitHeight: 40
-            implicitWidth: saveRow.implicitWidth + 36
-            buttonRadius: Appearance.rounding.container
+            visible: !root.live
+            primary: true
             enabled: root.changed && !root.busy
-            colBackground: enabled ? Appearance.colors.colPrimary : Appearance.colors.colLayer1
-            colBackgroundHover: Appearance.colors.colPrimaryHover
-            colRipple: Appearance.colors.colPrimaryActive
+            symbol: root.restartNeeded ? "restart_alt" : "save"
+            label: root.restartNeeded ? Translation.tr("Save & restart Steam") : Translation.tr("Save")
             onClicked: root.save()
-            contentItem: Row {
-                id: saveRow
-                anchors.centerIn: parent; spacing: 6
-                MaterialSymbol {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.restartNeeded ? "restart_alt" : "save"; iconSize: 18
-                    color: saveButton.enabled ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
-                }
-                StyledText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.restartNeeded ? Translation.tr("Save & restart Steam") : Translation.tr("Save")
-                    color: saveButton.enabled ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
-                    font.weight: Font.Medium
-                }
-            }
         }
     }
 
@@ -360,22 +518,43 @@ LauncherTopPanel {
         color: Appearance.colors.colSubtext
     }
 
-    // A tool: what it does, and a switch for its word in front of %command%. Not installed: how to get it.
-    // `extra` shows under it while it's on (gamescope's options)
+    // A footer button: neutral, or accent (Save)
+    component FooterButton: RippleButton {
+        id: fb
+        property string symbol
+        property string label
+        property bool primary: false
+        implicitHeight: 32
+        implicitWidth: fbRow.implicitWidth + 24
+        buttonRadius: Appearance.rounding.segment
+        colBackground: primary && enabled ? Appearance.colors.colPrimary : Appearance.colors.colLayer1
+        colBackgroundHover: primary ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer1Hover
+        colRipple: primary ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer1Active
+        readonly property color fg: primary ? (enabled ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext) : Appearance.colors.colOnLayer1
+        contentItem: Row {
+            id: fbRow
+            anchors.centerIn: parent; spacing: 5
+            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: fb.symbol; iconSize: 16; color: fb.fg }
+            StyledText { anchors.verticalCenter: parent.verticalCenter; text: fb.label; color: fb.fg; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium }
+        }
+    }
+
+    // A tool or switch: what it does, and a switch for its word in front of %command%. Missing: how to get it.
+    // `extra` shows under it while it's on (MangoHud's layouts, gamescope's controls)
     component ToolCard: Rectangle {
         id: card
         property string tool
         property string iconName
         property string title
         property string description
-        property string word
-        property string pkg
+        property string pkg: "" // A program to install (the tools); Proton's switches need none
+        property string missing: pkg ? Translation.tr("Not installed: <tt>sudo dnf install %1</tt>").arg(pkg) : ""
         property Component extra: null
         readonly property bool isOn: root.toolsOn[tool]
-        readonly property bool available: root.info?.tools?.[tool] ?? false
+        readonly property bool available: pkg ? (root.info?.tools?.[tool] ?? false) : tool === "ntsync" ? (root.info?.ntsync ?? false) : true
         readonly property bool usable: available || isOn // Can always be switched off
         Layout.fillWidth: true
-        implicitHeight: cardColumn.implicitHeight + 24
+        implicitHeight: cardColumn.implicitHeight + 20
         radius: Appearance.rounding.normal
         color: cardMa.containsMouse && usable ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
         border.width: isOn ? 1 : 0
@@ -392,20 +571,20 @@ LauncherTopPanel {
         }
         ColumnLayout {
             id: cardColumn
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
             spacing: 10
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 12
                 Rectangle {
-                    implicitWidth: 36; implicitHeight: 36
+                    implicitWidth: 34; implicitHeight: 34
                     radius: Appearance.rounding.container
                     color: card.isOn ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colPrimary, 0.85)
                     opacity: card.usable ? 1 : 0.5
                     MaterialSymbol {
                         anchors.centerIn: parent
                         text: card.iconName
-                        iconSize: 20
+                        iconSize: 19
                         fill: card.isOn ? 1 : 0
                         color: card.isOn ? Appearance.colors.colOnPrimary : Appearance.colors.colPrimary
                     }
@@ -422,7 +601,7 @@ LauncherTopPanel {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                         textFormat: Text.StyledText
-                        text: card.available ? card.description : Translation.tr("Not installed: <tt>sudo dnf install %1</tt>").arg(card.pkg)
+                        text: card.available ? card.description : card.missing
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         color: Appearance.colors.colSubtext
                     }
@@ -484,11 +663,13 @@ LauncherTopPanel {
         }
     }
 
-    // A one-line box for options, in monospace. Enter saves, Esc closes
+    // A one-line box for options, in monospace. Enter saves, Esc closes. followWhileTyping: false for a box whose
+    // text comes back rewritten (gamescope's other flags, split into words: a trailing space would go)
     component OptionBox: Rectangle {
         id: box
         property string text
         property string placeholder
+        property bool followWhileTyping: true
         signal edited(string text)
         implicitHeight: 42
         radius: Appearance.rounding.small
@@ -502,16 +683,16 @@ LauncherTopPanel {
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
             placeholderText: box.placeholder
-            text: box.text
             onTextEdited: box.edited(text)
+            Binding on text { value: box.text; when: box.followWhileTyping || !field.activeFocus }
             Keys.onPressed: event => {
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.save(); event.accepted = true; }
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { autoSave.stop(); root.save(); event.accepted = true; }
                 else if (event.key === Qt.Key_Escape) { root.closeRequested(); event.accepted = true; }
             }
         }
     }
 
-    // A labelled dropdown filling its share of the row
+    // A labelled dropdown
     component SettingMenu: ColumnLayout {
         id: settingMenu
         property string label
@@ -519,10 +700,8 @@ LauncherTopPanel {
         property alias value: menu.value
         property alias fallbackText: menu.fallbackText
         signal selected(var v)
-        Layout.fillWidth: true
-        Layout.preferredWidth: 1
-        spacing: 6
-        SectionLabel { text: settingMenu.label }
+        spacing: 4
+        SectionLabel { text: settingMenu.label; color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.3) }
         StyledComboBox {
             id: menu
             Layout.fillWidth: true

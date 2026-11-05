@@ -7,8 +7,9 @@ import qs.modules.common.functions
 import qs.modules.common.widgets
 
 /**
- * A dropdown in the settings style: a neutral squircle button and a list with a check on the current
- * option. options: [{ displayName, value }]. value picks the one shown (numbers match within
+ * A dropdown in the shell's squircle style: a neutral squircle button, and a list of neutral rows on a raised
+ * surface where the current option is the accent one (its name in accent, a check in an accent squircle),
+ * as active items are everywhere else. options: [{ displayName, value }]. value picks the one shown (numbers match within
  * 0.001, so a scale of 1.0 finds 1); fallbackText shows when none matches, e.g. a scale Hyprland rounded.
  */
 ComboBox {
@@ -31,7 +32,7 @@ ComboBox {
     property real minimumWidth: 160
     implicitWidth: Math.max(minimumWidth, contentItem.implicitWidth + 8)
     implicitHeight: 35 // Same as the spin boxes
-    readonly property int rowHeight: 32 // A row of the list (2 px apart)
+    readonly property int rowHeight: 34 // A row of the list (2 px apart)
 
     indicator: MaterialSymbol {
         x: root.width - width - 12
@@ -67,10 +68,10 @@ ComboBox {
             const win = root.Window.window;
             const below = win ? win.height - root.mapToItem(null, 0, root.height).y : Infinity;
             // From the option count: the list may not have laid out its rows yet
-            const h = Math.min(root.options.length * (root.rowHeight + 2), 300) + 8;
+            const h = Math.min(root.options.length * (root.rowHeight + 2), 300) + 2 * padding;
             y = below < h + 12 ? -h - 4 : root.height + 4;
         }
-        padding: 4
+        padding: 5
         enter: Transition {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 }
             NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 120; easing.type: Easing.OutCubic }
@@ -78,11 +79,11 @@ ComboBox {
         exit: Transition {
             NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 90 }
         }
-        background: Rectangle {
-            color: Appearance.m3colors.m3surfaceContainerHigh
+        background: Rectangle { // A step up from what it opens over, with a hairline edge
+            color: Appearance.m3colors.m3surfaceContainer
             radius: Appearance.rounding.normal
             border.width: 1
-            border.color: Appearance.colors.colOutlineVariant
+            border.color: ColorUtils.transparentize(Appearance.colors.colOutlineVariant, 0.4)
         }
         contentItem: ListView {
             clip: true
@@ -96,28 +97,34 @@ ComboBox {
                 readonly property bool current: root.currentIndex === index
                 width: ListView.view.width
                 height: root.rowHeight
-                radius: Appearance.rounding.small
-                // The current choice in the lavender accent, like every other active item in the shell
-                color: current ? Appearance.colors.colPrimary
-                    : ColorUtils.transparentize(Appearance.colors.colLayer2Hover, popupMouseArea.containsMouse ? 0 : 1) // Fades its own tint, not black
+                radius: Appearance.rounding.segment
+                // Neutral; hovered a step up. The current one is the accent's: its name and its check
+                color: ColorUtils.transparentize(Appearance.m3colors.m3surfaceContainerHighest, popupMouseArea.containsMouse ? 0 : 1) // Fades its own tint, not black
                 Behavior on color { ColorAnimation { duration: 120 } }
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 7
                     spacing: 8
                     StyledText {
                         Layout.fillWidth: true
                         text: popupItem.modelData.displayName
                         elide: Text.ElideRight
-                        color: popupItem.current ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
+                        color: popupItem.current ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
                         font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: popupItem.current ? Font.DemiBold : Font.Normal
                     }
-                    MaterialSymbol {
+                    Rectangle { // The accent squircle, as an active item's
                         visible: popupItem.current
-                        text: "check"
-                        color: Appearance.colors.colOnPrimary
-                        iconSize: 16
+                        implicitWidth: 22; implicitHeight: 22
+                        radius: Appearance.rounding.chip
+                        color: Appearance.colors.colPrimary
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "check"
+                            color: Appearance.colors.colOnPrimary
+                            iconSize: 15
+                        }
                     }
                 }
                 MouseArea {
