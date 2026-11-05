@@ -16,9 +16,9 @@ import Quickshell.Widgets
  * Space plays/pauses, ←/→ jump 5 s, Page Up/Down go to the previous/next clip, Esc goes back to the grid.
  * Delete (twice) is the panel's: ScreenshotsPanel.requestTrash asks before trashCurrent.
  *
- * Trim (T, or the header's scissors): [ and ] mark where it starts and ends at the playhead, it loops
+ * Trim (T, or the rail's scissors): [ and ] mark where it starts and ends at the playhead, it loops
  * in that part, and Save makes it a new clip (scripts/clips/export_clip.py; the original is kept).
- * Copy (Ctrl+C, the header's button, or right-click on the grid) puts the clip on the clipboard as a
+ * Copy (Ctrl+C, the rail's button, or right-click on the grid) puts the clip on the clipboard as a
  * file, to paste into Discord or a file manager, as the screenshots' copy does.
  */
 Item {
@@ -154,7 +154,7 @@ Item {
     }
 
     // ── Copy: the clip as a file (text/uri-list), what file managers put on the clipboard ──
-    property string copiedPath: "" // Its tick (header) or "Copied" badge (grid) for a moment
+    property string copiedPath: "" // Its tick (rail) or "Copied" badge (grid) for a moment
     readonly property bool copied: copiedPath !== "" && copiedPath === (current?.path ?? "")
     Timer { id: copiedTimer; interval: 1500; onTriggered: root.copiedPath = "" }
     function copyClip(path) {
@@ -522,6 +522,7 @@ Item {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 visible: root.exportKind === "" && root.status === "" && !root.trimming
                 spacing: 6
+                SheetInfoChip { icon: "movie"; text: Translation.tr("%1 of %2").arg(root.playerIndex + 1).arg(root.clips.length) }
                 SheetInfoChip { icon: "schedule"; text: root.dateLabel(root.current?.time ?? 0) }
                 SheetInfoChip { visible: (root.current?.size ?? 0) > 0; icon: "save"; text: root.sizeLabel(root.current?.size ?? 0) }
             }

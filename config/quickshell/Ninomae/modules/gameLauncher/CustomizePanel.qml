@@ -197,13 +197,13 @@ LauncherTopPanel {
     ]
     function effectLabel(key) { return effects.find(e => e.key === key)?.label ?? key; }
 
-    SheetHeader {
-        id: header
-        icon: "palette"
-        title: Translation.tr("Customize")
-        subtitle: root.game?.name ?? ""
-        onCloseRequested: root.closeRequested()
-        extras: Rectangle { // The tabs
+    // No header: the tabs and close along the top of the right side (the preview names the game)
+    Item {
+        id: topRow
+        anchors { top: parent.top; topMargin: 16; left: side.right; leftMargin: 25; right: parent.right; rightMargin: 19 }
+        height: 36
+        Rectangle { // The tabs
+            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
             width: tabRow.width + 8; height: 36; radius: Appearance.rounding.segment
             color: Appearance.colors.colLayer1
             Row {
@@ -246,12 +246,19 @@ LauncherTopPanel {
                 }
             }
         }
+        SheetIconButton {
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            grouped: false
+            iconName: "close"
+            tip: Translation.tr("Close")
+            onClicked: root.closeRequested()
+        }
     }
 
     // ── Left: the preview, what it is, and its buttons ──
     ColumnLayout {
         id: side
-        anchors { top: header.bottom; topMargin: 18; left: parent.left; leftMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
+        anchors { top: parent.top; topMargin: 16; left: parent.left; leftMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
         width: 380
         spacing: 14
 
@@ -419,7 +426,7 @@ LauncherTopPanel {
     RowLayout { // Search SteamGridDB by another name (a non-Steam game it matched wrongly, or another game's art)
         id: searchRow
         visible: root.isArt && root.hasKey
-        anchors { top: header.bottom; topMargin: 18; left: side.right; leftMargin: 25; right: parent.right; rightMargin: 19 }
+        anchors { top: topRow.bottom; topMargin: 12; left: side.right; leftMargin: 25; right: parent.right; rightMargin: 19 }
         spacing: 8
         Rectangle {
             Layout.fillWidth: true
@@ -479,7 +486,7 @@ LauncherTopPanel {
 
     Item {
         id: content
-        anchors { top: searchRow.visible ? searchRow.bottom : header.bottom; topMargin: searchRow.visible ? 10 : 18; bottom: parent.bottom; bottomMargin: 12; left: side.right; leftMargin: 20; right: parent.right; rightMargin: 14 }
+        anchors { top: searchRow.visible ? searchRow.bottom : topRow.bottom; topMargin: searchRow.visible ? 10 : 12; bottom: parent.bottom; bottomMargin: 12; left: side.right; leftMargin: 20; right: parent.right; rightMargin: 14 }
 
         // Art: states first
         SheetEmptyState {

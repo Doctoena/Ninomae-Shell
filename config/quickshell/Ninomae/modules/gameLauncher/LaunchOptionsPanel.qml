@@ -172,13 +172,7 @@ LauncherTopPanel {
         return key === Qt.Key_Left || key === Qt.Key_Right; // Don't leave the page from under the panel
     }
 
-    SheetHeader {
-        id: header
-        icon: "tune"
-        title: Translation.tr("Launch options")
-        subtitle: (root.game?.name ?? "") + (root.steamRunning ? "  ·  " + Translation.tr("Steam is open") : "")
-        onCloseRequested: root.closeRequested()
-    }
+    // No header (the Save button says when Steam restarts). Close sits by Save, as a dialog's
 
     SheetEmptyState { // Reading, or couldn't
         anchors.centerIn: parent
@@ -191,7 +185,7 @@ LauncherTopPanel {
     ColumnLayout {
         id: toolsColumn
         visible: root.loaded
-        anchors { top: header.bottom; topMargin: 18; left: parent.left; leftMargin: 20 }
+        anchors { top: parent.top; topMargin: 18; left: parent.left; leftMargin: 20 }
         width: 440
         spacing: 8
         SectionLabel { text: Translation.tr("Tools") }
@@ -231,7 +225,7 @@ LauncherTopPanel {
     // ── Right: the whole line, Proton and updates ──
     ColumnLayout {
         visible: root.loaded
-        anchors { top: header.bottom; topMargin: 18; left: toolsColumn.right; leftMargin: 24; right: parent.right; rightMargin: 20 }
+        anchors { top: parent.top; topMargin: 18; left: toolsColumn.right; leftMargin: 24; right: parent.right; rightMargin: 20 }
         spacing: 8
         SectionLabel { text: Translation.tr("Launch options") }
         OptionBox {
@@ -314,6 +308,21 @@ LauncherTopPanel {
                 anchors.centerIn: parent; spacing: 6
                 MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "undo"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
                 StyledText { anchors.verticalCenter: parent.verticalCenter; text: Translation.tr("Revert"); color: Appearance.colors.colOnLayer1; font.weight: Font.Medium }
+            }
+        }
+        RippleButton {
+            implicitHeight: 40
+            implicitWidth: closeRow.implicitWidth + 32
+            buttonRadius: Appearance.rounding.container
+            colBackground: Appearance.colors.colLayer1
+            colBackgroundHover: Appearance.colors.colLayer1Hover
+            colRipple: Appearance.colors.colLayer1Active
+            onClicked: root.closeRequested()
+            contentItem: Row {
+                id: closeRow
+                anchors.centerIn: parent; spacing: 6
+                MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "close"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
+                StyledText { anchors.verticalCenter: parent.verticalCenter; text: Translation.tr("Close"); color: Appearance.colors.colOnLayer1; font.weight: Font.Medium }
             }
         }
         RippleButton {

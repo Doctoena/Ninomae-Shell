@@ -23,7 +23,7 @@ import Quickshell.Widgets
  */
 LauncherTopPanel {
     id: root
-    panelWidth: 1100 // As wide as the Tags panel
+    panelWidth: 1100
     panelHeight: 440
     signal openGame(var game)
 
@@ -135,30 +135,12 @@ LauncherTopPanel {
         Keys.onPressed: event => { if (root.handleKey(event.key, event.modifiers)) event.accepted = true; }
     }
 
-    SheetHeader {
-        id: header
-        icon: "download"
-        title: Translation.tr("Downloads")
-        subtitle: {
-            const active = GameLauncherService.activeDownloads.length;
-            if (!root.data.steamRunning && root.items.length > 0) return Translation.tr("Steam isn't running");
-            if (root.data.queuePaused) return Translation.tr("Paused");
-            if (root.data.rate > 0) return Translation.tr("Downloading at %1/s").arg(root.size(root.data.rate));
-            if (root.data.gameRunning && root.items.some(i => i.state === "suspended")) return Translation.tr("Held while you play");
-            if (active > 0) return active === 1 ? Translation.tr("1 download") : Translation.tr("%1 downloads").arg(active);
-            return Translation.tr("Nothing downloading");
-        }
-        onCloseRequested: root.closeRequested()
-        SheetIconButton {
-            iconName: "open_in_new"
-            tip: Translation.tr("Open Steam's Downloads page")
-            onClicked: GameLauncherService.openDownloads()
-        }
-    }
+    // No header and no close: the button that opened it (the toolbar's, the game page's) closes it, as Esc does.
+    // Steam's own Downloads page is a button in the banner's corner
 
     Flickable {
         id: scroller
-        anchors { top: header.bottom; topMargin: 14; bottom: parent.bottom; left: parent.left; leftMargin: 16; right: parent.right; rightMargin: 16 }
+        anchors { top: parent.top; topMargin: 14; bottom: parent.bottom; left: parent.left; leftMargin: 16; right: parent.right; rightMargin: 16 }
         contentHeight: column.height + 14
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -169,10 +151,12 @@ LauncherTopPanel {
             width: scroller.width
             spacing: 8
 
-            Rectangle { // Without the plugin, the buttons can't reach Steam: say so, and how to get it
+            // Steam closed, or without the plugin the buttons can't reach it: say so (and how to get it)
+            Rectangle {
+                readonly property bool steamOff: !(root.data.steamRunning ?? false)
                 width: parent.width
                 height: 44
-                visible: !root.canControl && !root.empty && (root.data.steamRunning ?? false)
+                visible: !root.empty && (steamOff || !root.canControl)
                 radius: Appearance.rounding.normal
                 color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.88)
                 MaterialSymbol {
@@ -182,7 +166,8 @@ LauncherTopPanel {
                 }
                 StyledText {
                     anchors { left: offIcon.right; leftMargin: 10; right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
-                    text: Translation.tr("To pause, resume or pick what downloads first from here, Steam needs Millennium and the Ninomae plugin. Run ninomae update to set them up.")
+                    text: parent.steamOff ? Translation.tr("Steam isn't running. Its downloads go on when it starts.")
+                        : Translation.tr("To pause, resume or pick what downloads first from here, Steam needs Millennium and the Ninomae plugin. Run ninomae update to set them up.")
                     elide: Text.ElideRight
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: Appearance.colors.colOnLayer1
@@ -203,6 +188,13 @@ LauncherTopPanel {
                 visible: row !== null
                 TapHandler { enabled: !!banner.game; onTapped: root.openGame(banner.game) }
                 HoverHandler { cursorShape: banner.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                SheetIconButton { // Above the play button, in the corner the art leaves free
+                    anchors { top: parent.top; topMargin: 6; right: parent.right; rightMargin: 6 }
+                    z: 1
+                    iconName: "open_in_new"
+                    tip: Translation.tr("Open Steam's Downloads page")
+                    onClicked: GameLauncherService.openDownloads()
+                }
 
                 Column {
                     anchors { left: banner.coverItem.right; leftMargin: 16; right: bannerSide.left; rightMargin: 18; verticalCenter: parent.verticalCenter }

@@ -1742,6 +1742,8 @@ Singleton {
     }
     // The details page's banner art, else "" (a banner then shows the cover, blurred)
     function bannerArt(game) { return localArt(game, "heroArt") || (game?.derivedHeroArt ?? ""); }
+    // The game's logo: a custom one, else the scan's (Steam's logo.png, in "icon"), else ""
+    function logoArt(game) { return localArt(game, "logo") || localArt(game, "icon"); }
     function setCustomHeroArt(gameId, filePath) { _setCustomArtField(gameId, "heroArt", filePath); }
     function setCustomBoxArt(gameId, filePath) { _setCustomArtField(gameId, "boxArt", filePath); }
     function setCustomLogo(gameId, filePath) { _setCustomArtField(gameId, "logo", filePath); }

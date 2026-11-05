@@ -9,7 +9,7 @@ import Quickshell.Widgets
  * The grid's tag filter: a panel growing up out of the launcher (LauncherTopPanel), like Add a game and
  * the details page's Captures and News, from the tag button by the sort one. A tile per tag with how many
  * games have it and a few of their covers; picking one shows only those (GameLauncherService.selectedTag)
- * and closes the panel, picking it again (or the header's "show all") shows everything. The tag in use
+ * and closes the panel, picking it again (or the toolbar's ✕ by the tag) shows everything. The tag in use
  * is the accent one. One row: every tag while they fit, else whole tiles stepped through with the
  * ‹ › arrows or the wheel. The bin in a tile's corner takes the tag off every game, on a second click.
  * ←/→ move, Enter picks, Delete (twice) removes, Esc closes.
@@ -78,20 +78,7 @@ LauncherTopPanel {
         }
     }
 
-    SheetHeader {
-        id: header
-        icon: "sell"
-        title: Translation.tr("Tags")
-        subtitle: GameLauncherService.selectedTag !== "" ? Translation.tr("Showing \"%1\"").arg(GameLauncherService.selectedTag)
-            : root.tags.length === 1 ? Translation.tr("1 tag") : Translation.tr("%1 tags").arg(root.tags.length)
-        onCloseRequested: root.closeRequested()
-        SheetIconButton { // Back to every game
-            visible: GameLauncherService.selectedTag !== ""
-            iconName: "filter_alt_off"
-            tip: Translation.tr("Show all games")
-            onClicked: { GameLauncherService.selectedTag = ""; root.closeRequested(); }
-        }
-    }
+    // No header and no close: the toolbar's tag button that opened it closes it (and clears the tag), as Esc does
 
     ListView {
         id: tiles
@@ -110,7 +97,7 @@ LauncherTopPanel {
             if (i < first) first = i;
             else if (i > first + perPage - 1) first = Math.min(lastFirst, i - perPage + 1);
         }
-        anchors { top: header.bottom; topMargin: 14; bottom: parent.bottom; bottomMargin: 16; horizontalCenter: parent.horizontalCenter }
+        anchors { top: parent.top; topMargin: 16; bottom: parent.bottom; bottomMargin: 16; horizontalCenter: parent.horizontalCenter }
         width: Math.min(n, perPage) * tileW + Math.max(0, Math.min(n, perPage) - 1) * spacing
         orientation: ListView.Horizontal
         spacing: 10

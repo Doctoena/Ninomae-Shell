@@ -83,7 +83,6 @@ Item {
         return game ? GameLauncherService.getCustomArt(game.id) : {};
     }
     readonly property string customHeroArt: customArtData.heroArt || ""
-    readonly property string customLogo: customArtData.logo || ""
     // Particle override — reactively track changes
     readonly property string particleOverride: {
         const _ = GameLauncherService.particleOverridesRevision;
@@ -95,11 +94,7 @@ Item {
         if (game?.derivedHeroArt?.length > 0) return game.derivedHeroArt;
         return "";
     }
-    readonly property string _logoSource: {
-        if (customLogo.length > 0 && customLogo.startsWith("/")) return customLogo;
-        if (game?.icon?.length > 0 && game.icon.startsWith("/")) return game.icon;
-        return "";
-    }
+    readonly property string _logoSource: GameLauncherService.logoArt(game)
     // Cached sidebar buttons for keyboard nav (avoids re-scanning on every keypress)
     property var _cachedSidebarButtons: []
     function _refreshSidebarButtons() {

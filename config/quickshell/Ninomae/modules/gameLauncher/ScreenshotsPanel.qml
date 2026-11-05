@@ -18,7 +18,7 @@ import Quickshell.Widgets
  * filled in and looks again behind that.
  *
  * With an Immich server set (Settings → Game Launcher), they upload there (all of them from the rail, the
- * one open from the viewer's header) into the game's album, and that album's photos show here too, by
+ * one open from the viewer's rail button) into the game's album, and that album's photos show here too, by
  * date among the rest: all but the ones uploaded from here (same file name as one on disk), so each shows
  * once. Those are "immich:<asset id>" in paths, shown from copies scripts/game-launcher/immich_media.py
  * fetches; they can't be trashed from here.
@@ -333,40 +333,23 @@ LauncherTopPanel {
         return i && i.width > 0 && i.height > 0 ? Math.max(0.5, Math.min(3, i.width / i.height)) : 16 / 9;
     }
 
-    // ── Header ──
-    SheetHeader {
-        id: header
-        z: 2
-        icon: "perm_media"
-        title: Translation.tr("Captures") // Screenshots and clips; the switch says which page
-        subtitle: {
-            const parts = [root.game?.name ?? ""];
-            if (!root.onShots) {
-                if (clipsPage.viewing) parts.push(Translation.tr("%1 of %2").arg(clipsPage.playerIndex + 1).arg(clipsPage.clips.length));
-                return parts.filter(p => p !== "").join(" · ");
-            }
-            if (root.viewing) parts.push(Translation.tr("%1 of %2").arg(root.viewerIndex + 1).arg(root.paths.length));
-            if (root._albumLoading && root.paths.length > 0) parts.push(Translation.tr("checking Immich…"));
-            return parts.filter(p => p !== "").join(" · ");
-        }
-        onCloseRequested: root.closeRequested()
-        // In the viewer the badge is the way back to the grid (as Esc)
-        showBack: root.viewing || clipsPage.viewing
-        backTip: root.onShots ? Translation.tr("All screenshots (Esc)") : Translation.tr("All clips (Esc)")
-        onBackRequested: { root.viewerIndex = -1; clipsPage.back(); }
-    }
-
-    // ── Rail: icon buttons down the left, in groups as the header's (each says what it is on hover): the
-    //    pages, where the shots are, the actions for what's showing, then Trash on its own ──
+    // ── Rail: icon buttons down the left (each says what it is on hover): close (no header: the panel is all
+    //    captures), the pages, where the shots are, the actions for what's showing, then Trash on its own ──
     Column {
         id: rail
-        anchors { top: header.bottom; topMargin: 14; left: parent.left; leftMargin: 22 }
+        anchors { top: parent.top; topMargin: 14; left: parent.left; leftMargin: 22 }
         width: 36
         spacing: 10
         readonly property int shotCount: root.localCount + root.remoteCount
         readonly property bool onGrid: root.onShots ? !root.viewing : !clipsPage.viewing
         function counted(name, n) { return n > 0 ? `${name} (${n})` : name; }
 
+        SheetIconButton {
+            grouped: false
+            iconName: "close"
+            tip: Translation.tr("Close")
+            onClicked: root.closeRequested()
+        }
         RailGroup {
             SheetIconButton { // Also the way back to all of them from the viewer
                 iconName: "photo_library"; active: root.onShots
@@ -473,7 +456,7 @@ LauncherTopPanel {
             }
         }
     }
-    // A group of the rail's buttons on one surface, as the header's. With none of them shown it's 0 high, which
+    // A group of the rail's buttons on one surface. With none of them shown it's 0 high, which
     // the rail's Column skips (not hidden: its buttons would then count as hidden too, and it'd never come back)
     component RailGroup: Rectangle {
         default property alias buttons: groupColumn.data
@@ -493,7 +476,7 @@ LauncherTopPanel {
     //    are cropped to fill theirs, the viewer shows them whole) ──
     CaptureGrid {
         id: gallery
-        anchors { top: header.bottom; topMargin: 14 - pad; bottom: parent.bottom; left: rail.right; right: parent.right; leftMargin: 14 - pad; rightMargin: 20 - pad }
+        anchors { top: parent.top; topMargin: 14 - pad; bottom: parent.bottom; left: rail.right; right: parent.right; leftMargin: 14 - pad; rightMargin: 20 - pad }
         visible: root.onShots && !root.viewing && root.paths.length > 0
         model: root.paths.length > 0 ? root.paths.concat([""]) : [] // Last, how to take more ("")
         delegate: Item {
@@ -542,7 +525,6 @@ LauncherTopPanel {
 
     SheetEmptyState {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: 24
         anchors.horizontalCenterOffset: (rail.width + 16) / 2 // In the room beside the rail
         visible: root.onShots && !root.viewing && root.paths.length === 0
         icon: root.loading ? "hourglass_empty" : "add_a_photo"
@@ -555,7 +537,7 @@ LauncherTopPanel {
     // ── Clips page ──
     ClipsPage {
         id: clipsPage
-        anchors { top: header.bottom; bottom: parent.bottom; left: rail.right; leftMargin: -6; right: parent.right }
+        anchors { top: parent.top; bottom: parent.bottom; left: rail.right; leftMargin: -6; right: parent.right }
         visible: !root.onShots
         game: root.game
         active: root.shown && !root.onShots
@@ -564,7 +546,7 @@ LauncherTopPanel {
     // ── Viewer: the shot large, what it is under it, then a filmstrip, beside the rail ──
     Item {
         id: stage
-        anchors { top: header.bottom; bottom: parent.bottom; left: rail.right; right: parent.right }
+        anchors { top: parent.top; bottom: parent.bottom; left: rail.right; right: parent.right }
     }
     Item {
         id: viewer
@@ -718,6 +700,10 @@ LauncherTopPanel {
             id: chips
             anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
             spacing: 6
+            SheetInfoChip { // Which one of them
+                icon: "photo_library"
+                text: Translation.tr("%1 of %2").arg(root.viewerIndex + 1).arg(root.paths.length)
+            }
             SheetInfoChip {
                 visible: (details.info.width ?? 0) > 0
                 icon: "aspect_ratio"

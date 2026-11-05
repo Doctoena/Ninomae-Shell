@@ -11,8 +11,8 @@ import Quickshell.Widgets
  * one's share of players (scripts/game-launcher/steam_achievements.py), which also orders them:
  * unlocked newest first, then locked most common first (the easiest next). On top, a banner of the
  * game's art with how far you are and three highlights (the latest, the rarest you have, and the
- * easiest still locked), each a click away in the list. Under it the achievements as cards, in two
- * columns to suit the sheet's wide, short shape.
+ * easiest still locked), each a click away in the list, and close in its corner. Under it Unlocked / All /
+ * Locked, then the achievements as cards, in two columns to suit the sheet's wide, short shape.
  */
 LauncherTopPanel {
     id: root
@@ -76,51 +76,15 @@ LauncherTopPanel {
         return key === Qt.Key_Left || key === Qt.Key_Right; // Don't leave the page from under the sheet
     }
 
-    SheetHeader {
-        id: header
-        icon: "emoji_events"
-        iconFilled: true
-        title: Translation.tr("Achievements")
-        subtitle: root.game?.name ?? ""
-        onCloseRequested: root.closeRequested()
-        Rectangle { // Filter: All / Unlocked / Locked
-            width: tabs.width + 8; height: 36; radius: Appearance.rounding.segment
-            color: Appearance.colors.colLayer1
-            visible: root.total > 0
-            Row {
-                id: tabs
-                anchors.centerIn: parent
-                Repeater {
-                    model: [
-                        { key: "all", label: Translation.tr("All") },
-                        { key: "unlocked", label: Translation.tr("Unlocked") },
-                        { key: "locked", label: Translation.tr("Locked") }
-                    ]
-                    Rectangle {
-                        id: tabPill
-                        required property var modelData
-                        readonly property bool active: root.filter === modelData.key
-                        width: tabText.implicitWidth + 28; height: 28; radius: Appearance.rounding.segment
-                        color: active ? Appearance.colors.colPrimary : tabMa.containsMouse ? Appearance.colors.colLayer1Hover : "transparent"
-                        Behavior on color { ColorAnimation { duration: 140 } }
-                        StyledText {
-                            id: tabText
-                            anchors.centerIn: parent
-                            text: tabPill.modelData.label
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            font.weight: tabPill.active ? Font.DemiBold : Font.Medium
-                            color: tabPill.active ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-                        }
-                        MouseArea {
-                            id: tabMa
-                            anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.filter = tabPill.modelData.key
-                        }
-                    }
-                }
-            }
-        }
+    // No header: the banner names the game (its cover), close sits in its corner, and Unlocked / All / Locked
+    // over the list, as the News panel's filters
+    SheetIconButton {
+        anchors { top: parent.top; topMargin: 20; right: parent.right; rightMargin: 28 }
+        z: 1
+        grouped: false
+        iconName: "close"
+        tip: Translation.tr("Close")
+        onClicked: root.closeRequested()
     }
 
     // ── Banner: the game's art, how far you are, and the highlights ──
@@ -129,7 +93,7 @@ LauncherTopPanel {
         game: root.game
         coverIcon: "emoji_events"
         shadeMid: 0.72; shadeEnd: 0.55 // Lighter on the right: the highlights carry their own card
-        anchors { top: header.bottom; topMargin: 14; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
+        anchors { top: parent.top; topMargin: 12; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
         height: root.total > 0 ? 112 : 0
         visible: root.total > 0
 
@@ -163,7 +127,7 @@ LauncherTopPanel {
 
         Rectangle { // The highlights, on a see-through card with a hairline edge, so the art shows through
             id: highlightRow
-            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+            anchors { right: parent.right; rightMargin: 14 + 36 + 12; verticalCenter: parent.verticalCenter } // Clear of close
             visible: root.highlights.length > 0
             width: highlightItems.implicitWidth + 8
             height: highlightItems.implicitHeight + 8
@@ -259,9 +223,29 @@ LauncherTopPanel {
     }
 
     // ── List ──
+    Row {
+        id: filterRow
+        visible: root.total > 0
+        anchors { top: banner.bottom; topMargin: 12; horizontalCenter: banner.horizontalCenter }
+        spacing: 4
+        Repeater {
+            model: [
+                // All in the middle, between the two halves of it
+                { key: "unlocked", label: Translation.tr("Unlocked") },
+                { key: "all", label: Translation.tr("All") },
+                { key: "locked", label: Translation.tr("Locked") }
+            ]
+            SheetFilterChip {
+                required property var modelData
+                label: modelData.label
+                on: root.filter === modelData.key
+                onPicked: root.filter = modelData.key
+            }
+        }
+    }
     GridView {
         id: list
-        anchors { top: banner.bottom; topMargin: 12; bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 12 }
+        anchors { top: filterRow.bottom; topMargin: 10; bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 12 }
         cellWidth: Math.floor(width / 2)
         cellHeight: 70
         bottomMargin: 8
@@ -398,7 +382,6 @@ LauncherTopPanel {
 
     SheetEmptyState {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: 20
         visible: root.total === 0
         icon: GameLauncherService.achievementsLoading ? "hourglass_empty" : "emoji_events"
         text: GameLauncherService.achievementsLoading ? Translation.tr("Loading achievements…") : Translation.tr("No achievements")

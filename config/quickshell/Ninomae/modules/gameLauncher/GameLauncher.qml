@@ -315,7 +315,17 @@ Scope {
                         if (detailsLoader.item) { detailsLoader.item.openPanel = ""; if (root.showingDetails) detailsLoader.item.forceActiveFocus(); }
                         if (["addGame", "tags", "downloads"].includes(root._topPanelLoaded) && !root.showingDetails) { root.gridPanel = ""; visibleSearchBar.forceActiveFocus(); }
                     }
-                    function onVisibleChanged() { if (!topPanelLoader.item.visible && !topPanelLoader.item.shown) root._topPanelLoaded = ""; }
+                    // Unloaded once it has slid away. Later, not from in here: this also fires while the Loader is
+                    // swapping it for another panel, and changing what it loads then re-entered the Loader (a crash,
+                    // 11-04, Downloads → Customize)
+                    function onVisibleChanged() {
+                        const item = topPanelLoader.item, name = root._topPanelLoaded;
+                        if (item.visible || item.shown) return;
+                        Qt.callLater(() => {
+                            if (topPanelLoader.item === item && root._topPanelLoaded === name && !item.visible && !item.shown)
+                                root._topPanelLoaded = "";
+                        });
+                    }
                 }
                 Component { id: screenshotsPanelComp; ScreenshotsPanel { game: root._topPanelGame } }
                 Component { id: achievementsPanelComp; AchievementsPanel { game: root._topPanelGame } }

@@ -11,7 +11,7 @@ import Quickshell.Widgets
  * Add a game: any installed app (a Flatpak, an AppImage with a desktop entry, an emulator) into the
  * library, as Steam's "Add a non-Steam game" does. A panel growing up out of the launcher
  * (LauncherTopPanel), like the details page's Captures and News, from the search bar's Add button.
- * The apps' desktop entries in a grid, games first, searched from the header; Steam and Lutris, and their
+ * The apps' desktop entries in a grid, games first, searched from the box on top; Steam and Lutris, and their
  * game shortcuts, are left out (those games are in already). Picking one adds it
  * (GameLauncherService.addCustomGame), with art from SteamGridDB when there's a key; the panel stays
  * open to add more. ↑/↓/←/→ move, Enter adds, Esc closes.
@@ -47,45 +47,41 @@ LauncherTopPanel {
                                             icon: app.entry.icon, workingDirectory: app.entry.workingDirectory });
     }
 
-    SheetHeader {
-        id: header
-        icon: "library_add"
-        title: Translation.tr("Add a game")
-        subtitle: Translation.tr("Any app: a Flatpak, an AppImage, an emulator")
-        onCloseRequested: root.closeRequested()
-        Rectangle { // Search
-            width: 300; height: 32
-            radius: Appearance.rounding.segment
-            color: search.activeFocus ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
-            Behavior on color { ColorAnimation { duration: 140 } }
-            MaterialSymbol {
-                id: searchIcon
-                anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                text: "search"; iconSize: 17
-                color: search.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
-            }
-            ToolbarTextField {
-                id: search
-                anchors { left: searchIcon.right; leftMargin: 6; right: parent.right; rightMargin: 8; top: parent.top; bottom: parent.bottom }
-                padding: 0
-                verticalAlignment: TextInput.AlignVCenter
-                font.pixelSize: Appearance.font.pixelSize.small
-                colBackground: "transparent"
-                placeholderText: Translation.tr("Search apps...")
-                onTextChanged: grid.currentIndex = 0
-                Keys.onPressed: event => {
-                    const step = { [Qt.Key_Right]: 1, [Qt.Key_Left]: -1, [Qt.Key_Down]: grid.columns, [Qt.Key_Up]: -grid.columns }[event.key];
-                    if (step !== undefined) {
-                        grid.currentIndex = Math.max(0, Math.min(grid.count - 1, grid.currentIndex + step));
-                        grid.positionViewAtIndex(grid.currentIndex, GridView.Contain);
-                        event.accepted = true;
-                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        root.pick(root.matches[grid.currentIndex]);
-                        event.accepted = true;
-                    } else if (event.key === Qt.Key_Escape) {
-                        root.closeRequested();
-                        event.accepted = true;
-                    }
+    // No header and no close: the search on top. The toolbar's + that opened it closes it, as Esc does
+    Rectangle { // Search: what it's for in its placeholder
+        id: searchBox
+        anchors { top: parent.top; topMargin: 16; horizontalCenter: parent.horizontalCenter }
+        width: 460; height: 36
+        radius: Appearance.rounding.segment
+        color: search.activeFocus ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
+        Behavior on color { ColorAnimation { duration: 140 } }
+        MaterialSymbol {
+            id: searchIcon
+            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+            text: "search"; iconSize: 17
+            color: search.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
+        }
+        ToolbarTextField {
+            id: search
+            anchors { left: searchIcon.right; leftMargin: 6; right: parent.right; rightMargin: 8; top: parent.top; bottom: parent.bottom }
+            padding: 0
+            verticalAlignment: TextInput.AlignVCenter
+            font.pixelSize: Appearance.font.pixelSize.small
+            colBackground: "transparent"
+            placeholderText: Translation.tr("Search apps: a Flatpak, an AppImage, an emulator…")
+            onTextChanged: grid.currentIndex = 0
+            Keys.onPressed: event => {
+                const step = { [Qt.Key_Right]: 1, [Qt.Key_Left]: -1, [Qt.Key_Down]: grid.columns, [Qt.Key_Up]: -grid.columns }[event.key];
+                if (step !== undefined) {
+                    grid.currentIndex = Math.max(0, Math.min(grid.count - 1, grid.currentIndex + step));
+                    grid.positionViewAtIndex(grid.currentIndex, GridView.Contain);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    root.pick(root.matches[grid.currentIndex]);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Escape) {
+                    root.closeRequested();
+                    event.accepted = true;
                 }
             }
         }
@@ -93,7 +89,7 @@ LauncherTopPanel {
 
     GridView {
         id: grid
-        anchors { top: header.bottom; topMargin: 12; bottom: parent.bottom; bottomMargin: 12; left: parent.left; leftMargin: 16; right: parent.right; rightMargin: 16 }
+        anchors { top: searchBox.bottom; topMargin: 12; bottom: parent.bottom; bottomMargin: 12; left: parent.left; leftMargin: 16; right: parent.right; rightMargin: 16 }
         readonly property int columns: Math.max(1, Math.floor(width / 300))
         cellWidth: Math.floor(width / columns)
         cellHeight: 56
