@@ -15,7 +15,9 @@ Singleton {
     readonly property int fetchInterval: Config.options.bar.weather.fetchInterval * 60 * 1000
     readonly property string city: WeatherLocation.city
     readonly property bool useUSCS: Config.options.bar.weather.useUSCS
-    property bool gpsActive: Config.options.bar.weather.enableGPS
+    // Off until the config has loaded: its built-in default is on, so reading it any sooner started the location
+    // service for a moment at every start, even with GPS off in Settings
+    property bool gpsActive: false
 
     // Where to fetch for. Plain properties (not one object mutated in place) so bindings notice changes
     property real lat: 0
@@ -58,11 +60,15 @@ Singleton {
     // Switching between GPS and a city (Settings, the welcome window) takes effect straight away
     Connections {
         target: Config.options.bar.weather
-        function onEnableGPSChanged() { root.gpsActive = Config.options.bar.weather.enableGPS; }
+        function onEnableGPSChanged() { if (Config.ready) root.gpsActive = Config.options.bar.weather.enableGPS; }
+    }
+    Connections {
+        target: Config
+        function onReadyChanged() { if (Config.ready) root.gpsActive = Config.options.bar.weather.enableGPS; }
     }
     onGpsActiveChanged: {
         if (root.gpsActive && root.enabled) positionSource.start();
-        else positionSource.stop();
+        else if (positionSource.active) positionSource.stop(); // Never started: nothing to stop (it warns)
         root.locationValid = false; // The other mode's coordinates
         root.getData(true);
     }
@@ -236,11 +242,7 @@ Singleton {
             }
         }
     }
-    Component.onCompleted: {
-        if (!root.gpsActive || !root.enabled) return;
-        console.info("[WeatherService] Starting the GPS service.");
-        positionSource.start();
-    }
+    Component.onCompleted: if (Config.ready) root.gpsActive = Config.options.bar.weather.enableGPS // Loaded already
     PositionSource {
         id: positionSource
         updateInterval: root.fetchInterval
@@ -268,7 +270,7 @@ Singleton {
         }
         onValidityChanged: {
             if (!positionSource.valid) {
-                positionSource.stop();
+                if (positionSource.active) positionSource.stop();
                 root.locationValid = false;
                 root.gpsActive = false;
                 Quickshell.execDetached(["notify-send", "-a", "Weather", Translation.tr("Weather Service"), Translation.tr("Cannot find a GPS service. Using the fallback method instead."), "-a", "Shell"]);
