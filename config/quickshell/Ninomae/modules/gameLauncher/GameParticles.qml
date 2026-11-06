@@ -82,19 +82,11 @@ Item {
     // ═════════════════════════════════════════════════════════
     //  SHAPES
     // ═════════════════════════════════════════════════════════
-    readonly property int _sCircle: 0
-    readonly property int _sDiamond: 1
-    readonly property int _sPetal: 2
-    readonly property int _sHex: 3
-    readonly property int _sStar: 4
-    readonly property int _sSnowflake: 5
-    readonly property int _sSpark: 6
-    readonly property int _sCross: 7
-    readonly property int _sRing: 8      // bubble
-    readonly property int _sSoft: 9      // glow sprite only (fog, dust clouds)
-    readonly property int _sSquare: 10   // axis-aligned pixel
-    readonly property int _sLeaf: 11
-    readonly property int _sBokeh: 12    // out-of-focus disc
+    // The presets' shapes, by number: 0 circle, 1 diamond, 2 petal, 3 hex, 4 star, 5 snowflake, 6 spark, 7 cross,
+    // 8 ring (a bubble), 9 soft (a glow sprite only: fog, dust clouds), 10 square (an axis-aligned pixel), 11 leaf,
+    // 12 bokeh (an out-of-focus disc). The two the drawing treats apart have names
+    readonly property int _sSoft: 9
+    readonly property int _sBokeh: 12
 
     // ═════════════════════════════════════════════════════════
     //  PRESETS
@@ -1401,7 +1393,7 @@ Item {
 
                 ctx.globalAlpha = a;
                 const col = "rgb(" + cr[i] + "," + cg[i] + "," + cb[i] + ")";
-                if (shape === 12) { // Bokeh: an out-of-focus light, even in the middle and soft at the edge (no outline)
+                if (shape === root._sBokeh) { // Bokeh: an out-of-focus light, even in the middle and soft at the edge (no outline)
                     const c = "rgba(" + cr[i] + "," + cg[i] + "," + cb[i] + ",";
                     const g = ctx.createRadialGradient(x, y, 0, x, y, s);
                     g.addColorStop(0, c + "0.42)");

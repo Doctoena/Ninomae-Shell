@@ -62,14 +62,14 @@ Singleton {
                 if (kind === "focus") { root.gameFocused = key === "1"; root.focusKnown = true; return; }
                 // Art first: a new game restarts the recorder on the name change, and it should start with both
                 if (kind === "steam") {
-                    const g = GameLauncherService.games.find(x => x.id === `steam_${key}`);
+                    const g = GameLauncherService.gamesById[`steam_${key}`];
                     root.gameAppId = key;
                     root.gameArt = g?.boxArt ?? "";
                     root.game = g?.name || `Steam game ${key}`;
                     root.gameId = `steam_${key}`;
                 } else if (kind === "custom") {
                     const g = GameLauncherService.customGames.find(x => x.id === key);
-                    const lib = GameLauncherService.games.find(x => x.id === key);
+                    const lib = GameLauncherService.gamesById[key];
                     root.gameAppId = "";
                     root.gameArt = GameLauncherService.customArt[key]?.boxArt ?? lib?.icon ?? "";
                     root.game = g?.name || "Game";
@@ -107,7 +107,7 @@ Singleton {
         target: GameLauncherService
         function onGamesChanged() {
             if (root.gameAppId === "" || root.game !== `Steam game ${root.gameAppId}`) return;
-            const g = GameLauncherService.games.find(x => x.id === `steam_${root.gameAppId}`);
+            const g = GameLauncherService.gamesById[`steam_${root.gameAppId}`];
             if (!g?.name) return;
             root.gameArt = g.boxArt ?? "";
             root.game = g.name;
@@ -232,7 +232,7 @@ Singleton {
         description: "Takes a screenshot of the running game"
         onPressed: {
             if (root.game === "") return;
-            const g = GameLauncherService.games.find(x => x.id === root.gameId);
+            const g = GameLauncherService.gamesById[root.gameId];
             Quickshell.execDetached([Quickshell.shellPath("scripts/game-launcher/game_screenshot.sh"),
                 Hyprland.focusedMonitor?.name ?? "", root.game, root.gameAppId, g?.gameDir ?? "", g?.flatpakId ?? ""]);
         }

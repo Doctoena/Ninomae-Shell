@@ -501,7 +501,7 @@ LauncherTopPanel {
                     entry: cell.modelData
                     current: root.keyboardNav && cell.index === root.gridIndex
                     order: gallery.atYBeginning ? cell.index : 0 // Scrolled to: no wait
-                    onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; } // Keys go on from here
+                    onHoveredChanged: if (hovered && root.settled) { root.gridIndex = cell.index; root.keyboardNav = false; } // Keys go on from here
                     onClicked: root.viewerIndex = cell.index
                     onRightClicked: root.copyEntry(cell.modelData)
                 }
@@ -535,6 +535,7 @@ LauncherTopPanel {
     // ── Clips page ──
     ClipsPage {
         id: clipsPage
+        settled: root.settled
         anchors { top: parent.top; bottom: parent.bottom; left: rail.right; leftMargin: -6; right: parent.right }
         visible: !root.onShots
         game: root.game

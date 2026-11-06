@@ -73,7 +73,7 @@ LauncherTopPanel {
         onTriggered: root.now = Date.now() / 1000
     }
 
-    function gameFor(appid) { return GameLauncherService._installedGamesMap["steam_" + appid] ?? null; }
+    function gameFor(appid) { return GameLauncherService.gamesById["steam_" + appid] ?? null; }
     function busy(appid) { // A button pressed for it, or for the whole queue, that Steam hasn't answered yet
         const pending = GameLauncherService.downloadControlPending;
         return !!pending[appid] || !!pending["all"];

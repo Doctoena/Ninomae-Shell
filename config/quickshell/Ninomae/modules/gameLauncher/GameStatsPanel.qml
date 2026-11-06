@@ -119,7 +119,7 @@ Item {
     }
     // The library's own entry for a leftover (cover, details page), or just its name
     function _leftoverGame(e) {
-        return GameLauncherService._installedGamesMap["steam_" + e.appid] ?? { name: e.name, _placeholder: true };
+        return GameLauncherService.gamesById["steam_" + e.appid] ?? { name: e.name, _placeholder: true };
     }
 
     // The library's screenshots and clips (scripts/game-launcher/library_captures.py): counts, room, the newest
@@ -171,7 +171,7 @@ Item {
         function onActiveDownloadsChanged() { root._syncDownloads(); }
     }
     function _syncDownloads() {
-        const next = GameLauncherService.activeDownloads.map(d => ({ appid: d.appid, game: GameLauncherService._installedGamesMap["steam_" + d.appid] ?? null }))
+        const next = GameLauncherService.activeDownloads.map(d => ({ appid: d.appid, game: GameLauncherService.gamesById["steam_" + d.appid] ?? null }))
             .filter(d => d.game);
         if (next.map(d => d.appid).join() !== _downloads.map(d => d.appid).join()) _downloads = next;
     }

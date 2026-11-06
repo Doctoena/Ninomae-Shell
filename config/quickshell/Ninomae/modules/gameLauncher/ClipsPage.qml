@@ -23,6 +23,7 @@ import Quickshell.Widgets
  */
 Item {
     id: root
+    property bool settled: true // Its panel's: hover picks a clip only once the panel is out and still
     required property var game
     property bool active: false // The page is showing (the sheet is open on it)
 
@@ -258,7 +259,7 @@ Item {
                     clipData: cell.modelData
                     order: grid.atYBeginning ? cell.index : 0
                     current: root.keyboardNav && cell.index === root.gridIndex
-                    onHoveredChanged: if (hovered) { root.gridIndex = cell.index; root.keyboardNav = false; }
+                    onHoveredChanged: if (hovered && root.settled) { root.gridIndex = cell.index; root.keyboardNav = false; }
                     onClicked: root.playerIndex = cell.index
                     onRightClicked: root.copyClip(cell.modelData.path)
                 }

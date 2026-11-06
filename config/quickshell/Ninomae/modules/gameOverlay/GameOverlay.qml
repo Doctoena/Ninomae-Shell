@@ -66,7 +66,7 @@ Scope {
     }
 
     // The launcher's entry for the running game (art, hours, folders), when it has one
-    readonly property var game: GameClips.gameId ? GameLauncherService.games.find(g => g.id === GameClips.gameId) ?? null : null
+    readonly property var game: GameClips.gameId ? GameLauncherService.gamesById[GameClips.gameId] ?? null : null
     readonly property string bannerArt: {
         const custom = GameLauncherService.customArt[GameClips.gameId]?.heroArt ?? "";
         for (const p of [custom, game?.heroArt, game?.derivedHeroArt, GameClips.gameArt])

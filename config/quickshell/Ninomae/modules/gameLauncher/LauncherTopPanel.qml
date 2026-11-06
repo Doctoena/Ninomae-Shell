@@ -27,6 +27,8 @@ Item {
 
     // ── Drawer animation (as the side menus') ──
     property real offset: shown ? 0 : 1 // 0 = out, 1 = tucked into the launcher
+    // Out and still: hover only picks an item from then on, not whatever slides under the pointer as it rises
+    readonly property bool settled: shown && offset === 0
     Behavior on offset {
         NumberAnimation {
             duration: root.shown ? Appearance.animationCurves.drawerOpenDuration + Appearance.animationCurves.drawerLargeExtra : Appearance.animationCurves.drawerCloseDuration

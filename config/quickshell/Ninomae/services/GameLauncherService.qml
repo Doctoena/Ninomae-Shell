@@ -127,8 +127,8 @@ Singleton {
     property string selectedLauncher: "all"
     property string selectedTag: ""
     property var filteredGames: []
-    // Precomputed map of installed games by ID for O(1) lookups
-    readonly property var _installedGamesMap: {
+    // Every game by its id, for O(1) lookups (installed or not)
+    readonly property var gamesById: {
         const map = {};
         for (let i = 0; i < root.games.length; i++) {
             map[root.games[i].id] = root.games[i];
@@ -140,7 +140,7 @@ Singleton {
         const _ = root.tagsRevision;
         const counts = {};
         const data = root.tagsData;
-        const inLibrary = root._installedGamesMap; // Every game in the library, installed or not
+        const inLibrary = root.gamesById; // Every game in the library, installed or not
         const anyGames = root.games.length > 0; // Before the first scan: count them all
         if (data) {
             const ids = Object.keys(data);
@@ -825,7 +825,7 @@ Singleton {
     }
     function installState(gameOrId) {
         const id = typeof gameOrId === "string" ? gameOrId : gameOrId?.id;
-        const g = root._installedGamesMap[id];
+        const g = root.gamesById[id];
         // Flags read since the scan count only for a game the scan saw installed: an uninstall's last manifest
         // write would otherwise outlive the scan that found the game gone
         const flags = (g?.stateFlags ? root._liveFlags[id] : undefined) ?? g?.stateFlags ?? 0;
@@ -857,7 +857,7 @@ Singleton {
     //             on state changes, so live progress is what's on disk here
     //   mods      workshop/content/<id>, the installed Workshop mods
     function steamPaths(game) {
-        const g = root._installedGamesMap[game?.id] ?? game;
+        const g = root.gamesById[game?.id] ?? game;
         const dir = root._steamappsDir(g);
         if (!dir) return null;
         const appid = g.id.substring(6);
@@ -1078,7 +1078,7 @@ Singleton {
         const ids = Object.keys(root.completedGames);
         for (let j = 0; j < ids.length; j++) {
             const id = ids[j];
-            const installed = root._installedGamesMap[id];
+            const installed = root.gamesById[id];
             result.push(installed || root.completedGames[id]);
         }
         return result.sort(function(a, b) { return a.name.localeCompare(b.name); });
@@ -1222,7 +1222,7 @@ Singleton {
                     const m = line.match(/appmanifest_(\d+)\.acf:\s*"StateFlags"\s+"(\d+)"/);
                     if (!m) continue;
                     const id = "steam_" + m[1], flags = Number(m[2]);
-                    const before = live[id] ?? root._installedGamesMap[id]?.stateFlags ?? 0;
+                    const before = live[id] ?? root.gamesById[id]?.stateFlags ?? 0;
                     if (flags === 4 && before !== 4) finished = true;
                     live[id] = flags;
                 }
@@ -1240,7 +1240,7 @@ Singleton {
             onRead: data => {
                 // An installed Steam game's manifest, rewritten: just its flags (above)
                 const manifest = data.match(/^(.*\/) (?:MODIFY|MOVED_TO|CREATE)\S* (appmanifest_(\d+)\.acf)$/);
-                if (manifest && (root._installedGamesMap["steam_" + manifest[3]]?.stateFlags ?? 0) !== 0) {
+                if (manifest && (root.gamesById["steam_" + manifest[3]]?.stateFlags ?? 0) !== 0) {
                     root._flagsPending = Object.assign({}, root._flagsPending, { ["steam_" + manifest[3]]: manifest[1] + manifest[2] });
                     _flagsTimer.restart();
                     return;

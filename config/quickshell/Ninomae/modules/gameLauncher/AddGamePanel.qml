@@ -55,7 +55,7 @@ LauncherTopPanel {
         return q === "" ? apps : apps.filter(a => a.name.toLowerCase().includes(q));
     }
     readonly property var current: matches[list.currentIndex] ?? null
-    readonly property var currentGame: current?.customId ? (GameLauncherService._installedGamesMap[current.customId] ?? null) : null
+    readonly property var currentGame: current?.customId ? (GameLauncherService.gamesById[current.customId] ?? null) : null
 
     function add(app) {
         if (!app || app.customId) return;
@@ -63,7 +63,7 @@ LauncherTopPanel {
                                             icon: app.entry.icon, workingDirectory: app.entry.workingDirectory });
     }
     function open(app) { // In already: its page
-        const game = app?.customId ? GameLauncherService._installedGamesMap[app.customId] : null;
+        const game = app?.customId ? GameLauncherService.gamesById[app.customId] : null;
         if (game) root.openGame(game);
     }
     // A first press of the bin (or Delete) arms it; a second, within a few seconds, takes the game out
@@ -329,7 +329,7 @@ LauncherTopPanel {
             color: lit ? Appearance.colors.colLayer1Hover : "transparent"
             HoverHandler {
                 cursorShape: Qt.PointingHandCursor
-                onHoveredChanged: if (hovered) list.currentIndex = row.index
+                onHoveredChanged: if (hovered && root.settled) list.currentIndex = row.index
             }
             TapHandler { onTapped: row.modelData.customId ? root.open(row.modelData) : root.add(row.modelData) }
             IconImage {

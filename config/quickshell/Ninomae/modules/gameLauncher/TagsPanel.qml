@@ -33,7 +33,7 @@ LauncherTopPanel {
         const _ = GameLauncherService.tagsRevision;
         const out = {};
         for (const id of Object.keys(GameLauncherService.tagsData)) {
-            const g = GameLauncherService._installedGamesMap[id];
+            const g = GameLauncherService.gamesById[id];
             const tags = GameLauncherService.tagsData[id];
             if (!g || !Array.isArray(tags)) continue;
             for (const t of tags) (out[t] ?? (out[t] = [])).push(g);
@@ -120,7 +120,7 @@ LauncherTopPanel {
                 HoverHandler {
                     id: hover
                     cursorShape: Qt.PointingHandCursor
-                    onHoveredChanged: if (hovered) { grid.currentIndex = cell.index; root.keyboardNav = false; }
+                    onHoveredChanged: if (hovered && root.settled) { grid.currentIndex = cell.index; root.keyboardNav = false; }
                 }
                 TapHandler { onTapped: root.pick(cell.modelData) }
                 Column {
