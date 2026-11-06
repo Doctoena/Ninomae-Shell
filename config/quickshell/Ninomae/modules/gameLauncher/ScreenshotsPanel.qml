@@ -529,9 +529,7 @@ LauncherTopPanel {
         visible: root.onShots && !root.viewing && root.paths.length === 0
         icon: root.loading ? "hourglass_empty" : "add_a_photo"
         text: root.loading ? Translation.tr("Looking for screenshots…") : Translation.tr("No screenshots yet")
-        hint: root.loading ? ""
-            : root.appid !== "" ? Translation.tr("Press F12 while playing to take one")
-            : Translation.tr("Screenshots the game saves in its own folders show up here")
+        hint: root.loading ? "" : Translation.tr("Press F12 while playing to take one") // Any game's, as the grid's last tile
     }
 
     // ── Clips page ──

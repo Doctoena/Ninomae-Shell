@@ -18,7 +18,9 @@ Scope {
         const game = GameLauncherService.findGameByName(query);
         if (!game) return;
         GlobalStates.gameLauncherOpen = true;
-        showGameRequested(game, sheet);
+        // Steam's own panels only for its games (the page has no button for them otherwise): just the page
+        const steamOnly = ["achievements", "news", "launchOptions"].includes(sheet) && !game.id.startsWith("steam_");
+        showGameRequested(game, steamOnly ? "" : sheet);
     }
     LaunchSplash { id: launchSplash }
     IpcHandler {
