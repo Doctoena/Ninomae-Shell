@@ -20,7 +20,12 @@ Item {
     signal gameSelected(var game)
     signal capturesSelected(var game, string page) // A capture's game, on its Captures (page: shots or clips)
     property bool animationReady: false
-    Component.onCompleted: { _animTimer.start(); _readDiskSizes(); _recompute(); _syncDownloads(); }
+    // Built ahead by the launcher (hidden): the scripts read again each time it's shown, so it's never stale, and
+    // a result the same as last time changes nothing
+    property bool shown: true
+    onShownChanged: if (shown) refresh()
+    function refresh() { _readDiskSizes(); leftoversProc.running = true; capturesProc.running = true; librariesProc.running = true; }
+    Component.onCompleted: { _animTimer.start(); refresh(); _recompute(); _syncDownloads(); }
     Timer { id: _animTimer; interval: 50; onTriggered: root.animationReady = true }
 
     // ─── Helpers ──────────────────────────────────────────────
@@ -57,10 +62,16 @@ Item {
     // Install sizes: Steam's straight from its manifests (no scanning), other installed games' from their folders
     // (a Flatpak game's app and data); re-read when the library changes
     property var _diskSizes: ({})
+    property string _diskText: ""
     Process {
         id: diskProc
         stdout: StdioCollector {
-            onStreamFinished: { try { root._diskSizes = JSON.parse(text); } catch (e) {} _statsDebounce.restart(); }
+            onStreamFinished: {
+                if (text === root._diskText) return;
+                root._diskText = text;
+                try { root._diskSizes = JSON.parse(text); } catch (e) {}
+                _statsDebounce.restart();
+            }
         }
     }
     function _readDiskSizes() {
@@ -75,14 +86,16 @@ Item {
     // there) and shader caches, with sizes. Listed and deleted by launch_options.py, re-read after a delete
     readonly property string _helper: Quickshell.shellPath("scripts/game-launcher/launch_options.py")
     property var _leftovers: []
+    property string _leftoversText: ""
     readonly property real _leftoverTotal: _leftovers.reduce((t, e) => t + e.size, 0)
     property bool _showLeftovers: false
     Process {
         id: leftoversProc
-        running: true
         command: ["python3", "-I", root._helper, "leftovers"]
         stdout: StdioCollector {
             onStreamFinished: {
+                if (text === root._leftoversText) return;
+                root._leftoversText = text;
                 try { root._leftovers = JSON.parse(text); } catch (e) {}
                 if (root._leftovers.length === 0) root._showLeftovers = false; // All deleted: back to storage
             }
@@ -106,25 +119,38 @@ Item {
     }
     // The library's own entry for a leftover (cover, details page), or just its name
     function _leftoverGame(e) {
-        return GameLauncherService.games.find(g => g.id === "steam_" + e.appid) ?? { name: e.name, _placeholder: true };
+        return GameLauncherService._installedGamesMap["steam_" + e.appid] ?? { name: e.name, _placeholder: true };
     }
 
     // The library's screenshots and clips (scripts/game-launcher/library_captures.py): counts, room, the newest
     property var _captures: null
+    property string _capturesText: ""
     Process {
-        running: true
+        id: capturesProc
         command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/library_captures.py"),
                   GameClips.clipsDir, `${GameLauncherService.cacheDir}/clip-thumbs`]
-        stdout: StdioCollector { onStreamFinished: { try { root._captures = JSON.parse(text); } catch (e) {} } }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text === root._capturesText) return;
+                root._capturesText = text;
+                try { root._captures = JSON.parse(text); } catch (e) {}
+            }
+        }
     }
-    // A capture's game, by its folder (the game's name made safe)
-    function _captureGame(c) {
-        return GameLauncherService.games.find(g => GameClips.safeName(g.name) === c.game) ?? null;
+    // A capture's game, by its folder (the game's name made safe): the library by folder name, made once
+    readonly property var _gamesByFolder: {
+        const m = {};
+        for (const g of GameLauncherService.games) {
+            const k = GameClips.safeName(g.name);
+            if (!(k in m)) m[k] = g;
+        }
+        return m;
     }
+    function _captureGame(c) { return _gamesByFolder[c.game] ?? null; }
     // Free room on the drives Steam's libraries are on (launch_options.py libraries), each drive once
     property real _freeBytes: -1
     Process {
-        running: true
+        id: librariesProc
         command: ["python3", "-I", root._helper, "libraries"]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -767,7 +793,7 @@ Item {
         Layout.fillHeight: true
         clip: true
         spacing: 2
-        animateAppearance: false // The model is replaced on every recompute: rows would pop in again
+        animateAppearance: false // Rows would pop in again whenever a list changes
     }
 
     // A titled card holding one list

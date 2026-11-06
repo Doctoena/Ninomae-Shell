@@ -1245,8 +1245,11 @@ Scope {
                         id: statsView
                         anchors.fill: parent
                         z: 4
-                        opacity: root.showingStats ? 1.0 : 0.0
-                        scale: root.showingStats ? 1.0 : 0.92
+                        // As the game page: built ahead, hidden, while the launcher's open, and comes in once it's
+                        // made, not as an empty box that fills in
+                        readonly property bool shown: root.showingStats && statsLoader.status === Loader.Ready
+                        opacity: shown ? 1.0 : 0.0
+                        scale: shown ? 1.0 : 0.92
                         visible: opacity > 0; enabled: root.showingStats
                         onEnabledChanged: if (enabled) gameLauncherBackground.forceActiveFocus()
                         MouseArea {
@@ -1256,17 +1259,30 @@ Scope {
                             onClicked: gameLauncherBackground.forceActiveFocus()
                         }
                         transform: Translate {
-                            y: root.showingStats ? 0 : 12
+                            y: statsView.shown ? 0 : 12
                             Behavior on y { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
                         }
                         Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutQuint } }
                         Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                        Timer { // Built a moment after the launcher opens, not during the drawer's rise
+                            id: statsPrebuild
+                            property bool ready: false
+                            interval: 600
+                            running: root.drawerWanted && !ready
+                            onTriggered: ready = true
+                        }
+                        Connections { // Closed: let it go, built fresh next time
+                            target: root
+                            function onDrawerWantedChanged() { if (!root.drawerWanted) statsPrebuild.ready = false; }
+                        }
                         Loader {
+                            id: statsLoader
                             anchors.fill: parent
-                            active: root.showingStats
+                            active: root.showingStats || statsView.visible || statsPrebuild.ready
                             asynchronous: true
                             sourceComponent: GameStatsPanel {
                                 anchors.fill: parent
+                                shown: root.showingStats
                                 onBackPressed: root.showingStats = false
                                 onGameSelected: function(game) {
                                     root.showingStats = false;
