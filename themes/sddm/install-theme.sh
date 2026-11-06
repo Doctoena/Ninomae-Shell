@@ -89,6 +89,8 @@ case "${1:-install}" in
             done
         fi
         install -D -o root -g root -m 0644 "$script_dir/99-ninomae-theme.conf" "$sddm_override"
+        # The clock format and the current wallpaper, as you: sync-theme.sh reads your shell config
+        [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != root ]] && sudo -H -u "$SUDO_USER" "$script_dir/sync-theme.sh" || true
         sha256sum "$keyboard_config" | cut -d' ' -f1 > "$keyboard_installed_hash"
         chmod 0600 "$keyboard_installed_hash"
         printf 'Installed Ninomae SDDM theme. It will be used at the next greeter start.\n'

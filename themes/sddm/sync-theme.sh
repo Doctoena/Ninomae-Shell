@@ -9,8 +9,13 @@ TARGET="/usr/share/sddm/themes/Ninomae"
 SHELL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/ninomae-shell/config.json"
 LAST="${XDG_CACHE_HOME:-$HOME/.cache}/ninomae-sddm-wallpaper" # Source of the last synced wallpaper
 
-# Colours
-[[ -w "$TARGET/theme.conf" ]] && cp "$HERE/Ninomae/theme.conf" "$TARGET/theme.conf"
+# Colours, and the clock as the shell shows it: 12-hour when its format has AM/PM in it (the greeter can't
+# read the shell's config). Written over the existing file to keep its permissions
+if [[ -w "$TARGET/theme.conf" ]]; then
+    clock12=false
+    command -v jq >/dev/null && jq -e '(.time.format // "") | test("[aA][pP]")' "$SHELL_CONFIG" >/dev/null 2>&1 && clock12=true
+    { cat "$HERE/Ninomae/theme.conf"; printf 'clock12=%s\n' "$clock12"; } > "$TARGET/theme.conf"
+fi
 
 # Wallpaper (only when it changed: re-encoding a big image on every light/dark toggle is wasted work).
 # switchwall.sh saves the new path to the shell config before running matugen.

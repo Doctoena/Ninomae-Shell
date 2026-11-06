@@ -7,7 +7,8 @@
 #  Modes
 #    (none)          Install: pick what to set up from a checklist
 #    --update        Update an existing install: latest files, missing packages,
-#                    new links, Python helpers, drawer plugin, Steam plugin
+#                    new links, Python helpers, drawer plugin, Steam plugin,
+#                    login screen
 #    --uninstall     Remove the config links and put back what they replaced
 #                    (packages and system themes stay)
 #    --check         See if everything is in place (links, settings, packages, the
@@ -208,9 +209,10 @@ install)
 
 update)
     confirm "Update everything?" || die "Cancelled; nothing was changed."
-    # Only installing new packages, a hardware fix or a codec swap needs it
-    [[ -n $(missing_packages) || -n $(old_quickshell) ]] || hardware_fixes_pending || { rpmfusion_free && codec_swaps_pending; } && sudo_keepalive
-    steps=(update_files update_packages update_codecs comp_configs update_shell update_steam_plugin update_apps)
+    # Only installing new packages, a hardware fix, a codec swap or a new login screen needs it
+    [[ -n $(missing_packages) || -n $(old_quickshell) ]] || hardware_fixes_pending || { rpmfusion_free && codec_swaps_pending; } \
+        || login_theme_outdated && sudo_keepalive
+    steps=(update_files update_packages update_codecs comp_configs update_shell update_steam_plugin update_login_screen update_apps)
     STEP_TOTAL=${#steps[@]}
     for s in "${steps[@]}"; do "$s"; done
     report "Check everything any time: ${c_bold}ninomae check${c_off}"
@@ -225,7 +227,7 @@ update)
     ;;
 
 check)
-    steps=(check_links check_settings check_packages check_plugin check_steam_plugin check_colours check_python check_running)
+    steps=(check_links check_settings check_packages check_plugin check_steam_plugin check_login_screen check_colours check_python check_running)
     STEP_TOTAL=${#steps[@]}
     for s in "${steps[@]}"; do "$s"; done
     report "Fix what's flagged with ${c_bold}ninomae update${c_off}"

@@ -1,8 +1,9 @@
-// Ninomae SDDM greeter, the twin of the shell's lock screen (modules/lock/LockSurface.qml): a floating
-// top bar (logo, date, keyboard, battery, session, power), a big centred clock, and a solid login card.
-// Same design language as the shell: rounded rectangles (squircles), not pills; neutral surfaces, with
-// the accent kept for what's active. Only the avatar (and its ring) stays round, as on the lock screen.
-// Colors come from theme.conf, which matugen regenerates from the current wallpaper.
+// Ninomae SDDM greeter, the twin of the shell's lock screen (modules/lock/LockSurface.qml): the wallpaper as it
+// is, the time big in the bottom left, the password in a see-through pill with the avatar in the bottom right,
+// and see-through chips in the corners: the machine top left; keyboard, battery, session and power top right.
+// Same design language as the shell: rounded rectangles (squircles), not pills; the accent for what's
+// active. Only the avatar (and its ring) stays round. Colors come from theme.conf, which matugen
+// regenerates from the current wallpaper.
 import QtQuick
 import QtQuick.Effects
 
@@ -13,38 +14,27 @@ Item {
 
     // ── Palette (matugen → theme.conf), with the current values as fallbacks ──
     readonly property color colBackground: config.background_color || "#14121c"
-    readonly property color colContainerLow: config.surface_container_low || "#1c1a24"
     readonly property color colContainer: config.surface_container || "#211e28"
     readonly property color colContainerHigh: config.surface_container_high || "#2b2833"
-    readonly property color colContainerHighest: config.surface_container_highest || "#36333e"
     readonly property color colOnSurface: config.on_surface || "#e6e0ee"
     readonly property color colOnSurfaceVariant: config.on_surface_variant || "#cac3d8"
-    readonly property color colOutline: config.outline || "#948ea1"
-    readonly property color colOutlineVariant: config.outline_variant || "#494455"
     readonly property color colPrimary: config.primary || "#ccbeff"
     readonly property color colOnPrimary: config.on_primary || "#350097"
-    readonly property color colPrimaryFixed: config.primary_fixed || "#e7deff"
     readonly property color colSecondaryContainer: config.secondary_container || "#4d3d88"
-    readonly property color colOnSecondaryContainer: config.on_secondary_container || "#e8dfff"
-    readonly property color colTertiary: config.tertiary || "#ffabee"
     readonly property color colError: config.error || "#ffb4ab"
-    readonly property color colErrorContainer: config.error_container || "#93000a"
-    readonly property color colOnErrorContainer: config.on_error_container || "#ffdad6"
-    // Tinted badge background, like the shell's icon badges
+    // See-through surfaces over the wallpaper, with a hairline edge (the lock screen's chips and pill)
+    readonly property color colGlass: Qt.alpha(colBackground, 0.65)
+    readonly property color colGlassHover: Qt.alpha(colBackground, 0.85)
+    readonly property color colEdge: Qt.alpha(colOnSurface, 0.12)
     readonly property color colPrimaryTint: Qt.alpha(colPrimary, 0.18)
-    // Corner radii: the shell's tokens (Appearance.rounding.chip / segment / container) and the lock
-    // screen's larger pieces
-    readonly property int radiusChip: 9       // 28 px chips, badges
-    readonly property int radiusSegment: 10   // 30 px buttons
-    readonly property int radiusContainer: 12 // 36–44 px rows and notices
-    readonly property int radiusBar: 14
-    readonly property int radiusField: 16
+    // Corner radii: the lock screen's
+    readonly property int radiusChip: 12      // 34 px chips and buttons
+    readonly property int radiusRow: 12       // popup rows
     readonly property int radiusPopup: 20
-    readonly property int radiusCard: 32
+    readonly property int radiusPill: 22
 
     // ── Fonts (bundled: the sddm user cannot read ~/.local/share/fonts) ──
     FontLoader { id: fontMain; source: "fonts/RobotoFlex.ttf" }
-    FontLoader { id: fontNumbers; source: "fonts/Rubik.ttf" }
     FontLoader { id: fontExpressive; source: "fonts/SpaceGrotesk.ttf" }
     FontLoader { id: fontIcons; source: "fonts/MaterialSymbolsRounded.ttf" }
     // Same Roboto Flex tuning as quickshell's Appearance.font.variableAxes.main
@@ -75,6 +65,11 @@ Item {
     // -1 = no battery (or not readable): the chip stays hidden
     property int batteryPercent: -1
     property bool batteryCharging: false
+    // Blur and dim from theme.conf: off unless set there (the wallpaper shows as it is, as on the lock screen)
+    readonly property real blurAmount: Number(config.blur || 0)
+    readonly property real dimAmount: Number(config.dim || 0)
+    // The clock as the shell shows it: 12-hour without AM/PM when theme.conf says so (sync-theme.sh), else 24-hour
+    readonly property bool clock12: String(config.clock12) === "true"
 
     function login() {
         const user = manualUser ? manualUserInput.text.trim() : userName
@@ -133,41 +128,47 @@ Item {
     // ════════════════════════ Background ════════════════════════
     Rectangle { anchors.fill: parent; color: root.colBackground }
 
+    // The wallpaper: drawn as it is, or through the blur only when theme.conf sets one. Either settles from a
+    // slight zoom
+    property real wallpaperScale: revealed ? 1.0 : 1.08
+    Behavior on wallpaperScale { NumberAnimation { duration: 1600; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDecel } }
     Image {
         id: wallpaper
         anchors.fill: parent
         source: config.background
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
-        visible: false
-    }
-
-    MultiEffect {
-        anchors.fill: parent
-        source: wallpaper
-        autoPaddingEnabled: false
-        blurEnabled: true
-        blurMax: 64
-        blur: Number(config.blur || 0.55)
-        saturation: 0.08
-        opacity: wallpaper.status === Image.Ready ? 1 : 0
-        scale: root.revealed ? 1.0 : 1.08
-        Behavior on scale { NumberAnimation { duration: 1600; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDecel } }
+        visible: root.blurAmount <= 0
+        opacity: status === Image.Ready ? 1 : 0
+        scale: root.wallpaperScale
         Behavior on opacity { NumberAnimation { duration: 600 } }
     }
-
-    // Tint toward the palette's background so text stays legible on light wallpapers
-    Rectangle {
+    Loader {
         anchors.fill: parent
-        color: root.colBackground
-        opacity: Number(config.dim || 0.42)
+        active: root.blurAmount > 0
+        sourceComponent: MultiEffect {
+            source: wallpaper
+            autoPaddingEnabled: false
+            blurEnabled: true
+            blurMax: 64
+            blur: root.blurAmount
+            opacity: wallpaper.status === Image.Ready ? 1 : 0
+            scale: root.wallpaperScale
+            Behavior on opacity { NumberAnimation { duration: 600 } }
+        }
     }
-    Rectangle { // Soft vignette at the bottom, under the card
+    Rectangle { // An even dim, only when theme.conf asks for one
+        anchors.fill: parent
+        visible: root.dimAmount > 0
+        color: root.colBackground
+        opacity: root.dimAmount
+    }
+    Rectangle { // A light shade at the top for the chips, a deeper one at the foot for the time and the password
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.alpha(root.colBackground, 0.25) }
-            GradientStop { position: 0.4; color: "transparent" }
-            GradientStop { position: 1.0; color: Qt.alpha(root.colBackground, 0.6) }
+            GradientStop { position: 0.0; color: Qt.alpha(root.colBackground, 0.2) }
+            GradientStop { position: 0.5; color: "transparent" }
+            GradientStop { position: 1.0; color: Qt.alpha(root.colBackground, 0.75) }
         }
     }
 
@@ -177,25 +178,25 @@ Item {
         onClicked: { root.openPopup = ""; root.focusPassword() }
     }
 
-    // ════════════════════════ Top bar (like the desktop's floating bar) ════════════════════════
+    // ════════════════════════ Top left: the machine ════════════════════════
     Rectangle {
-        id: topBar
-        x: 8
-        width: root.width - 16
-        height: 40
-        y: root.revealed ? 6 : -height - 10
-        radius: root.radiusBar
-        color: Qt.alpha(root.colBackground, 0.92)
+        x: 16
+        y: root.revealed ? 16 : -50
         Behavior on y { NumberAnimation { duration: 520; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDrawerOpen } }
-
-        // Left: distro logo badge + hostname
+        width: hostRow.implicitWidth + 16
+        height: 34
+        radius: root.radiusChip
+        color: root.colGlass
+        border.width: 1
+        border.color: root.colEdge
         Row {
-            anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
-            spacing: 10
+            id: hostRow
+            anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
+            spacing: 8
             Rectangle {
-                width: 28; height: 28; radius: root.radiusChip
+                width: 26; height: 26; radius: 9
                 color: root.colPrimaryTint
-                Image { id: distroLogo; anchors.centerIn: parent; width: 16; height: 16; source: "fedora-symbolic.svg"; sourceSize: Qt.size(32, 32); visible: false }
+                Image { id: distroLogo; anchors.centerIn: parent; width: 15; height: 15; source: "fedora-symbolic.svg"; sourceSize: Qt.size(30, 30); visible: false }
                 MultiEffect { anchors.fill: distroLogo; source: distroLogo; brightness: 1; colorization: 1; colorizationColor: root.colPrimary }
             }
             Label {
@@ -207,181 +208,188 @@ Item {
                 font.weight: Font.Medium
             }
         }
-
-        // Centre: date
-        Label {
-            anchors.centerIn: parent
-            text: Qt.formatDate(root.now, "dddd, MMMM d")
-            color: root.colOnSurfaceVariant
-            font.pixelSize: 14
-        }
-
-        // Right: keyboard layout, session, power
-        Row {
-            id: barRight
-            anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-            spacing: 4
-
-            ChipButton {
-                width: kbRow.implicitWidth + 22
-                enabled: keyboard.layouts.length > 1
-                onClicked: keyboard.currentLayout = (keyboard.currentLayout + 1) % keyboard.layouts.length
-                Row {
-                    id: kbRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Icon { anchors.verticalCenter: parent.verticalCenter; text: "keyboard_alt"; filled: true; color: root.colPrimary; font.pixelSize: 18 }
-                    Label {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: {
-                            const l = keyboard.layouts[keyboard.currentLayout]
-                            return l ? (l.longName.toLowerCase().indexOf("dvorak") >= 0 ? "dvorak" : l.shortName) : "us"
-                        }
-                        color: root.colOnSurface
-                        font.pixelSize: 13
-                    }
-                }
-            }
-
-            ChipButton { // Battery (laptops), like the lock screen's
-                id: batteryChip
-                visible: root.batteryPercent >= 0
-                enabled: false
-                readonly property bool low: root.batteryPercent <= 20 && !root.batteryCharging
-                width: batRow.implicitWidth + 22
-                Row {
-                    id: batRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Icon {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.batteryCharging ? "bolt" : "battery_android_full"
-                        filled: true
-                        color: batteryChip.low ? root.colError : root.colPrimary
-                        font.pixelSize: 17
-                    }
-                    Label {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.batteryPercent + "%"
-                        color: batteryChip.low ? root.colError : root.colOnSurface
-                        font.pixelSize: 13
-                    }
-                }
-            }
-
-            ChipButton {
-                id: sessionChip
-                width: sessionRow.implicitWidth + 22
-                active: root.openPopup === "sessions"
-                enabled: sessionModel.count > 1
-                onClicked: root.openPopup = root.openPopup === "sessions" ? "" : "sessions"
-                Row {
-                    id: sessionRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Icon { anchors.verticalCenter: parent.verticalCenter; text: "desktop_windows"; filled: true; color: root.colPrimary; font.pixelSize: 17 }
-                    Label {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.sessionName
-                        color: sessionChip.active ? root.colPrimary : root.colOnSurface
-                        font.pixelSize: 13
-                        width: Math.min(implicitWidth, 220)
-                        elide: Text.ElideRight
-                    }
-                    Icon {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: sessionModel.count > 1
-                        text: "expand_more"
-                        color: sessionChip.active ? root.colPrimary : root.colOnSurfaceVariant
-                        font.pixelSize: 18
-                        rotation: sessionChip.active ? 180 : 0
-                        Behavior on rotation { NumberAnimation { duration: 250; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDrawerOpen } }
-                    }
-                }
-            }
-
-            Rectangle {
-                visible: sddm.canSuspend || sddm.canReboot || sddm.canPowerOff
-                width: 1; height: 18; anchors.verticalCenter: parent.verticalCenter
-                color: root.colOutlineVariant
-            }
-
-            IconButton { icon: "dark_mode"; tip: "Sleep"; visible: sddm.canSuspend; onClicked: sddm.suspend() }
-            IconButton { icon: "restart_alt"; tip: "Restart"; visible: sddm.canReboot; onClicked: sddm.reboot() }
-            IconButton { icon: "power_settings_new"; tip: "Shut down"; danger: true; visible: sddm.canPowerOff; onClicked: sddm.powerOff() }
-        }
     }
 
-    // ════════════════════════ Clock ════════════════════════
+    // ════════════════════════ Top right: keyboard, battery, session, power ════════════════════════
+    Row {
+        id: topRight
+        anchors.right: parent.right
+        anchors.rightMargin: 16
+        y: root.revealed ? 16 : -50
+        Behavior on y { NumberAnimation { duration: 520; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDrawerOpen } }
+        spacing: 6
+
+        GlassChip {
+            icon: "keyboard_alt"
+            text: {
+                const l = keyboard.layouts[keyboard.currentLayout]
+                return l ? (l.longName.toLowerCase().indexOf("dvorak") >= 0 ? "dvorak" : l.shortName) : "us"
+            }
+            enabled: keyboard.layouts.length > 1
+            onClicked: keyboard.currentLayout = (keyboard.currentLayout + 1) % keyboard.layouts.length
+        }
+        GlassChip { // Battery (laptops)
+            visible: root.batteryPercent >= 0
+            enabled: false
+            icon: root.batteryCharging ? "bolt" : "battery_android_full"
+            text: root.batteryPercent + "%"
+            warn: root.batteryPercent <= 20 && !root.batteryCharging
+        }
+        GlassChip {
+            id: sessionChip
+            icon: "desktop_windows"
+            text: root.sessionName
+            active: root.openPopup === "sessions"
+            enabled: sessionModel.count > 1
+            showArrow: sessionModel.count > 1
+            onClicked: root.openPopup = root.openPopup === "sessions" ? "" : "sessions"
+        }
+        Item { width: 6; height: 1 }
+        GlassButton { icon: "dark_mode"; tip: "Sleep"; visible: sddm.canSuspend; onClicked: sddm.suspend() }
+        GlassButton { icon: "restart_alt"; tip: "Restart"; visible: sddm.canReboot; onClicked: sddm.reboot() }
+        GlassButton { icon: "power_settings_new"; tip: "Shut down"; danger: true; visible: sddm.canPowerOff; onClicked: sddm.powerOff() }
+    }
+
+    // ════════════════════════ Bottom left: the time ════════════════════════
     Column {
-        id: clock
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: root.height * 0.13 + (root.revealed ? 0 : -24)
+        anchors.left: parent.left
+        anchors.leftMargin: Math.round(root.width * 0.03)
+        y: root.height - height - Math.round(root.height * 0.045) + (root.revealed ? 0 : 30)
         opacity: root.revealed ? 1 : 0
+        spacing: -Math.round(root.height * 0.006)
         Behavior on y { NumberAnimation { duration: 900; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDecel } }
         Behavior on opacity { NumberAnimation { duration: 700 } }
-
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: root.colBackground
-            shadowOpacity: 0.5
-            shadowBlur: 1.0
-            shadowVerticalOffset: 2
-        }
-
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatTime(root.now, "h:mm")
+            text: root.clock12 ? Qt.formatTime(root.now, "h:mm AP").replace(/\s*[AaPp][Mm]$/, "") : Qt.formatTime(root.now, "h:mm")
             color: root.colOnSurface
             font.family: fontExpressive.name
-            font.pixelSize: Math.round(root.height * 0.15)
+            font.pixelSize: Math.round(root.height * 0.2)
             font.weight: Font.DemiBold
-            font.letterSpacing: -4
+            font.letterSpacing: -6
+        }
+        Label {
+            leftPadding: 6
+            text: Qt.formatDate(root.now, "dddd, MMMM d")
+            color: Qt.alpha(root.colOnSurface, 0.85)
+            font.pixelSize: 28
+            font.weight: Font.Medium
         }
     }
 
-    // ════════════════════════ Login card ════════════════════════
-    Rectangle {
-        id: card
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.horizontalCenterOffset: root.shakeOffset
-        y: root.height * 0.47 + (root.revealed ? 0 : 40)
-        width: 380
-        height: cardColumn.implicitHeight + 56
-        radius: root.radiusCard
-        color: Qt.alpha(root.colBackground, 0.94)
+    // ════════════════════════ Bottom right: who, and the password ════════════════════════
+    Column {
+        id: loginColumn
+        anchors.right: parent.right
+        anchors.rightMargin: Math.round(root.width * 0.03) - root.shakeOffset
+        y: root.height - height - Math.round(root.height * 0.06) + (root.revealed ? 0 : 30)
         opacity: root.revealed ? 1 : 0
+        spacing: 10
         Behavior on y { NumberAnimation { duration: 650; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDrawerOpen } }
         Behavior on opacity { NumberAnimation { duration: 400 } }
-        MouseArea { anchors.fill: parent; onClicked: root.focusPassword() } // Keep clicks inside the card
 
-        Column {
-            id: cardColumn
-            anchors { top: parent.top; topMargin: 28; left: parent.left; right: parent.right; leftMargin: 24; rightMargin: 24 }
-            spacing: 18
+        // Caps lock, a wrong password or what PAM says, over the pill
+        Rectangle {
+            id: notice
+            readonly property string message: root.infoMessage !== "" ? root.infoMessage
+                : root.failed ? "Incorrect password"
+                : keyboard.capsLock ? "Caps Lock is on" : ""
+            readonly property bool isError: root.failed || root.infoMessage !== ""
+            property string shownMessage: ""
+            onMessageChanged: if (message !== "") shownMessage = message
+            anchors.right: parent.right
+            width: noticeRow.implicitWidth + 28
+            height: message !== "" ? 34 : 0
+            radius: root.radiusChip
+            color: isError ? Qt.alpha(root.colError, 0.22) : root.colGlass
+            border.width: 1
+            border.color: root.colEdge
+            opacity: message !== "" ? 1 : 0
+            clip: true
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveEffects } }
+            Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveEffects } }
+            Row {
+                id: noticeRow
+                anchors.centerIn: parent
+                spacing: 8
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: notice.isError ? "error" : "keyboard_capslock_badge"
+                    filled: true
+                    color: notice.isError ? root.colError : root.colPrimary
+                    font.pixelSize: 18
+                }
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: notice.shownMessage
+                    color: notice.isError ? root.colError : root.colOnSurface
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                }
+            }
+        }
 
-            // Avatar with a lavender ring; click to switch users when there are several
+        // No user list (hidden users): type a username first, in a pill of its own
+        Rectangle {
+            visible: root.manualUser
+            width: 400; height: 56
+            radius: root.radiusPill
+            color: root.colGlass
+            border.width: manualUserInput.activeFocus ? 2 : 1
+            border.color: manualUserInput.activeFocus ? Qt.alpha(root.colPrimary, 0.55) : root.colEdge
+            Icon {
+                id: manualIcon
+                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                text: "person"; filled: true; color: root.colPrimary; font.pixelSize: 20
+            }
+            TextInput {
+                id: manualUserInput
+                anchors { left: manualIcon.right; leftMargin: 12; right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
+                color: root.colOnSurface
+                font.family: fontMain.name
+                font.variableAxes: root.mainAxes
+                font.pixelSize: 16
+                selectionColor: root.colSecondaryContainer
+                clip: true
+                onAccepted: passwordInput.forceActiveFocus()
+                Label {
+                    visible: !parent.text && !parent.activeFocus
+                    text: "Username"
+                    color: Qt.alpha(root.colOnSurface, 0.6)
+                    font.pixelSize: 16
+                }
+            }
+        }
+
+        // The pill: the avatar (switches users when there are several), who, the password, sign in
+        Rectangle {
+            id: field
+            width: 400
+            height: 66
+            radius: root.radiusPill
+            color: root.colGlass
+            border.width: root.failed || passwordInput.activeFocus ? 2 : 1
+            border.color: root.failed ? root.colError : passwordInput.activeFocus ? Qt.alpha(root.colPrimary, 0.55) : root.colEdge
+            Behavior on border.color { ColorAnimation { duration: 150 } }
+            MouseArea { anchors.fill: parent; onClicked: root.focusPassword() } // Keep clicks inside the pill
+
             Item {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: 96; height: 96
-                visible: !root.manualUser
+                id: avatarBox
+                anchors { left: parent.left; leftMargin: 11; verticalCenter: parent.verticalCenter }
+                width: 44; height: 44
                 Rectangle {
                     anchors.fill: parent
                     radius: width / 2
                     color: "transparent"
-                    border.width: 3
-                    border.color: root.colPrimary
+                    border.width: 2
+                    border.color: root.failed ? root.colError : root.colPrimary
                 }
-                Avatar { anchors.centerIn: parent; size: 82; source: root.userIcon }
+                Avatar { anchors.centerIn: parent; size: 38; source: root.manualUser ? "" : root.userIcon }
                 Rectangle { // Switch-user hint
                     visible: userModel.count > 1
-                    anchors { right: parent.right; bottom: parent.bottom }
-                    width: 30; height: 30; radius: root.radiusSegment
+                    anchors { right: parent.right; bottom: parent.bottom; rightMargin: -4; bottomMargin: -4 }
+                    width: 20; height: 20; radius: 7
                     color: root.colPrimary
-                    border.width: 3
-                    border.color: root.colBackground
-                    Icon { anchors.centerIn: parent; text: "swap_horiz"; color: root.colOnPrimary; font.pixelSize: 16 }
+                    Icon { anchors.centerIn: parent; text: "swap_horiz"; color: root.colOnPrimary; font.pixelSize: 13 }
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -391,234 +399,128 @@ Item {
                 }
             }
 
-            // Greeting + name
-            Column {
-                id: nameBlock
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 2
-                visible: !root.manualUser
-                Label {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.greeting()
-                    color: root.colOnSurfaceVariant
-                    font.pixelSize: 14
-                }
-                Label {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.userRealName || root.userName
-                    color: root.colOnSurface
-                    font.pixelSize: 24
-                    font.weight: Font.DemiBold
-                }
-            }
-
-            // No user list (e.g. hidden users): type a username instead
-            Rectangle {
-                visible: root.manualUser
-                width: parent.width; height: 52; radius: root.radiusField
-                color: root.colContainerHigh
-                border.width: manualUserInput.activeFocus ? 2 : 0
-                border.color: Qt.alpha(root.colPrimary, 0.55)
-                Icon {
-                    id: manualIcon
-                    anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
-                    text: "person"; filled: true; color: root.colPrimary; font.pixelSize: 20
-                }
-                TextInput {
-                    id: manualUserInput
-                    anchors { left: manualIcon.right; leftMargin: 10; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                    color: root.colOnSurface
-                    font.family: fontMain.name
-                    font.variableAxes: root.mainAxes
-                    font.pixelSize: 15
-                    selectionColor: root.colSecondaryContainer
-                    clip: true
-                    onAccepted: passwordInput.forceActiveFocus()
-                    Label {
-                        visible: !parent.text && !parent.activeFocus
-                        text: "Username"
-                        color: root.colOnSurfaceVariant
-                        font.pixelSize: 15
-                    }
-                }
-            }
-
-            // Password field with the sign-in button inside
-            Rectangle {
-                id: field
-                width: parent.width
-                height: 52
-                radius: root.radiusField
-                color: root.colContainerHigh
-                border.width: root.failed ? 2 : passwordInput.activeFocus ? 2 : 0
-                border.color: root.failed ? root.colError : Qt.alpha(root.colPrimary, 0.55)
-                Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                Icon {
-                    id: lockIcon
-                    anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
-                    text: "lock"
-                    filled: true
-                    color: root.failed ? root.colError : root.colPrimary
-                    font.pixelSize: 19
-                }
-
-                TextInput {
-                    id: passwordInput
-                    anchors { left: lockIcon.right; leftMargin: 10; right: confirmButton.left; rightMargin: 10; top: parent.top; bottom: parent.bottom }
-                    verticalAlignment: TextInput.AlignVCenter
-                    echoMode: TextInput.Password
-                    color: "transparent"           // the shapes below are drawn by hand
-                    selectionColor: "transparent"
-                    selectedTextColor: "transparent"
-                    cursorDelegate: Item {}
-                    font.pixelSize: 15
-                    enabled: !root.busy
-                    focus: true
-                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
-                    onTextChanged: if (text.length > 0) { root.failed = false; root.infoMessage = "" }
-                    onAccepted: root.login()
-                    Keys.onEscapePressed: text = ""
-                }
-
-                Label {
-                    anchors { left: passwordInput.left; verticalCenter: parent.verticalCenter }
-                    visible: passwordInput.text.length === 0
-                    text: root.busy ? "Signing in…" : "Password"
-                    color: root.colOnSurfaceVariant
-                    font.pixelSize: 15
-                }
-
-                // Material-shape password characters, like quickshell's PasswordChars.qml
-                Item {
-                    anchors { left: passwordInput.left; right: passwordInput.right; top: parent.top; bottom: parent.bottom }
-                    clip: true
-                    Row {
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: Math.min(0, parent.width - width - 4)
-                        spacing: 6
-                        Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-                        Repeater {
-                            model: passwordInput.text.length
-                            delegate: Icon {
-                                id: dot
-                                required property int index
-                                readonly property var shapes: ["circle", "pentagon", "star", "hexagon", "square", "diamond", "favorite"]
-                                text: shapes[index % shapes.length]
-                                filled: true
-                                font.pixelSize: 17
-                                color: root.colPrimary
-                                scale: 0.4
-                                opacity: 0
-                                Component.onCompleted: appear.start()
-                                ParallelAnimation {
-                                    id: appear
-                                    NumberAnimation { target: dot; property: "opacity"; to: 1; duration: 60 }
-                                    NumberAnimation { target: dot; property: "scale"; to: 1; duration: 260; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveFastSpatial }
-                                    ColorAnimation { target: dot; property: "color"; to: root.colOnSurface; duration: 1000 }
-                                }
-                            }
-                        }
-
-                        Rectangle { // Caret
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 2; height: 20; radius: 1
-                            color: root.colPrimary
-                            visible: passwordInput.activeFocus && !root.busy
-                            SequentialAnimation on opacity {
-                                loops: Animation.Infinite
-                                NumberAnimation { to: 1; duration: 500 }
-                                NumberAnimation { to: 0; duration: 500 }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: confirmButton
-                    anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                    width: 40; height: 40
-                    radius: 13 // The lock screen's unlock button
-                    color: confirmMouse.pressed ? Qt.darker(root.colPrimary, 1.08)
-                         : confirmMouse.containsMouse ? Qt.lighter(root.colPrimary, 1.06) : root.colPrimary
-                    scale: confirmMouse.pressed ? 0.94 : 1
-                    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveFastSpatial } }
-                    Behavior on color { ColorAnimation { duration: 150 } }
-
-                    Icon {
-                        anchors.centerIn: parent
-                        text: root.busy ? "progress_activity" : "arrow_forward"
-                        color: root.colOnPrimary
-                        font.pixelSize: 22
-                        RotationAnimator on rotation {
-                            running: root.busy
-                            from: 0; to: 360; duration: 900
-                            loops: Animation.Infinite
-                        }
-                        onTextChanged: if (!root.busy) rotation = 0
-                    }
-                    MouseArea {
-                        id: confirmMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        enabled: !root.busy
-                        onClicked: root.login()
-                    }
-                }
-            }
-        }
-    }
-
-    // ════════════════════════ Notice (caps lock / errors / PAM messages) ════════════════════════
-    Rectangle {
-        id: notice
-        readonly property string message: root.infoMessage !== "" ? root.infoMessage
-            : root.failed ? "Incorrect password"
-            : keyboard.capsLock ? "Caps Lock is on" : ""
-        readonly property bool isError: root.failed || root.infoMessage !== ""
-        property string shownMessage: ""
-        onMessageChanged: if (message !== "") shownMessage = message
-
-        anchors.horizontalCenter: card.horizontalCenter
-        y: card.y + card.height + (message !== "" ? 14 : 4)
-        width: noticeRow.implicitWidth + 28
-        height: 34
-        radius: root.radiusContainer
-        color: isError ? Qt.alpha(root.colError, 0.18) : root.colPrimaryTint
-        opacity: message !== "" ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveEffects } }
-        Behavior on y { NumberAnimation { duration: 350; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveFastSpatial } }
-        Behavior on color { ColorAnimation { duration: 200 } }
-
-        Row {
-            id: noticeRow
-            anchors.centerIn: parent
-            spacing: 8
-            Icon {
-                anchors.verticalCenter: parent.verticalCenter
-                text: notice.isError ? "error" : "keyboard_capslock_badge"
-                filled: true
-                color: notice.isError ? root.colError : root.colPrimary
-                font.pixelSize: 18
-            }
-            Label {
-                anchors.verticalCenter: parent.verticalCenter
-                text: notice.shownMessage
-                color: notice.isError ? root.colError : root.colPrimary
+            Label { // Above the typing: who
+                id: fieldTitle
+                anchors { left: avatarBox.right; leftMargin: 12; right: confirmButton.left; rightMargin: 10; top: parent.top; topMargin: 13 }
+                elide: Text.ElideRight
+                text: root.manualUser ? root.greeting() : root.greeting() + ", " + (root.userRealName || root.userName)
+                color: root.colOnSurfaceVariant
                 font.pixelSize: 13
-                font.weight: Font.Medium
+            }
+
+            TextInput {
+                id: passwordInput
+                anchors { left: fieldTitle.left; right: fieldTitle.right; top: fieldTitle.bottom; topMargin: 1 }
+                height: 24
+                verticalAlignment: TextInput.AlignVCenter
+                echoMode: TextInput.Password
+                color: "transparent"           // the shapes below are drawn by hand
+                selectionColor: "transparent"
+                selectedTextColor: "transparent"
+                cursorDelegate: Item {}
+                font.pixelSize: 16
+                enabled: !root.busy
+                focus: true
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                onTextChanged: if (text.length > 0) { root.failed = false; root.infoMessage = "" }
+                onAccepted: root.login()
+                Keys.onEscapePressed: text = ""
+            }
+
+            Label {
+                anchors { left: passwordInput.left; verticalCenter: passwordInput.verticalCenter }
+                visible: passwordInput.text.length === 0
+                text: root.busy ? "Signing in…" : "Password"
+                color: Qt.alpha(root.colOnSurface, 0.6)
+                font.pixelSize: 16
+            }
+
+            // Material-shape password characters, like quickshell's PasswordChars.qml
+            Item {
+                anchors { left: passwordInput.left; right: passwordInput.right; top: passwordInput.top; bottom: passwordInput.bottom }
+                clip: true
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: Math.min(0, parent.width - width - 4)
+                    spacing: 6
+                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+                    Repeater {
+                        model: passwordInput.text.length
+                        delegate: Icon {
+                            id: dot
+                            required property int index
+                            readonly property var shapes: ["circle", "pentagon", "star", "hexagon", "square", "diamond", "favorite"]
+                            text: shapes[index % shapes.length]
+                            filled: true
+                            font.pixelSize: 17
+                            color: root.colPrimary
+                            scale: 0.4
+                            opacity: 0
+                            Component.onCompleted: appear.start()
+                            ParallelAnimation {
+                                id: appear
+                                NumberAnimation { target: dot; property: "opacity"; to: 1; duration: 60 }
+                                NumberAnimation { target: dot; property: "scale"; to: 1; duration: 260; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveFastSpatial }
+                                ColorAnimation { target: dot; property: "color"; to: root.colOnSurface; duration: 1000 }
+                            }
+                        }
+                    }
+
+                    Rectangle { // Caret
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 2; height: 18; radius: 1
+                        color: root.colPrimary
+                        visible: passwordInput.activeFocus && !root.busy
+                        SequentialAnimation on opacity {
+                            loops: Animation.Infinite
+                            NumberAnimation { to: 1; duration: 500 }
+                            NumberAnimation { to: 0; duration: 500 }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: confirmButton
+                anchors { right: parent.right; rightMargin: 11; verticalCenter: parent.verticalCenter }
+                width: 44; height: 44
+                radius: 15 // The lock screen's unlock button
+                color: confirmMouse.pressed ? Qt.darker(root.colPrimary, 1.08)
+                     : confirmMouse.containsMouse ? Qt.lighter(root.colPrimary, 1.06) : root.colPrimary
+                scale: confirmMouse.pressed ? 0.94 : 1
+                Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveFastSpatial } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Icon {
+                    anchors.centerIn: parent
+                    text: root.busy ? "progress_activity" : "arrow_forward"
+                    color: root.colOnPrimary
+                    font.pixelSize: 22
+                    RotationAnimator on rotation {
+                        running: root.busy
+                        from: 0; to: 360; duration: 900
+                        loops: Animation.Infinite
+                    }
+                    onTextChanged: if (!root.busy) rotation = 0
+                }
+                MouseArea {
+                    id: confirmMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    enabled: !root.busy
+                    onClicked: root.login()
+                }
             }
         }
     }
 
     // ════════════════════════ Popups ════════════════════════
-    PopupCard {
+    PopupCard { // Rises over the pill, from the avatar
         shown: root.openPopup === "users"
-        x: card.x + (card.width - width) / 2
-        y: card.y + 132 + (shown ? 0 : -12)
-        transformOrigin: Item.Top
+        x: loginColumn.x + loginColumn.width - width
+        y: loginColumn.y + field.y - height - 10 + (shown ? 0 : 12)
+        transformOrigin: Item.Bottom
         Repeater {
             model: userModel
             delegate: PopupItem {
@@ -641,10 +543,10 @@ Item {
         }
     }
 
-    PopupCard { // Drops from the session chip in the top bar
+    PopupCard { // Drops from the session chip
         shown: root.openPopup === "sessions"
-        x: Math.min(root.width - width - 8, sessionChip.mapToItem(root, 0, 0).x)
-        y: topBar.y + topBar.height + 8 + (shown ? 0 : -12)
+        x: Math.min(root.width - width - 16, sessionChip.mapToItem(root, 0, 0).x)
+        y: topRight.y + 34 + 8 + (shown ? 0 : -12)
         transformOrigin: Item.Top
         Repeater {
             model: sessionModel
@@ -665,10 +567,10 @@ Item {
     // ════════════════════════ Wrong-password shake ════════════════════════
     SequentialAnimation {
         id: shake
-        NumberAnimation { target: root; property: "shakeOffset"; to: -24; duration: 50 }
-        NumberAnimation { target: root; property: "shakeOffset"; to: 24; duration: 50 }
-        NumberAnimation { target: root; property: "shakeOffset"; to: -12; duration: 40 }
-        NumberAnimation { target: root; property: "shakeOffset"; to: 12; duration: 40 }
+        NumberAnimation { target: root; property: "shakeOffset"; to: -18; duration: 50 }
+        NumberAnimation { target: root; property: "shakeOffset"; to: 18; duration: 50 }
+        NumberAnimation { target: root; property: "shakeOffset"; to: -9; duration: 40 }
+        NumberAnimation { target: root; property: "shakeOffset"; to: 9; duration: 40 }
         NumberAnimation { target: root; property: "shakeOffset"; to: 0; duration: 30 }
     }
 
@@ -714,17 +616,45 @@ Item {
         verticalAlignment: Text.AlignVCenter
     }
 
-    // Chip in the top bar (the lock screen's BarChip); tinted while its popup is open
-    component ChipButton: Rectangle {
+    // A see-through chip: icon and text, clickable when enabled; tinted while its popup is open
+    component GlassChip: Rectangle {
         id: chip
+        property string icon
+        property string text
         property bool active: false
+        property bool warn: false
+        property bool showArrow: false
         signal clicked()
-        height: 28
-        anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+        height: 34
+        width: chipRow.implicitWidth + 22
         radius: root.radiusChip
-        color: active ? root.colPrimaryTint
-             : (chipMouse.containsMouse && enabled) ? root.colContainerHighest : root.colContainerHigh
+        color: active ? Qt.alpha(root.colPrimary, 0.3) : (chipMouse.containsMouse && enabled) ? root.colGlassHover : root.colGlass
+        border.width: 1
+        border.color: root.colEdge
         Behavior on color { ColorAnimation { duration: 150 } }
+        Row {
+            id: chipRow
+            anchors.centerIn: parent
+            spacing: 6
+            Icon { anchors.verticalCenter: parent.verticalCenter; text: chip.icon; filled: true; color: chip.warn ? root.colError : root.colPrimary; font.pixelSize: 17 }
+            Label {
+                anchors.verticalCenter: parent.verticalCenter
+                text: chip.text
+                color: chip.warn ? root.colError : chip.active ? root.colPrimary : root.colOnSurface
+                font.pixelSize: 14
+                width: Math.min(implicitWidth, 220)
+                elide: Text.ElideRight
+            }
+            Icon {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: chip.showArrow
+                text: "expand_more"
+                color: chip.active ? root.colPrimary : root.colOnSurfaceVariant
+                font.pixelSize: 18
+                rotation: chip.active ? 180 : 0
+                Behavior on rotation { NumberAnimation { duration: 250; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveDrawerOpen } }
+            }
+        }
         MouseArea {
             id: chipMouse
             anchors.fill: parent
@@ -735,25 +665,26 @@ Item {
         }
     }
 
-    // Icon button in the top bar (power actions), the lock screen's BarIconButton
-    component IconButton: Rectangle {
+    // A see-through power button
+    component GlassButton: Rectangle {
         id: btn
         property string icon
         property string tip
         property bool danger: false
         signal clicked()
-        width: 30; height: 30
-        anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-        radius: root.radiusSegment
-        color: !btnMouse.containsMouse ? "transparent" : danger ? Qt.alpha(root.colError, 0.2) : root.colPrimaryTint
+        width: 34; height: 34
+        radius: root.radiusChip
+        color: !btnMouse.containsMouse ? root.colGlass : danger ? Qt.alpha(root.colError, 0.3) : root.colGlassHover
+        border.width: 1
+        border.color: root.colEdge
         scale: btnMouse.pressed ? 0.92 : 1
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.BezierSpline; easing.bezierCurve: root.curveFastSpatial } }
         Icon {
             anchors.centerIn: parent
             text: btn.icon
-            color: btnMouse.containsMouse && btn.danger ? root.colError : root.colOnSurfaceVariant
-            font.pixelSize: 19
+            color: btnMouse.containsMouse && btn.danger ? root.colError : root.colOnSurface
+            font.pixelSize: 18
         }
         MouseArea {
             id: btnMouse
@@ -791,7 +722,7 @@ Item {
             anchors.fill: parent
             visible: !avatar.hasImage
             radius: width / 2
-            color: root.colPrimaryTint
+            color: root.colSecondaryContainer
             Icon { anchors.centerIn: parent; text: "person"; filled: true; color: root.colPrimary; font.pixelSize: avatar.size * 0.6 }
         }
     }
@@ -805,6 +736,8 @@ Item {
         height: list.implicitHeight + 16
         radius: root.radiusPopup
         color: root.colContainer
+        border.width: 1
+        border.color: root.colEdge
         opacity: shown ? 1 : 0
         visible: opacity > 0
         scale: shown ? 1 : 0.94
@@ -828,7 +761,7 @@ Item {
         signal clicked()
         width: 290
         height: sublabel ? 54 : 44
-        radius: root.radiusContainer
+        radius: root.radiusRow
         // Neutral row; the chosen one shows as an accent squircle behind its icon and its name in accent
         // (the shell's Wi-Fi / Bluetooth menus)
         color: itemMouse.containsMouse ? root.colContainerHigh : "transparent"
@@ -840,7 +773,7 @@ Item {
             Rectangle {
                 visible: item.iconName !== ""
                 anchors.verticalCenter: parent.verticalCenter
-                width: 30; height: 30; radius: root.radiusSegment
+                width: 30; height: 30; radius: 10
                 color: item.selected ? root.colPrimary : root.colContainerHigh
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Icon { anchors.centerIn: parent; text: item.iconName; filled: item.selected; font.pixelSize: 17; color: item.selected ? root.colOnPrimary : root.colOnSurfaceVariant }

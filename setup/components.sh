@@ -526,6 +526,18 @@ comp_sddm() {
     if (( failed )); then result fail "See the log"; else result done "SDDM theme"; fi
 }
 
+# The installed login theme is older than this folder's (its files differ). Not installed: not outdated
+SDDM_INSTALLED=/usr/share/sddm/themes/Ninomae
+login_theme_outdated() {
+    [[ -f $SDDM_INSTALLED/Main.qml ]] || return 1
+    local f
+    for f in Main.qml metadata.desktop fedora-symbolic.svg; do
+        cmp -s "$DOTFILES/themes/sddm/Ninomae/$f" "$SDDM_INSTALLED/$f" || return 0
+    done
+    cmp -s "$DOTFILES/themes/sddm/99-ninomae-theme.conf" /etc/sddm.conf.d/99-ninomae-theme.conf || return 0
+    return 1
+}
+
 # ── Boot splash ─────────────────────────────────────────────────────────────
 comp_boot() {
     step "Boot splash"
@@ -628,6 +640,24 @@ update_steam_plugin() {
         *) result fail "Download failed; see the log" ;;
     esac
 }
+update_login_screen() {
+    step "Login screen"
+    if [[ ! -f $SDDM_INSTALLED/Main.qml ]]; then info "The Ninomae login screen isn't installed"; result skip "Not installed"; return; fi
+    if login_theme_outdated; then
+        # A new design: put in with sudo (the theme lives in /usr/share). It also syncs the colours and clock.
+        # The password is asked up front when it's known before the pull; a design the pull brought asks here,
+        # not under the spinner
+        sudo -n true 2>/dev/null || sudo_keepalive
+        if spin "Login screen theme" sudo "$DOTFILES/themes/sddm/install-theme.sh"; then
+            result done "Updated (shows at the next login)"
+        else result fail "See the log"; fi
+    else
+        # Same design: just the colours, wallpaper and clock format, which need no sudo
+        run "$DOTFILES/themes/sddm/sync-theme.sh"
+        ok "Login screen theme is the latest"
+        result done "Latest, colours synced"
+    fi
+}
 update_apps() {
     step "App themes"
     local did=()
@@ -707,6 +737,12 @@ check_python() {
     step "Python helpers"
     if "$VENV/bin/python" -c "import materialyoucolor, PIL, numpy, cv2; cv2.ximgproc" 2>/dev/null; then result done "Working"
     else result todo "Missing or broken, run ninomae update"; fi
+}
+check_login_screen() {
+    step "Login screen"
+    if [[ ! -f $SDDM_INSTALLED/Main.qml ]]; then result skip "Not installed"
+    elif login_theme_outdated; then warn "The login screen is older than this folder's"; result todo "Outdated, run ninomae update"
+    else ok "Login screen theme is the latest"; result done "Latest"; fi
 }
 check_running() {
     step "Running shell"
