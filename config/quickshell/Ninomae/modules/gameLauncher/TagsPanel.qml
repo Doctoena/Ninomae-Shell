@@ -7,7 +7,8 @@ import QtQuick
 /**
  * The grid's tag filter: a panel growing up out of the launcher (LauncherTopPanel) from the tag button by
  * the sort one. Each tag is a banner of one of its games' art (ArtBanner, the one played last that has
- * banner art), its cover, the name and how many games have it; All games comes first. Picking one shows
+ * banner art), its cover, the name and how many games have it; All games comes first. A tag with more games
+ * stacks their covers behind its own and splits the banner's right half on a slant into their art. Picking one shows
  * only those (GameLauncherService.selectedTag) and closes the panel, All games (or the toolbar's ✕ by
  * the tag) shows everything. The one in use has the accent edge. Two rows show, more scroll. The bin on a
  * lit banner takes the tag off every game, on a second click. ←/→/↑/↓ move, Enter picks, Delete (twice)
@@ -107,6 +108,11 @@ LauncherTopPanel {
                 id: banner
                 anchors { fill: parent; margins: 5 }
                 game: root.bannerGame(cell.games)
+                // The tag's other games: their covers stacked behind this one, their art in slanted slices beside its own
+                readonly property var others: cell.games.filter(g => g !== game)
+                moreCovers: others.map(g => GameLauncherService.localArt(g, "boxArt")).filter(a => a).slice(0, 3)
+                moreArts: GameLauncherService.bannerArt(game) === "" ? []
+                    : others.map(g => GameLauncherService.bannerArt(g)).filter(a => a).slice(0, 2)
                 coverIcon: cell.all ? "apps" : "sell"
                 // Lighter while lit: more of the art shows
                 shadeMid: cell.lit ? 0.55 : 0.7
@@ -118,7 +124,7 @@ LauncherTopPanel {
                 }
                 TapHandler { onTapped: root.pick(cell.modelData) }
                 Column {
-                    anchors { left: banner.coverItem.right; leftMargin: 14; right: bin.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                    anchors { left: parent.left; leftMargin: banner.coverEnd + 14; right: bin.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
                     spacing: 2
                     StyledText {
                         width: parent.width
