@@ -5,6 +5,7 @@ import Quickshell.Widgets
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import qs.modules.lock
 ContentPage {
     id: page
@@ -18,7 +19,8 @@ ContentPage {
         RowLayout {
             Layout.fillWidth: true
             spacing: 28
-            // A little lock screen as yours looks: the wallpaper (blurred as set), the clock, the password.
+            // A little lock screen as yours looks: the wallpaper (blurred as set), the chips top right, the time
+            // bottom left, the password pill bottom right.
             // Centred against the settings beside it
             ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
@@ -49,24 +51,48 @@ ContentPage {
                         blurMax: 32
                         blur: Math.min(1, page.lock.blur.radius * (lockPreview.width / 1920) / 8)
                     }
-                    Rectangle { // A soft shade, as the lock screen dims the wallpaper
+                    Rectangle { // The lock screen's shade: light at the top, deeper at the foot
                         anchors.fill: parent
-                        color: "black"
-                        opacity: 0.25
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.8) }
+                            GradientStop { position: 0.5; color: "transparent" }
+                            GradientStop { position: 1.0; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.25) }
+                        }
                     }
-                    StyledText { // The clock
-                        anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: parent.height * 0.18 }
-                        text: DateTime.time
-                        font.pixelSize: Math.round(lockPreview.height * 0.2)
-                        font.weight: Font.DemiBold
-                        color: "white"
+                    Row { // The chips, top right
+                        anchors { right: parent.right; top: parent.top; margins: 6 }
+                        spacing: 3
+                        Repeater {
+                            model: [18, 18, 10, 10, 10]
+                            Rectangle {
+                                required property int modelData
+                                width: modelData; height: 10; radius: 3.5
+                                color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
+                            }
+                        }
                     }
-                    Rectangle { // The password field
-                        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: parent.height * 0.16 }
-                        width: parent.width * 0.5
-                        height: Math.round(parent.height * 0.15)
-                        radius: height / 2
-                        color: Appearance.colors.colLayer1
+                    Column { // The time and the day, bottom left
+                        anchors { left: parent.left; bottom: parent.bottom; leftMargin: 10; bottomMargin: 8 }
+                        spacing: -2
+                        StyledText {
+                            text: DateTime.time
+                            font.family: Appearance.font.family.expressive
+                            font.pixelSize: Math.round(lockPreview.height * 0.2)
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colOnLayer0
+                        }
+                        StyledText {
+                            text: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM d")
+                            font.pixelSize: 8
+                            color: Appearance.colors.colOnLayer0
+                        }
+                    }
+                    Rectangle { // The password pill, bottom right
+                        anchors { right: parent.right; bottom: parent.bottom; rightMargin: 10; bottomMargin: 12 }
+                        width: parent.width * 0.36
+                        height: Math.round(parent.height * 0.13)
+                        radius: height / 3
+                        color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
                         Row { // Dots
                             visible: !page.lock.materialShapeChars
                             anchors.centerIn: parent

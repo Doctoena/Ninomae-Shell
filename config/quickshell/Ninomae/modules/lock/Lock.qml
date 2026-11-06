@@ -76,9 +76,6 @@ Scope {
             }
         }
     }
-    // Blur layer hack removed for Hyprland 0.55+ (Lua config):
-    // it relied on `hyprctl keyword monitor ... addreserved` and the
-    // `dwindle:pseudotile` option, neither of which exist anymore.
     IpcHandler {
         target: "lock"
         function activate(): void {
