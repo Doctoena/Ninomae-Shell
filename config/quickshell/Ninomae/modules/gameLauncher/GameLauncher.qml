@@ -40,6 +40,8 @@ Scope {
         function showCustomize(query: string): void { gameLauncherScope.show(query, "customize"); }
         // The grid's Tags panel: `qs -c Ninomae ipc call gameLauncher showTags`
         function showTags(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("tags"); }
+        // The grid's Add a game panel: `qs -c Ninomae ipc call gameLauncher showAddGame`
+        function showAddGame(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("addGame"); }
         // Steam's downloads: `qs -c Ninomae ipc call gameLauncher showDownloads`
         function showDownloads(): void { GlobalStates.gameLauncherOpen = true; gameLauncherScope.showGridPanelRequested("downloads"); }
         // The library's stats page: `qs -c Ninomae ipc call gameLauncher showStats`
@@ -334,7 +336,17 @@ Scope {
                 Component { id: newsPanelComp; NewsPanel { game: root._topPanelGame } }
                 Component { id: customizePanelComp; CustomizePanel { game: root._topPanelGame } }
                 Component { id: launchOptionsPanelComp; LaunchOptionsPanel { game: root._topPanelGame } }
-                Component { id: addGamePanelComp; AddGamePanel {} }
+                Component {
+                    id: addGamePanelComp
+                    AddGamePanel { // A game that's in opens its page
+                        onOpenGame: game => {
+                            root.gridPanel = "";
+                            root.showingStats = false;
+                            root.selectedGame = game;
+                            root.showingDetails = true;
+                        }
+                    }
+                }
                 Component { id: tagsPanelComp; TagsPanel {} }
                 Component {
                     id: downloadsPanelComp

@@ -1408,11 +1408,21 @@ Singleton {
         const last = (s.sessions ?? []).reduce((m, x) => Math.max(m, x.start + x.duration), 0);
         if (last > 0) game.lastPlayed = last;
     }
+    // Add a game's preview of SteamGridDB art (AddGamePanel), kept by app name: <slug>_sgdb_<kind>_auto.<ext>, and
+    // <slug>.done once a lookup has finished
+    readonly property string sgdbPreviewDir: root.cacheDir + "/sgdb-preview"
+    function sgdbSlug(name) { return (name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "app"; }
     function _autoArt(gameId, name) {
         if (root.steamGridDbApiKey.length === 0) return;
+        // The art Add a game's preview already fetched, moved over, else a lookup. Same output either way: "<kind> <path>"
+        const script = 'src="$1"; dest="$2"; id="$3"; '
+            + 'if [ -e "$src.done" ]; then mkdir -p "$dest"; for f in "$src"_sgdb_*; do [ -e "$f" ] || continue; '
+            + 'k=${f##*_sgdb_}; k=${k%%_auto*}; out="$dest/${id}_sgdb_${k}_auto.${f##*.}"; mv -f -- "$f" "$out" && echo "$k $out"; done; '
+            + 'rm -f -- "$src.done"; else exec python3 -I "$4" "$5" "$dest" "$id"; fi';
         const proc = _autoArtComp.createObject(root, {
             gameId: gameId,
-            command: ["python3", "-I", _helper("sgdb_auto_art.py"), name, root.cacheDir + "/custom-art", gameId]
+            command: ["sh", "-c", script, "auto-art", `${root.sgdbPreviewDir}/${root.sgdbSlug(name)}`, root.cacheDir + "/custom-art",
+                      gameId, _helper("sgdb_auto_art.py"), name]
         });
         proc.running = true;
     }
