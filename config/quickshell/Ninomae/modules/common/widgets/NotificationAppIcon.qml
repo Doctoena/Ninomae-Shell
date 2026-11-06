@@ -6,7 +6,7 @@ import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.Notifications
 // A notification's icon: its picture (with the app's icon in the corner), else the app's icon, else a
-// symbol for what it's about, picked from the app's name, then the title and text
+// symbol for what it's about (also when its picture won't load), picked from the app's name, then the title and text
 // (NotificationUtils.findSuitableMaterialSymbol), so notifications without an icon don't all look the same.
 // `notify-send -i <icon>` arrives as an "image" (image://icon/<name>): that's shown as an icon, and an
 // icon the theme doesn't have falls back to the symbol rather than a missing-image mark
@@ -33,7 +33,10 @@ Rectangle {
     // the squircle and takes its rounded corners, like other pictures
     readonly property bool imageIsIcon: image.startsWith("image://icon/")
     readonly property string iconArg: imageIsIcon ? image.substring(13) : ""
-    readonly property string picture: !imageIsIcon ? image : iconArg.startsWith("/") ? "file://" + iconArg : ""
+    readonly property string givenPicture: !imageIsIcon ? image : iconArg.startsWith("/") ? "file://" + iconArg : ""
+    // One that won't load (a screenshot since deleted) is no picture: the icon or symbol shows, not an empty square
+    property string failedPicture: ""
+    readonly property string picture: givenPicture !== failedPicture ? givenPicture : ""
     // The theme icon to show: the app's, else the one passed as the image; only if the theme has it
     readonly property string iconName: appIcon !== "" ? appIcon : imageIsIcon && !iconArg.startsWith("/") ? iconArg : ""
     readonly property string iconSource: iconName !== "" ? Quickshell.iconPath(iconName, true) : ""
@@ -90,6 +93,7 @@ Rectangle {
                     asynchronous: true
                     sourceSize.width: size
                     sourceSize.height: size
+                    onStatusChanged: if (status === Image.Error) root.failedPicture = root.givenPicture
                 }
             }
             Loader {
