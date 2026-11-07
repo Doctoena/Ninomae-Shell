@@ -140,21 +140,21 @@ Item { // Bar content region
                 GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
             }
         }
-        // One shared pill behind the right cluster (media, tray, battery, status). The widgets
-        // themselves are transparent segments with hover highlights; this spans from the leftmost
-        // visible one to the status segment.
+        // One card behind the status cluster (tray, battery, status), as every card on the bar. Its widgets
+        // are transparent segments with hover highlights; it spans from the leftmost visible one to the status
+        // segment. The media is a card of its own beside it
         Rectangle {
             id: rightGroupBackground
             readonly property real pad: 3
             readonly property real leftEdge: {
-                const items = [mediaWidget, trayPill, batteryWidget, rightSidebarButton].filter(i => i.visible);
+                const items = [trayPill, batteryWidget, rightSidebarButton].filter(i => i.visible);
                 return items.length ? Math.min(...items.map(i => i.x)) : rightSidebarButton.x;
             }
             x: leftEdge - pad
             width: rightSidebarButton.x + rightSidebarButton.width - leftEdge + pad * 2
             height: 36
             anchors.verticalCenter: parent.verticalCenter
-            radius: 12 // Rounded rectangle; its segments are 10, their chips 8
+            radius: Appearance.rounding.container // Its segments are 10, their chips 8
             color: Appearance.m3colors.m3surfaceContainerHigh
             Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
             Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
@@ -308,6 +308,7 @@ Item { // Bar content region
                 visible: root.useShortenedForm < 2 && MprisController.activePlayer !== null // No "No media" segment
                 Layout.fillWidth: false
                 Layout.alignment: Qt.AlignVCenter
+                Layout.rightMargin: 6 + rightGroupBackground.pad // The gap between it and the status card
             }
             // === Spacer: keeps the right-side pills against the right edge ===
             Item {

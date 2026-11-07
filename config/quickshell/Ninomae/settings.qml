@@ -222,7 +222,7 @@ ApplicationWindow {
                 clip: true
                 Item { // Lined up with the page's cards (ContentPage's column: 20 px margin, 1260 at most)
                     id: pageHeader
-                    anchors { top: parent.top; left: parent.left; right: parent.right; topMargin: 14 }
+                    anchors { top: parent.top; left: parent.left; right: parent.right; topMargin: 20 } // Close sits as far from the top edge as from the right
                     height: headerBar.implicitHeight + 18
                     SettingsHeader {
                         id: headerBar

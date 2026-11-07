@@ -157,21 +157,12 @@ Item {
                 }
             }
         }
-        RippleButton {
+        IconButton {
             Layout.alignment: Qt.AlignTop
-            implicitWidth: 42
-            implicitHeight: 42
-            buttonRadius: 21
-            colBackground: Appearance.m3colors.m3surfaceContainerHigh
-            colBackgroundHover: Appearance.m3colors.m3surfaceContainerHighest
+            round: true
+            size: 42
+            symbol: "close"
             onClicked: header.closeClicked()
-            contentItem: MaterialSymbol {
-                anchors.centerIn: parent
-                horizontalAlignment: Text.AlignHCenter
-                text: "close"
-                iconSize: 20
-                color: Appearance.colors.colOnSurfaceVariant
-            }
         }
     }
 }

@@ -54,7 +54,7 @@ Item {
         anchors.centerIn: parent
         width: root.workspaceButtonWidth * root.workspacesShown + root.pillPadding * 2
         height: root.workspaceButtonWidth + root.pillPadding * 2
-        radius: 12 // Rounded rectangle, like the rest of the bar
+        radius: Appearance.rounding.container // As every card on the bar
         color: Appearance.m3colors.m3surfaceContainerHigh
     }
     // Scroll to switch workspaces

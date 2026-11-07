@@ -73,7 +73,7 @@ Item {
             clip: true
             SettingsHeader {
                 id: header
-                anchors { top: parent.top; topMargin: 14 }
+                anchors { top: parent.top; topMargin: 20 } // Close sits as far from the top edge as from the right
                 width: Math.min(parent.width - 40, 1260)
                 x: (parent.width - width) / 2
                 page: ({ name: root.current.name, group: Translation.tr("Control centre"), icon: root.current.icon,

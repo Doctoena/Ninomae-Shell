@@ -2,11 +2,8 @@ pragma ComponentBehavior: Bound
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
 
 /**
  * A window's page list (Settings, the control centre): you at the top (your picture or initial, your name, the
@@ -57,75 +54,9 @@ Rectangle {
             Layout.topMargin: 4
             Layout.bottomMargin: 14
             spacing: 12
-            Rectangle {
-                implicitWidth: 44
-                implicitHeight: 44
-                radius: 22
-                color: Appearance.colors.colSecondaryContainer
-                border.width: 2
-                border.color: Appearance.colors.colPrimary
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    visible: nav.badgeIcon !== ""
-                    text: nav.badgeIcon
-                    iconSize: 22
-                    color: Appearance.colors.colOnSecondaryContainer
-                }
-                StyledText {
-                    anchors.centerIn: parent
-                    visible: nav.badgeIcon === "" && face.status !== Image.Ready
-                    text: SystemInfo.username.charAt(0).toUpperCase()
-                    font.family: Appearance.font.family.expressive
-                    font.pixelSize: 19
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnSecondaryContainer
-                }
-                FileView { // ~/.face, only when there is one; a new picture shows right away
-                    id: faceFile
-                    path: nav.badgeIcon === "" ? `${FileUtils.trimFileProtocol(Directories.home)}/.face` : ""
-                    printErrors: false
-                    watchChanges: true
-                    onFileChanged: reload()
-                    onLoaded: { face.source = ""; face.source = `file://${path}`; }
-                }
-                StyledImage {
-                    id: face
-                    anchors.centerIn: parent
-                    width: 38
-                    height: 38
-                    cache: false // The same path with a new picture in it
-                    fillMode: Image.PreserveAspectCrop
-                    sourceSize: Qt.size(88, 88)
-                    visible: status === Image.Ready
-                    layer.enabled: visible
-                    layer.effect: RoundedMask { maskWidth: 38; maskHeight: 38; radius: 19 }
-                }
-                Rectangle { // Pointed at: a pencil, a click picks a new picture
-                    visible: nav.badgeIcon === ""
-                    anchors.fill: parent
-                    radius: width / 2
-                    color: Qt.rgba(0, 0, 0, 0.45)
-                    opacity: faceArea.containsMouse ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 120 } }
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "edit"
-                        iconSize: 18
-                        color: "white"
-                    }
-                }
-                MouseArea {
-                    id: faceArea
-                    enabled: nav.badgeIcon === ""
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: Quickshell.execDetached([Quickshell.shellPath("scripts/set-avatar.sh")])
-                }
-                SideToolTip {
-                    text: Translation.tr("Change your picture")
-                    visible: faceArea.containsMouse
-                }
+            Avatar {
+                icon: nav.badgeIcon
+                tooltipBeside: true
             }
             ColumnLayout {
                 visible: nav.expanded
@@ -189,11 +120,5 @@ Rectangle {
             text: nav.expanded ? Translation.tr("Collapse") : Translation.tr("Expand")
             onClicked: navState.commit(Object.assign({}, navState.value, { navCollapsed: !nav.collapsed }))
         }
-    }
-
-    // Beside what it's for, centred on it: above, the window's edge would push it off centre
-    component SideToolTip: StyledToolTip {
-        x: parent.width + 8
-        y: (parent.height - height) / 2
     }
 }

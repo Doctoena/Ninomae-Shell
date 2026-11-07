@@ -4,30 +4,56 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
-Item {
+
+// The sidebar's notifications, as a Settings group: "Notifications" and the count small above, Do not disturb and
+// Clear all beside it, the list under, straight on the sidebar
+ColumnLayout {
     id: root
-    NotificationListView { // Scrollable window
-        id: listview
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: statusRow.top
-        anchors.bottomMargin: 4
-        clip: true // No rounding layer: an offscreen layer that size is what hung the Intel GPU in the drawers
-        popup: false
-    }
-    // Placeholder when list is empty
-    Item {
-        id: emptyPlaceholder
-        anchors.fill: parent
-        visible: opacity > 0
-        opacity: Notifications.list.length === 0 ? 1 : 0
-        Behavior on opacity {
-            animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+    spacing: 8
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.leftMargin: 4
+        spacing: 6
+        StyledText {
+            Layout.fillWidth: true
+            text: Notifications.list.length > 0 ? Translation.tr("Notifications (%1)").arg(Notifications.list.length)
+                : Translation.tr("Notifications")
+            font.pixelSize: Appearance.font.pixelSize.small
+            font.weight: Font.Medium
+            color: Appearance.colors.colSubtext
         }
-        RowLayout { // Compact: round tinted icon + two lines, like the stats/info rows elsewhere
+        IconButton {
+            size: 30
+            symbol: Notifications.silent ? "notifications_paused" : "notifications"
+            toggled: Notifications.silent
+            tip: Notifications.silent ? Translation.tr("Do not disturb is on. Pop-ups are held back")
+                : Translation.tr("Do not disturb")
+            onClicked: Notifications.silent = !Notifications.silent
+        }
+        IconButton {
+            size: 30
+            enabled: Notifications.list.length > 0
+            symbol: "clear_all"
+            tip: Translation.tr("Clear all")
+            onClicked: Notifications.discardAllNotifications()
+        }
+    }
+    Item {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        NotificationListView { // Scrollable window
+            anchors.fill: parent
+            clip: true // No rounding layer: an offscreen layer that size is what hung the Intel GPU in the drawers
+            popup: false
+        }
+        // Nothing to show: say so, in the middle
+        RowLayout { // Compact: tinted squircle icon + two lines, like the stats/info rows elsewhere
             anchors.centerIn: parent
-            anchors.verticalCenterOffset: -statusRow.height / 2
+            visible: opacity > 0
+            opacity: Notifications.list.length === 0 ? 1 : 0
+            Behavior on opacity {
+                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+            }
             spacing: 12
             Rectangle {
                 width: 40; height: 40; radius: 13 // Squircle, like the quick toggles' icons
@@ -43,39 +69,10 @@ Item {
                     color: Appearance.colors.colOnLayer1
                 }
                 StyledText {
-                    text: Translation.tr("No new notifications")
+                    text: Notifications.silent ? Translation.tr("Do not disturb is on") : Translation.tr("No new notifications")
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: Appearance.colors.colSubtext
                 }
-            }
-        }
-    }
-    ButtonGroup {
-        id: statusRow
-        anchors {
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
-        }
-        NotificationStatusButton {
-            Layout.fillWidth: false
-            buttonIcon: "notifications_paused"
-            toggled: Notifications.silent
-            onClicked: () => {
-                Notifications.silent = !Notifications.silent;
-            }
-        }
-        NotificationStatusButton {
-            enabled: false
-            Layout.fillWidth: true
-            buttonText: Notifications.list.length === 1 ? Translation.tr("1 notification")
-                : Translation.tr("%1 notifications").arg(Notifications.list.length)
-        }
-        NotificationStatusButton {
-            Layout.fillWidth: false
-            buttonIcon: "delete_sweep"
-            onClicked: () => {
-                Notifications.discardAllNotifications()
             }
         }
     }

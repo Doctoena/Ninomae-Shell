@@ -3,7 +3,8 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
-// Bar clock: a pill with the time and a muted date; hover shows the clock/weather drawer
+// Bar clock: a card with the time (in the title font, as Settings' page names) and a muted date; hover shows
+// the clock/weather drawer
 Item {
     id: root
     implicitWidth: pill.width
@@ -12,9 +13,9 @@ Item {
     Rectangle {
         id: pill
         anchors.centerIn: parent
-        height: 30
-        width: row.implicitWidth + 24
-        radius: 11 // Rounded rectangle, like the rest of the bar
+        height: 36 // As every card on the bar
+        width: row.implicitWidth + 28
+        radius: Appearance.rounding.container
         color: mouseArea.containsMouse ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
         Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -24,8 +25,9 @@ Item {
             spacing: 8
             StyledText {
                 Layout.alignment: Qt.AlignVCenter
-                font.pixelSize: Appearance.font.pixelSize.normal
-                font.weight: Font.DemiBold
+                font.family: Appearance.font.family.title
+                font.pixelSize: Appearance.font.pixelSize.large
+                font.weight: Font.Bold
                 color: Appearance.colors.colOnLayer0
                 text: DateTime.time
             }

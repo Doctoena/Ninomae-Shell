@@ -5,7 +5,6 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import qs
 import qs.services
 import qs.modules.common
@@ -218,45 +217,13 @@ MouseArea {
                 }
             }
 
-            // Avatar with an accent ring: ~/.face, or the first letter of the username
-            Rectangle {
+            Avatar { // Your picture or initial, its ring red after a wrong password
                 id: avatar
                 anchors.left: parent.left
                 anchors.leftMargin: 11
                 anchors.verticalCenter: parent.verticalCenter
-                width: 44
-                height: 44
-                radius: width / 2
-                color: Appearance.colors.colSecondaryContainer
-                border.width: 2
+                editable: false
                 border.color: field.failed ? Appearance.colors.colError : Appearance.colors.colPrimary
-                StyledText {
-                    anchors.centerIn: parent
-                    visible: avatarImage.status !== Image.Ready
-                    text: SystemInfo.username.charAt(0).toUpperCase()
-                    font.family: Appearance.font.family.expressive
-                    font.pixelSize: 19
-                    font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnSecondaryContainer
-                }
-                FileView { // Only load ~/.face when there is one
-                    id: faceFile
-                    path: `${FileUtils.trimFileProtocol(Directories.home)}/.face`
-                    printErrors: false
-                }
-                StyledImage {
-                    id: avatarImage
-                    anchors.centerIn: parent
-                    width: 38
-                    height: 38
-                    source: faceFile.loaded ? `file://${faceFile.path}` : ""
-                    cache: false // A new picture (Settings → your picture) under the same path
-                    fillMode: Image.PreserveAspectCrop
-                    sourceSize: Qt.size(88, 88)
-                    visible: status === Image.Ready
-                    layer.enabled: true
-                    layer.effect: RoundedMask { maskWidth: 38; maskHeight: 38; radius: 19 }
-                }
             }
 
             // Above the typing: who (or what the password is for), and the field

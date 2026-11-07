@@ -42,10 +42,10 @@ Item {
     Rectangle {
         id: pill
         anchors.verticalCenter: parent.verticalCenter
-        height: 30
+        height: 36 // A card of its own, as every card on the bar
         width: Math.min(root.maxMediaWidth, contentRow.implicitWidth + contentRow.anchors.leftMargin + contentRow.anchors.rightMargin)
-        radius: 10
-        color: root.hovered ? Appearance.m3colors.m3surfaceContainerHighest : "transparent" // A segment of the bar's shared right-side pill
+        radius: Appearance.rounding.container
+        color: root.hovered ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
         clip: true
