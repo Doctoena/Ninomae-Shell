@@ -7,6 +7,19 @@ DialogListItem {
     id: root
     required property var device
     property bool expanded: false
+    // Remembered by BlueZ (paired, bonded or trusted): it connects. Anything else is paired first
+    readonly property bool known: (device?.paired || device?.bonded || device?.trusted) ?? false
+    readonly property bool pairing: device?.pairing ?? false
+    Connections { // Paired from here: trust it (so it reconnects by itself) and connect
+        target: root.device
+        function onPairedChanged() {
+            if (!root.device?.paired || !root.pairRequested) return;
+            root.pairRequested = false;
+            root.device.trusted = true;
+            root.device.connect();
+        }
+    }
+    property bool pairRequested: false
     pointingHandCursor: !expanded
     onClicked: expanded = !expanded
     altAction: () => expanded = !expanded
@@ -48,7 +61,8 @@ DialogListItem {
                     elide: Text.ElideRight
                     text: {
                         let statusText = root.device?.connected ? Translation.tr("Connected")
-                            : root.device?.paired ? Translation.tr("Paired") : "";
+                            : root.pairing ? Translation.tr("Pairing…")
+                            : root.known ? Translation.tr("Paired") : "";
                         if (root.device?.connected && root.device?.batteryAvailable)
                             statusText += ` · ${Math.round(root.device.battery * 100)}%`;
                         return statusText;
@@ -72,17 +86,18 @@ DialogListItem {
                 Layout.fillWidth: true
             }
             ActionButton {
-                buttonText: root.device?.connected ? Translation.tr("Disconnect") : Translation.tr("Connect")
+                buttonText: root.device?.connected ? Translation.tr("Disconnect")
+                    : root.pairing ? Translation.tr("Cancel")
+                    : root.known ? Translation.tr("Connect") : Translation.tr("Pair")
                 onClicked: {
-                    if (root.device?.connected) {
-                        root.device.disconnect();
-                    } else {
-                        root.device.connect();
-                    }
+                    if (root.device?.connected) root.device.disconnect();
+                    else if (root.pairing) { root.pairRequested = false; root.device.cancelPair(); }
+                    else if (root.known) root.device.connect();
+                    else { root.pairRequested = true; root.device.pair(); } // Put it in pairing mode first
                 }
             }
             ActionButton {
-                visible: root.device?.paired ?? false
+                visible: root.known
                 buttonText: Translation.tr("Forget")
                 onClicked: {
                     root.device?.forget();

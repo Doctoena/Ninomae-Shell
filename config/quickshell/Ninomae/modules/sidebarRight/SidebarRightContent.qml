@@ -6,15 +6,10 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Bluetooth
 import Quickshell.Hyprland
 import qs.modules.sidebarRight.quickToggles
 import qs.modules.sidebarRight.quickToggles.classicStyle
-import qs.modules.sidebarRight.bluetoothDevices
-import qs.modules.sidebarRight.nightLight
 import qs.modules.sidebarRight.resourceMonitor
-import qs.modules.sidebarRight.volumeMixer
-import qs.modules.sidebarRight.wifiNetworks
 Item {
     id: root
     property int sidebarWidth: Appearance.sizes.sidebarWidth
@@ -22,23 +17,7 @@ Item {
     property bool drawnByDrawer: false
     property int sidebarPadding: 10
     property string openSettingsScript: Quickshell.shellPath("scripts/open-settings.sh")
-    property bool showAudioOutputDialog: false
-    property bool showAudioInputDialog: false
-    property bool showBluetoothDialog: false
-    property bool showNightLightDialog: false
-    property bool showWifiDialog: false
     property bool editMode: false
-    Connections {
-        target: GlobalStates
-        function onSidebarRightOpenChanged() {
-            if (!GlobalStates.sidebarRightOpen) {
-                root.showWifiDialog = false;
-                root.showBluetoothDialog = false;
-                root.showAudioOutputDialog = false;
-                root.showAudioInputDialog = false;
-            }
-        }
-    }
     implicitHeight: sidebarRightBackground.implicitHeight
     implicitWidth: sidebarRightBackground.implicitWidth
     StyledRectangularShadow {
@@ -104,68 +83,6 @@ Item {
             }
         }
     }
-    ToggleDialog {
-        shownPropertyString: "showAudioOutputDialog"
-        dialog: VolumeDialog {
-            isSink: true
-        }
-    }
-    ToggleDialog {
-        shownPropertyString: "showAudioInputDialog"
-        dialog: VolumeDialog {
-            isSink: false
-        }
-    }
-    ToggleDialog {
-        shownPropertyString: "showBluetoothDialog"
-        dialog: BluetoothDialog {}
-        onShownChanged: {
-            if (!shown) {
-                Bluetooth.defaultAdapter.discovering = false;
-            } else {
-                Bluetooth.defaultAdapter.enabled = true;
-                Bluetooth.defaultAdapter.discovering = true;
-            }
-        }
-    }
-    ToggleDialog {
-        shownPropertyString: "showNightLightDialog"
-        dialog: NightLightDialog {}
-    }
-    ToggleDialog {
-        shownPropertyString: "showWifiDialog"
-        dialog: WifiDialog {}
-        onShownChanged: {
-            if (!shown) { Network.stopScan(); return; }
-            Network.enableWifi();
-            Network.rescanWifi();
-        }
-    }
-    component ToggleDialog: Loader {
-        id: toggleDialogLoader
-        required property string shownPropertyString
-        property alias dialog: toggleDialogLoader.sourceComponent
-        readonly property bool shown: root[shownPropertyString]
-        anchors.fill: parent
-        onShownChanged: if (shown) toggleDialogLoader.active = true;
-        active: shown
-        onActiveChanged: {
-            if (active) {
-                item.show = true;
-                item.forceActiveFocus();
-            }
-        }
-        Connections {
-            target: toggleDialogLoader.item
-            function onDismiss() {
-                toggleDialogLoader.item.show = false
-                root[toggleDialogLoader.shownPropertyString] = false;
-            }
-            function onVisibleChanged() {
-                if (!toggleDialogLoader.item.visible && !root[toggleDialogLoader.shownPropertyString]) toggleDialogLoader.active = false;
-            }
-        }
-    }
     component LoaderedQuickPanelImplementation: Loader {
         id: quickPanelImplLoader
         required property string styleName
@@ -175,21 +92,12 @@ Item {
         active: Config.options.sidebar.quickToggles.style === styleName
         Connections {
             target: quickPanelImplLoader.item
-            function onOpenAudioOutputDialog() {
-                root.showAudioOutputDialog = true;
-            }
-            function onOpenAudioInputDialog() {
-                root.showAudioInputDialog = true;
-            }
-            function onOpenBluetoothDialog() {
-                root.showBluetoothDialog = true;
-            }
-            function onOpenNightLightDialog() {
-                root.showNightLightDialog = true;
-            }
-            function onOpenWifiDialog() {
-                root.showWifiDialog = true;
-            }
+            // The tiles' arrows: the control centre at their page (modules/controlCenter)
+            function onOpenAudioOutputPage() { GlobalStates.openControlCenter("sound"); }
+            function onOpenAudioInputPage() { GlobalStates.openControlCenter("sound"); }
+            function onOpenBluetoothPage() { GlobalStates.openControlCenter("bluetooth"); }
+            function onOpenNightLightPage() { GlobalStates.openControlCenter("display"); }
+            function onOpenWifiPage() { GlobalStates.openControlCenter("wifi"); }
         }
     }
     component SystemButtonRow: Rectangle {

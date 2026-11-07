@@ -19,6 +19,7 @@ import qs.modules.bar
 import qs.modules.background
 import qs.modules.dock
 import qs.modules.sidebarRight
+import qs.modules.controlCenter
 
 // Overlays & Popups
 import qs.modules.notificationPopup
@@ -51,6 +52,7 @@ ShellRoot {
     property bool enableBackground: true
     property bool enableDock: true
     property bool enableSidebarRight: true
+    property bool enableControlCenter: true
 
     // Overlays & Popups
     property bool enableNotificationPopup: true
@@ -94,6 +96,7 @@ ShellRoot {
     LazyLoader { active: Config.ready && Config.options.appearance.themeTransition; component: ThemeTransition {} }
     LazyLoader { active: enableDock && Config.options.dock.enable; component: Dock {} }
     LazyLoader { active: enableSidebarRight; component: SidebarRight {} }
+    LazyLoader { active: enableControlCenter; component: ControlCenter {} }
 
     // ------------------------------------------------------------------------
     // Overlays & Popups

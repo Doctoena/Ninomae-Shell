@@ -4,9 +4,9 @@ Rectangle {
     id: root
     radius: Appearance.rounding.large
     color: "transparent" // Tiles sit straight on the drawer (each tile is its own pill)
-    signal openAudioOutputDialog()
-    signal openAudioInputDialog()
-    signal openBluetoothDialog()
-    signal openNightLightDialog()
-    signal openWifiDialog()
+    signal openAudioOutputPage()
+    signal openAudioInputPage()
+    signal openBluetoothPage()
+    signal openNightLightPage()
+    signal openWifiPage()
 }

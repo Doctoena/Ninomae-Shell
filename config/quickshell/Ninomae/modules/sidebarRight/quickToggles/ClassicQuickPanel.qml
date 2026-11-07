@@ -16,12 +16,12 @@ AbstractQuickPanel {
         color: Appearance.colors.colLayer1
         NetworkToggle {
             altAction: () => {
-                root.openWifiDialog();
+                root.openWifiPage();
             }
         }
         BluetoothToggle {
             altAction: () => {
-                root.openBluetoothDialog();
+                root.openBluetoothPage();
             }
         }
         NightLight {}

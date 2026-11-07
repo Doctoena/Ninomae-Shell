@@ -31,6 +31,7 @@ RippleButton {
     property string bigText: entry?.bigText ?? ""
     property string materialSymbol: entry?.materialSymbol ?? ""
     property bool settingsIcon: entry?.settingsIcon ?? false
+    property bool mixerIcon: entry?.mixerIcon ?? false
     property string cliphistRawString: entry?.cliphistRawString ?? ""
     visible: root.entryShown
     // Apps carry a DesktopEntry: show its comment / generic name under the title
@@ -122,6 +123,7 @@ RippleButton {
             id: iconLoader
             active: true
             sourceComponent: root.settingsIcon ? settingsIconComponent :
+                root.mixerIcon ? mixerIconComponent :
                 root.materialSymbol !== "" ? materialSymbolComponent :
                 root.bigText ? bigTextComponent :
                 root.itemIcon !== "" ? iconImageComponent :
@@ -171,6 +173,49 @@ RippleButton {
                             radius: width / 2
                             x: (modelData.knob - 5) * settingsIcon.u - width / 2
                             anchors.verticalCenter: parent.verticalCenter
+                            color: "#fafafa"
+                        }
+                    }
+                }
+            }
+        }
+        // Volume control (the control centre): Settings' icon turned upright, three mixer faders in the accent
+        Component {
+            id: mixerIconComponent
+            Rectangle {
+                id: mixerIcon
+                readonly property real u: width / 40
+                implicitWidth: 32
+                implicitHeight: 32
+                radius: 6.15 * u
+                color: "#404448"
+                Repeater {
+                    model: [{ x: 11, knob: 14 }, { x: 20, knob: 25 }, { x: 29, knob: 19 }]
+                    Item {
+                        required property var modelData
+                        x: (modelData.x - 1) * mixerIcon.u
+                        y: 8 * mixerIcon.u
+                        width: 2 * mixerIcon.u
+                        height: 24 * mixerIcon.u
+                        Rectangle { // Track
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: "white"
+                            opacity: 0.19
+                        }
+                        Rectangle { // Level, from the bottom up to the knob
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: (32 - modelData.knob) * mixerIcon.u
+                            radius: width / 2
+                            color: Appearance.colors.colPrimary
+                        }
+                        Rectangle { // Knob
+                            width: 5.8 * mixerIcon.u
+                            height: width
+                            radius: width / 2
+                            y: (modelData.knob - 8) * mixerIcon.u - height / 2
+                            anchors.horizontalCenter: parent.horizontalCenter
                             color: "#fafafa"
                         }
                     }

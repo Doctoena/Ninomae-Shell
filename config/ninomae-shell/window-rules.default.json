@@ -23,6 +23,21 @@
     "builtin": true
   },
   {
+    "name": "control-centre",
+    "note": "The shell's control centre (sidebar tile arrows): floats in the middle, see-through like Settings",
+    "enabled": true,
+    "match": {
+      "title": "^(Control centre)$"
+    },
+    "effects": {
+      "float": true,
+      "size": "1081 634",
+      "center": true,
+      "opacity": "0.94 override 0.94 override"
+    },
+    "builtin": true
+  },
+  {
     "name": "xwayland-no-blur",
     "note": "Disable blur for xwayland context menus",
     "enabled": true,

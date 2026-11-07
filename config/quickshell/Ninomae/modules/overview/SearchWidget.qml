@@ -14,6 +14,11 @@ Item { // Wrapper
     property string searchingText: ""
     property string mathResult: ""
     readonly property var shellSettingsTarget: Fuzzy.prepare("Ninomae Settings") // Prepared once, matched every keystroke
+    readonly property var volumeControlTargets: [Fuzzy.prepare("Volume control"), Fuzzy.prepare("Control centre")]
+    // pavucontrol's own entry is called "Volume Control" too: it only shows for its program name, so that name
+    // opens the control centre and "pavucontrol" opens pavucontrol
+    readonly property string pavucontrolId: "org.pulseaudio.pavucontrol"
+    readonly property var pavucontrolTarget: Fuzzy.prepare("pavucontrol")
     property var searchActions: [
         {
             action: "accentcolor",
@@ -216,6 +221,7 @@ Item { // Wrapper
         id: clipper
         anchors.fill: parent
         clip: true
+        transform: BarSideFlip { size: clipper.height } // Bar along the bottom: rises from it
 
         // Preferred: caelestia's blob renderer, so the drawer oozes out of the bar
         Loader {
@@ -306,9 +312,12 @@ Item { // Wrapper
             width: root.panelWidth
             implicitHeight: columnLayout.implicitHeight + root.panelPadding * 2
             opacity: 1 - root.offsetScale // Fade in step with the drawer so it never slides in empty
-            transform: Matrix4x4 { // Wobble with the blob, as caelestia does for its panels
-                matrix: root.useBlobs && root.barAttached ? blobBg.item.deformMatrix : Qt.matrix4x4()
-            }
+            transform: [
+                BarSideFlip { size: content.height }, // Upright in a flipped stage
+                Matrix4x4 { // Wobble with the blob, as caelestia does for its panels
+                    matrix: root.useBlobs && root.barAttached ? blobBg.item.deformMatrix : Qt.matrix4x4()
+                }
+            ]
 
             ColumnLayout {
                 id: columnLayout
@@ -465,7 +474,7 @@ Item { // Wrapper
                                     }
                                 };
                                 const appQuery = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.app);
-                                const appResultObjects = AppSearch.fuzzyQuery(appQuery).filter(e => !root.isGameShortcut(e)).map(entry => {
+                                const appResultObjects = AppSearch.fuzzyQuery(appQuery).filter(e => !root.isGameShortcut(e) && e.id !== root.pavucontrolId).map(entry => {
                                     entry.clickActionName = Translation.tr("Launch");
                                     entry.type = Translation.tr("App");
                                     entry.key = entry.execute
@@ -482,6 +491,26 @@ Item { // Wrapper
                                     execute: () => {
                                         Quickshell.execDetached([Quickshell.shellPath("scripts/open-settings.sh")]);
                                     }
+                                }] : [];
+                                // The control centre's Sound page, above the apps like Settings
+                                const volumeControlObjects = Fuzzy.go(appQuery, root.volumeControlTargets).length > 0 ? [{
+                                    key: "ninomae-volume-control",
+                                    name: Translation.tr("Volume control"),
+                                    comment: Translation.tr("Control centre · Sound"),
+                                    clickActionName: Translation.tr("Open"),
+                                    type: Translation.tr("Shell"),
+                                    mixerIcon: true, // Faders in the accent colour (SearchItem.qml)
+                                    execute: () => GlobalStates.openControlCenter("sound")
+                                }] : [];
+                                const pavucontrol = DesktopEntries.byId(root.pavucontrolId);
+                                const pavucontrolObjects = pavucontrol && Fuzzy.go(appQuery, [root.pavucontrolTarget]).length > 0 ? [{
+                                    key: "pavucontrol",
+                                    name: "pavucontrol",
+                                    comment: pavucontrol.comment,
+                                    icon: pavucontrol.icon,
+                                    clickActionName: Translation.tr("Launch"),
+                                    type: Translation.tr("App"),
+                                    execute: () => pavucontrol.execute()
                                 }] : [];
                                 const commandResultObject = {
                                     key: `cmd ${root.searchingText}`,
@@ -549,7 +578,7 @@ Item { // Wrapper
                                     result.push(webSearchResultObject);
                                 }
                                 //////////////// Apps //////////////////
-                                result = result.concat(shellSettingsObjects, appResultObjects);
+                                result = result.concat(volumeControlObjects, shellSettingsObjects, pavucontrolObjects, appResultObjects);
                                 ////////// Launcher actions ////////////
                                 result = result.concat(launcherActionObjects);
                                 /// Math result, command, web search ///

@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 
 /**
- * A rounded card grouping rows in the sidebar's quick-setting dialogs (like Android's grouped
+ * A rounded card grouping rows in the control centre's pages (like Android's grouped
  * settings): no hairlines between rows, just the card. Children go in a column inside it.
  */
 Rectangle {

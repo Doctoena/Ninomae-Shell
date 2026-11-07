@@ -58,7 +58,7 @@ Singleton {
     function toggleWifi(): void {
         enableWifi(!wifiEnabled);
     }
-    // Scans while the Wi-Fi dialog is open (NetworkManager rescans on its own while the scanner is on);
+    // Scans while the control centre's Wi-Fi page is open (NetworkManager rescans on its own while the scanner is on);
     // the progress bar shows for the first pass
     property bool scanRequested: false
     function rescanWifi(): void {
@@ -74,7 +74,7 @@ Singleton {
         target: root.wifiDevice
         when: root.wifiDevice !== null
         property: "scannerEnabled"
-        value: root.scanRequested && (GlobalStates?.sidebarRightOpen ?? false)
+        value: root.scanRequested && (GlobalStates?.controlCenterOpen ?? false) // While its Wi-Fi page is open
     }
     Timer {
         id: scanningTimer
