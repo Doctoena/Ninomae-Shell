@@ -10,15 +10,7 @@ Item { // Bar content region
     id: root
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
-    property real useShortenedForm: (Appearance.sizes.barHellaShortenScreenWidthThreshold >= screen?.width) ? 2 : (Appearance.sizes.barShortenScreenWidthThreshold >= screen?.width) ? 1 : 0
-    readonly property int centerSideModuleWidth: (useShortenedForm == 2) ? Appearance.sizes.barCenterSideModuleWidthHellaShortened : (useShortenedForm == 1) ? Appearance.sizes.barCenterSideModuleWidthShortened : Appearance.sizes.barCenterSideModuleWidth
-    component VerticalBarSeparator: Rectangle {
-        Layout.topMargin: Appearance.sizes.baseBarHeight / 3
-        Layout.bottomMargin: Appearance.sizes.baseBarHeight / 3
-        Layout.fillHeight: true
-        implicitWidth: 1
-        color: Appearance.colors.colOutlineVariant
-    }
+    readonly property int useShortenedForm: (Appearance.sizes.barHellaShortenScreenWidthThreshold >= screen?.width) ? 2 : (Appearance.sizes.barShortenScreenWidthThreshold >= screen?.width) ? 1 : 0
     // Background shadow
     Loader {
         active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 && Config.options.bar.floatStyleShadow
@@ -33,7 +25,7 @@ Item { // Bar content region
         id: barBackground
         anchors {
             fill: parent
-            margins: Config.options.bar.cornerStyle === 1 ? (Appearance.sizes.hyprlandGapsOut) : 0 // idk why but +1 is needed
+            margins: Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0
         }
         color: Config.options.bar.showBackground ? Appearance.colors.colLayer0 : "transparent"
         opacity: 0.92
@@ -96,30 +88,15 @@ Item { // Bar content region
             }
         }
     }
-    Row { // Middle section
+    MouseArea { // Middle: the clock, truly centred on the bar
         id: middleSection
-        anchors {
-            top: parent.top
-            bottom: parent.bottom
-            horizontalCenter: parent.horizontalCenter
-        }
-        spacing: 4
-        VerticalBarSeparator {
-            visible: Config.options?.bar.borderless
-        }
-        // === Clock (truly centred on the bar) ===
-        MouseArea {
-            id: centerClock
-            anchors.verticalCenter: parent.verticalCenter
-            implicitWidth: clockWidget.implicitWidth
-            implicitHeight: clockWidget.implicitHeight
-            width: implicitWidth
-            height: implicitHeight
-            onPressed: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
-            ClockWidget {
-                id: clockWidget
-                anchors.centerIn: parent
-            }
+        anchors.centerIn: parent
+        implicitWidth: clockWidget.implicitWidth
+        implicitHeight: clockWidget.implicitHeight
+        onPressed: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
+        ClockWidget {
+            id: clockWidget
+            anchors.centerIn: parent
         }
     }
     FocusedScrollMouseArea { // Right side | scroll to change volume
@@ -173,7 +150,7 @@ Item { // Bar content region
                 Layout.fillWidth: false
                 implicitWidth: indicatorsRowLayout.implicitWidth + 9 * 2
                 implicitHeight: 30
-                buttonRadius: 10
+                buttonRadius: Appearance.rounding.segment
                 // A segment of the shared right-side pill; lavender while the sidebar is open
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.m3colors.m3surfaceContainerHighest
@@ -237,6 +214,8 @@ Item { // Bar content region
                         }
                         NotificationUnreadCount {
                             id: notificationUnreadCount
+                            color: rightSidebarButton.colText
+                            onAccent: rightSidebarButton.toggled
                         }
                     }
                     StatusChip {
@@ -266,7 +245,7 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
                 implicitHeight: 30
                 implicitWidth: trayRow.implicitWidth + 4
-                radius: 10
+                radius: Appearance.rounding.segment
                 color: sysTrayToggleMa.containsMouse ? Appearance.m3colors.m3surfaceContainerHighest : "transparent"
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on implicitWidth { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
@@ -278,10 +257,7 @@ Item { // Bar content region
                     Revealer {
                         reveal: GlobalStates.sysTrayOpen
                         anchors.verticalCenter: parent.verticalCenter
-                        SysTray {
-                            invertSide: Config?.options.bar.bottom
-                            showSeparator: false
-                        }
+                        SysTray {}
                     }
                     Item { // Expand/collapse arrow
                         width: 26; height: 26
@@ -305,7 +281,7 @@ Item { // Bar content region
             // === Media info ===
             Media {
                 id: mediaWidget
-                visible: root.useShortenedForm < 2 && MprisController.activePlayer !== null // No "No media" segment
+                visible: root.useShortenedForm < 2 && MprisController.activePlayer !== null
                 Layout.fillWidth: false
                 Layout.alignment: Qt.AlignVCenter
                 Layout.rightMargin: 6 + rightGroupBackground.pad // The gap between it and the status card

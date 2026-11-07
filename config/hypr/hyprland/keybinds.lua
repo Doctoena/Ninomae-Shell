@@ -107,11 +107,6 @@ hl.define_submap("global", function()
     bind("SUPER + mouse_up",   global("overviewToggleReleaseInterrupt"))
     bind("SUPER + mouse_down", global("overviewToggleReleaseInterrupt"))
 
-
-    -- Workspace number binds
-    bind("Super_L", global("workspaceNumber"))
-    bind("Super_R", global("workspaceNumber"))
-
     -- Game launcher
     bind("SUPER + SHIFT + O", global("gameLauncher"), { description = "Shell: Toggle game launcher" })
 

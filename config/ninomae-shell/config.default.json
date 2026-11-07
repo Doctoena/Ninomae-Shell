@@ -41,7 +41,6 @@
     "wallpaperPath": "~/Pictures/Wallpapers/purpgirl.png"
   },
   "bar": {
-    "borderless": false,
     "bottom": false,
     "cornerStyle": 1,
     "floatStyleShadow": true,
@@ -66,7 +65,6 @@
       "pinnedItems": [],
       "showItemId": false
     },
-    "verbose": true,
     "weather": {
       "city": "",
       "enable": true,
@@ -75,20 +73,7 @@
       "useUSCS": false
     },
     "workspaces": {
-      "numberMap": [
-        "一",
-        "二",
-        "三",
-        "四",
-        "五",
-        "六",
-        "七",
-        "八",
-        "九",
-        "十"
-      ],
-      "shown": 8,
-      "useNerdFont": false
+      "shown": 8
     }
   },
   "battery": {

@@ -9,10 +9,7 @@ Item {
     id: root
     implicitWidth: gridLayout.implicitWidth
     implicitHeight: gridLayout.implicitHeight
-    property bool invertSide: false
     property bool trayOverflowOpen: false
-    property bool showSeparator: true
-    property bool showOverflowMenu: true
     property var activeMenu: null
     property bool smartTray: Config.options.bar.tray.filterPassive
     property list<var> itemsInUserList: SystemTray.items.values.filter(i => (Config.options.bar.tray.pinnedItems.includes(i.id) && (!smartTray || i.status !== Status.Passive)))
@@ -62,7 +59,7 @@ Item {
         // Overflow button
         RippleButton {
             id: trayOverflowButton
-            visible: root.showOverflowMenu && root.unpinnedItems.length > 0
+            visible: root.unpinnedItems.length > 0
             toggled: root.trayOverflowOpen
             property bool containsMouse: hovered
             downAction: () => root.trayOverflowOpen = !root.trayOverflowOpen
@@ -126,14 +123,6 @@ Item {
                     root.setExtraWindowAndGrabFocus(qsWindow);
                 }
             }
-        }
-        Rectangle {
-            Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
-            visible: root.showSeparator && SystemTray.items.values.length > 0
-            width: 1
-            height: 20
-            color: Appearance.colors.colOutlineVariant
-            opacity: 0.5
         }
     }
 }

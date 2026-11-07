@@ -142,9 +142,7 @@ Singleton {
                 property bool bottom: false // Instead of top
                 property int cornerStyle: 0 // 0: Hug | 1: Float | 2: Square (a plain strip)
                 property bool floatStyleShadow: true // Show shadow behind bar when cornerStyle == 1 (Float)
-                property bool borderless: false // true for no grouping of items
                 property bool showBackground: true
-                property bool verbose: true
                 property JsonObject resources: JsonObject {
                     property int memoryWarningThreshold: 95
                     property int cpuWarningThreshold: 90
@@ -159,8 +157,6 @@ Singleton {
                 }
                 property JsonObject workspaces: JsonObject {
                     property int shown: 10
-                    property list<string> numberMap: ["1", "2"] // Characters to show instead of numbers on workspace indicator
-                    property bool useNerdFont: false
                 }
                 property JsonObject weather: JsonObject {
                     property bool enable: false

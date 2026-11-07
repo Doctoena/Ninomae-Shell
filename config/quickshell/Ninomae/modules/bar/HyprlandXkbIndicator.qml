@@ -7,11 +7,9 @@ Loader {
     property color color: Appearance.colors.colOnSurfaceVariant
     active: HyprlandXkb.layoutCodes.length > 1
     visible: active
+    // "us:dvorak" → "us\ndvor": each part cut to four letters, one per line
     function abbreviateLayoutCode(fullCode) {
-    return fullCode.split(':').map(layout => {
-            const baseLayout = layout.split('-')[0];
-            return baseLayout.slice(0, 4);
-        }).join('\n');
+        return fullCode.split(':').map(layout => layout.split('-')[0].slice(0, 4)).join('\n');
     }
     sourceComponent: Item {
         implicitWidth: layoutCodeText.implicitWidth

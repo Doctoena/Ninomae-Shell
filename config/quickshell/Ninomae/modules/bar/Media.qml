@@ -9,16 +9,15 @@ import Quickshell.Widgets
 import Quickshell.Services.Mpris
 
 /**
- * Bar music widget: a pill with the round cover art inside a lavender progress ring,
- * title + artist, and a play/pause button. Left click opens the media panel, middle click
- * plays/pauses, right click (or mouse forward) skips, mouse back goes to the previous track.
+ * Bar music card, shown while something plays: the cover art, title and artist, a play/pause button, and the
+ * track's progress along the bottom edge. Left click opens the media panel, middle click plays/pauses, right click
+ * (or mouse forward) skips, mouse back goes to the previous track.
  */
 Item {
     id: root
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
-    readonly property bool hasMedia: activePlayer !== null
     readonly property bool isPlaying: activePlayer?.isPlaying ?? false
-    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
+    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle)
     readonly property string artistText: (activePlayer?.trackArtist ?? "") || (activePlayer?.identity ?? "")
     // Kept through the gaps where a browser drops the length (TrackTiming.qml); none at all: no progress line
     TrackTiming { id: timing; player: root.activePlayer }
@@ -33,7 +32,6 @@ Item {
     onArtUrlChanged: CoverArt.request(artUrl)
     Component.onCompleted: CoverArt.request(artUrl)
 
-
     Layout.fillHeight: false
     Layout.maximumWidth: maxMediaWidth
     implicitWidth: pill.width
@@ -42,7 +40,7 @@ Item {
     Rectangle {
         id: pill
         anchors.verticalCenter: parent.verticalCenter
-        height: 36 // A card of its own, as every card on the bar
+        height: 36 // As every card on the bar
         width: Math.min(root.maxMediaWidth, contentRow.implicitWidth + contentRow.anchors.leftMargin + contentRow.anchors.rightMargin)
         radius: Appearance.rounding.container
         color: root.hovered ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
@@ -66,7 +64,6 @@ Item {
         }
 
         Rectangle { // Track progress, along the bottom edge
-            visible: root.hasMedia
             anchors { left: parent.left; bottom: parent.bottom; leftMargin: 8; bottomMargin: 2 }
             width: (parent.width - 16) * root.trackProgress
             height: 2
@@ -77,21 +74,20 @@ Item {
         }
         RowLayout {
             id: contentRow
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 2; rightMargin: root.hasMedia ? 4 : 12 }
+            // The art and the play button as far from the card's sides as from its top and bottom
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 6; rightMargin: 7 }
             spacing: 8
 
-            // ── Cover art in a squircle (the track's progress runs along the segment's bottom edge) ──
+            // ── Cover art in a squircle ──
             Item {
-                id: artRing
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 26
-                implicitHeight: 26
+                implicitWidth: 24
+                implicitHeight: 24
 
-                // Badge when there's no art (or nothing playing)
+                // Badge when there's no art
                 Rectangle {
-                    anchors.centerIn: parent
-                    width: 24; height: 24
-                    radius: 8
+                    anchors.fill: parent
+                    radius: Appearance.rounding.chip
                     color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
                     visible: !root.hasArt
                     MaterialSymbol {
@@ -99,15 +95,14 @@ Item {
                         text: "music_note"
                         fill: 1
                         iconSize: 15
-                        color: root.hasMedia ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1Inactive
+                        color: Appearance.colors.colPrimary
                     }
                 }
 
                 // The cover, dimmed while paused
                 ClippingRectangle {
-                    anchors.centerIn: parent
-                    width: 24; height: 24
-                    radius: 8
+                    anchors.fill: parent
+                    radius: Appearance.rounding.chip
                     color: "transparent"
                     visible: root.hasArt
                     opacity: root.isPlaying ? 1 : 0.55
@@ -127,12 +122,10 @@ Item {
                 id: textColumn
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
-                Layout.maximumWidth: root.maxMediaWidth - 26 - 22 - contentRow.spacing * 2 - 7
+                Layout.maximumWidth: root.maxMediaWidth - 24 - 22 - contentRow.spacing * 2 - 13
                 spacing: -3
-                visible: Config.options.bar.verbose || !root.hasMedia
                 StyledText {
                     Layout.fillWidth: true
-                    visible: root.hasMedia
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: Appearance.colors.colOnLayer0
                     elide: Text.ElideRight
@@ -140,19 +133,12 @@ Item {
                 }
                 StyledText {
                     Layout.fillWidth: true
-                    visible: root.hasMedia && root.artistText.length > 0
+                    visible: root.artistText.length > 0
                     font.pixelSize: Appearance.font.pixelSize.smallest
                     color: Appearance.colors.colSubtext
                     elide: Text.ElideRight
                     text: root.artistText
                 }
-                StyledText {
-                    visible: !root.hasMedia
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnLayer1Inactive
-                    text: Translation.tr("No media")
-                }
-
                 // Fade out and back in when the track changes
                 Connections {
                     target: root
@@ -168,7 +154,6 @@ Item {
             // ── Play / pause ──
             Rectangle {
                 Layout.alignment: Qt.AlignVCenter
-                visible: root.hasMedia
                 implicitWidth: 22
                 implicitHeight: 22
                 radius: playMouse.pressed ? 6 : 8

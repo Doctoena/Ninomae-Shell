@@ -1,6 +1,5 @@
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import qs.services
 import QtQuick
 import QtQuick.Layouts
@@ -76,18 +75,17 @@ BarDrawerPopup { // Slides out of the bar like the launcher (was StyledPopup)
                     id: historyCol
                     anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 12 }
                     spacing: 6
-                        LineGraph {
-                            id: graph
-                            Layout.fillWidth: true
-                            // The log plus a live point for now; the sample from before the span starts at the left edge
-                            points: {
-                                const span = Battery.historySpan, from = root.now - span;
-                                return Battery.history.concat([{ t: root.now, v: Battery.percentage }])
-                                    .map(s => Qt.point(Math.max(0, (s.t - from) / span), s.v));
-                            }
-                            color: root.graphColor
-                            emptyText: Translation.tr("No history yet")
+                    LineGraph {
+                        Layout.fillWidth: true
+                        // The log plus a live point for now; the sample from before the span starts at the left edge
+                        points: {
+                            const span = Battery.historySpan, from = root.now - span;
+                            return Battery.history.concat([{ t: root.now, v: Battery.percentage }])
+                                .map(s => Qt.point(Math.max(0, (s.t - from) / span), s.v));
                         }
+                        color: root.graphColor
+                        emptyText: Translation.tr("No history yet")
+                    }
                     RowLayout { // Time axis
                         Layout.fillWidth: true
                         StyledText {

@@ -16,7 +16,7 @@ MouseArea {
 
     Rectangle { // Segment of the shared right-side pill
         anchors.fill: parent
-        radius: 10
+        radius: Appearance.rounding.segment
         color: root.containsMouse ? Appearance.m3colors.m3surfaceContainerHighest : "transparent"
         Behavior on color { ColorAnimation { duration: 150 } }
     }

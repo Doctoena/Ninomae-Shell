@@ -52,7 +52,6 @@ Singleton {
     property bool screenLockContainsCharacters: false
     property bool screenUnlockFailed: false
     property bool sessionOpen: false
-    property bool superDown: false
     property bool superReleaseMightTrigger: true
     // Screen-x ranges [x, width] where a drawer is joined to the bar (see common/widgets/BarJoin.qml).
     // The bar skips its bottom border there, otherwise it shows through the translucent drawer as a line.
@@ -82,16 +81,6 @@ Singleton {
     }
     Behavior on screenZoom {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-    }
-    GlobalShortcut {
-        name: "workspaceNumber"
-        description: "Hold to show workspace numbers, release to show icons"
-        onPressed: {
-            root.superDown = true
-        }
-        onReleased: {
-            root.superDown = false
-        }
     }
     GlobalShortcut {
         name: "gameLauncher"

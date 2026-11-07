@@ -3,8 +3,7 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
-// Bar clock: a card with the time (in the title font, as Settings' page names) and a muted date; hover shows
-// the clock/weather drawer
+// Bar clock: a card with the time and a muted date; hover shows the clock/weather drawer
 Item {
     id: root
     implicitWidth: pill.width
@@ -25,9 +24,8 @@ Item {
             spacing: 8
             StyledText {
                 Layout.alignment: Qt.AlignVCenter
-                font.family: Appearance.font.family.title
-                font.pixelSize: Appearance.font.pixelSize.large
-                font.weight: Font.Bold
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.DemiBold
                 color: Appearance.colors.colOnLayer0
                 text: DateTime.time
             }

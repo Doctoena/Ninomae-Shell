@@ -26,9 +26,6 @@ Scope {
                 // Hidden, not destroyed, while locked: rebuilding the bar on every unlock reloaded the
                 // tray, workspace icons, cover art and weather
                 visible: !GlobalStates.screenLocked
-                property var brightnessMonitor: Brightness.getMonitorForScreen(barLoader.modelData)
-                property real useShortenedForm: (Appearance.sizes.barHellaShortenScreenWidthThreshold >= screen.width) ? 2 : (Appearance.sizes.barShortenScreenWidthThreshold >= screen.width) ? 1 : 0
-                readonly property int centerSideModuleWidth: (useShortenedForm == 2) ? Appearance.sizes.barCenterSideModuleWidthHellaShortened : (useShortenedForm == 1) ? Appearance.sizes.barCenterSideModuleWidthShortened : Appearance.sizes.barCenterSideModuleWidth
                 exclusionMode: ExclusionMode.Normal // Windows keep clear of the bar
                 exclusiveZone: Appearance.sizes.baseBarHeight + (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
                 WlrLayershell.namespace: "quickshell:bar"
