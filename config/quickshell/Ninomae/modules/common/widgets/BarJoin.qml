@@ -2,8 +2,8 @@ import QtQuick
 import qs
 
 /**
- * Tells the bar where a drawer is attached to it, so the bar can skip its bottom
- * border along that stretch (GlobalStates.barJoins, drawn in bar/BarContent.qml).
+ * Tells the bar where a drawer is attached to it, so the bar can skip its border on that side
+ * along that stretch (GlobalStates.barJoins, drawn in bar/BarContent.qml).
  * joinX/joinWidth are the drawer's own edges in screen coordinates; the gooey curve that blends
  * it into the bar flares out further than that (~30px at the bar's edge, measured), so curveReach
  * is added on both sides. Too little and the border line runs over the start of each curve.

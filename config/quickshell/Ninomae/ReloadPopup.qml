@@ -77,10 +77,12 @@ Scope {
         color: "transparent"
         WlrLayershell.namespace: "quickshell:reloadPopup"
         WlrLayershell.layer: WlrLayer.Overlay
-        anchors.top: true // Horizontally centred
+        anchors.top: !GlobalStates.barAtBottom // Horizontally centred
+        anchors.bottom: GlobalStates.barAtBottom
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
-        margins.top: barBottom // Directly below the bar, which skips its border here (BarJoin)
+        margins.bottom: GlobalStates.barAtBottom ? barBottom : 0 // Or right above it, along the bottom
+        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar, which skips its border here (BarJoin)
         implicitWidth: panelWidth + sideMargin * 2
         implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
         mask: Region { item: maskArea }
@@ -88,6 +90,7 @@ Scope {
         Item {
             id: maskArea
             x: drawer.sideMargin
+            y: GlobalStates.barAtBottom ? drawer.height - height : 0
             width: drawer.panelWidth
             height: drawer.visibleHeight
             MouseArea { // Hover pauses the countdown; a click anywhere else on the drawer dismisses it
@@ -103,6 +106,7 @@ Scope {
             id: stage
             anchors.fill: parent
             clip: true
+            transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
 
             DrawerReadiness {
                 id: readiness
@@ -134,9 +138,10 @@ Scope {
                 width: drawer.panelWidth
                 height: drawer.fullHeight
                 opacity: 1 - drawer.offsetScale
-                transform: Matrix4x4 { // Wobble with the blob
-                    matrix: background.deformMatrix
-                }
+                transform: [
+                    BarSideFlip { size: drawer.fullHeight }, // Upright in a flipped stage
+                    Matrix4x4 { matrix: background.deformMatrix } // Wobble with the blob
+                ]
 
                 ColumnLayout {
                     id: content

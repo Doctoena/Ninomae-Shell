@@ -198,7 +198,7 @@ Scope {
                 }
             }
             // Drops out of the middle of the bar as a gooey drawer, like the other bar drawers
-            // (onScreenDisplay/OnScreenDisplay.qml). Assumes a bar at the top.
+            // (onScreenDisplay/OnScreenDisplay.qml), or rises out of it when it's along the bottom.
             readonly property real padding: 28
             readonly property real bottomRadius: Appearance.rounding.verylarge
             readonly property real hiddenExtra: 60
@@ -221,16 +221,20 @@ Scope {
             readonly property real drawerY: Math.min(0, drawerTop)
             readonly property real drawerHeight: fullHeight + Math.max(0, drawerTop) // Overshoot stretches
             readonly property real visibleHeight: Math.max(0, drawerY + drawerHeight)
+            // The strip the bar takes, left uncovered by the dim and the drawer: at the top, or along the bottom
+            readonly property real barSideTop: GlobalStates.barAtBottom ? 0 : barBottom
+            readonly property real barSideBottom: GlobalStates.barAtBottom ? barBottom : 0
 
             Rectangle { // Dim everything below the bar, in step with the drawer
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; top: parent.top; topMargin: sessionRoot.barBottom }
+                anchors { fill: parent; topMargin: sessionRoot.barSideTop; bottomMargin: sessionRoot.barSideBottom }
                 color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
                 opacity: 1 - sessionRoot.offsetScale
             }
 
             Item {
                 id: stage
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; top: parent.top; topMargin: sessionRoot.barBottom }
+                anchors { fill: parent; topMargin: sessionRoot.barSideTop; bottomMargin: sessionRoot.barSideBottom }
+                transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
                 clip: true
                 DrawerReadiness { id: readiness } // The window is made for each opening: always active
                 BarJoin { // Lets the bar skip its bottom border where the drawer joins it
@@ -258,9 +262,10 @@ Scope {
                 width: sessionRoot.panelWidth
                 height: sessionRoot.fullHeight
                 opacity: 1 - sessionRoot.offsetScale
-                transform: Matrix4x4 { // Wobble with the blob
-                    matrix: background.deformMatrix
-                }
+                transform: [
+                    BarSideFlip { size: card.height }, // Upright in a flipped stage
+                    Matrix4x4 { matrix: background.deformMatrix } // Wobble with the blob
+                ]
                 MouseArea { // Clicks inside the card don't close it
                     anchors.fill: parent
                 }
@@ -271,7 +276,7 @@ Scope {
                     spacing: 20
                     // Grows into place with the drawer (same timing, so opening isn't any slower)
                     scale: 0.92 + 0.08 * (1 - sessionRoot.offsetScale)
-                    transformOrigin: Item.Top
+                    transformOrigin: GlobalStates.barAtBottom ? Item.Bottom : Item.Top // From the bar's side
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Escape) {
                             if (sessionRoot.pending !== "") sessionRoot.cancel();

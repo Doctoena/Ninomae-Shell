@@ -7,7 +7,8 @@ import Quickshell.Wayland
 
 /**
  * Hover popup that slides out of the top bar as a gooey drawer, the same way the
- * launcher (overview/SearchWidget.qml) does: set hoverTarget and give it the content. Assumes a horizontal bar at the top.
+ * launcher (overview/SearchWidget.qml) does: set hoverTarget and give it the content. With the bar along the bottom
+ * it rises out of it instead (GlobalStates.barAtBottom).
  */
 LazyLoader {
     id: root
@@ -80,7 +81,7 @@ LazyLoader {
         readonly property real visibleHeight: Math.max(0, drawerY + drawerHeight)
 
         color: "transparent"
-        anchors { top: true; left: true }
+        anchors { top: !GlobalStates.barAtBottom; bottom: GlobalStates.barAtBottom; left: true }
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
         WlrLayershell.namespace: "quickshell:barDrawer"
@@ -88,7 +89,8 @@ LazyLoader {
         implicitWidth: panelWidth + sideMargin * 2
         implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
         margins {
-            top: win.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+            bottom: GlobalStates.barAtBottom ? win.barBottom : 0 // Or right above it, along the bottom
+            top: GlobalStates.barAtBottom ? 0 : win.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
             left: {
                 const centre = root.QsWindow?.mapFromItem(root.hoverTarget, root.hoverTarget.width / 2, 0).x ?? 0;
                 const maxLeft = (win.screen?.width ?? 0) - win.implicitWidth;
@@ -100,6 +102,7 @@ LazyLoader {
         Item {
             id: maskArea
             x: win.sideMargin
+            y: GlobalStates.barAtBottom ? win.height - height : 0
             width: win.panelWidth
             height: win.visibleHeight
         }
@@ -108,6 +111,7 @@ LazyLoader {
             id: stage
             anchors.fill: parent
             clip: true
+            transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
 
             DrawerReadiness { id: readiness } // The window is made for each opening: always active
             BarJoin { // Lets the bar skip its bottom border where the drawer joins it
@@ -138,9 +142,10 @@ LazyLoader {
                 height: root.contentItem.implicitHeight
                 opacity: 1 - win.offsetScale
                 children: [root.contentItem]
-                transform: Matrix4x4 { // Wobble with the blob
-                    matrix: background.deformMatrix
-                }
+                transform: [
+                    BarSideFlip { size: contentHolder.height }, // Upright in a flipped stage
+                    Matrix4x4 { matrix: background.deformMatrix } // Wobble with the blob
+                ]
             }
         }
     }

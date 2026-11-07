@@ -143,13 +143,14 @@ Scope {
             WlrLayershell.namespace: "quickshell:mediaControls"
             WlrLayershell.layer: WlrLayer.Overlay // Above the bar, so the drawer covers its border where they join
             anchors {
-                top: true
-                bottom: false
+                top: !GlobalStates.barAtBottom
+                bottom: GlobalStates.barAtBottom
                 left: false
                 right: true
             }
             margins {
-                top: mediaControlsRoot.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+                bottom: GlobalStates.barAtBottom ? mediaControlsRoot.barBottom : 0 // Or right above it, along the bottom
+                top: GlobalStates.barAtBottom ? 0 : mediaControlsRoot.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
                 right: 0
             }
             mask: Region {
@@ -167,6 +168,7 @@ Scope {
             Item {
                 id: maskArea
                 x: mediaControlsRoot.sideMargin
+                y: GlobalStates.barAtBottom ? mediaControlsRoot.height - height : 0
                 width: mediaControlsRoot.panelWidth
                 height: mediaControlsRoot.visibleHeight
             }
@@ -174,6 +176,7 @@ Scope {
                 id: stage
                 anchors.fill: parent
                 clip: true
+                transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
                 DrawerReadiness { id: readiness } // The window is made for each opening: always active
                 BarJoin { // Lets the bar skip its bottom border where the drawer joins it
                     name: "mediaControls"
@@ -200,9 +203,10 @@ Scope {
                 width: mediaControlsRoot.panelWidth
                 height: mediaControlsRoot.fullHeight
                 opacity: 1 - mediaControlsRoot.offsetScale
-                transform: Matrix4x4 { // Wobble with the blob
-                    matrix: background.deformMatrix
-                }
+                transform: [
+                    BarSideFlip { size: mediaControlsRoot.fullHeight }, // Upright in a flipped stage
+                    Matrix4x4 { matrix: background.deformMatrix } // Wobble with the blob
+                ]
             ColumnLayout {
                 id: playerColumnLayout
                 anchors {

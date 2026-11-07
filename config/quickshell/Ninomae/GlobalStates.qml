@@ -16,6 +16,8 @@ Singleton {
         if (!screen) return true;
         return !(Hyprland.monitorFor(screen)?.activeWorkspace?.toplevels?.values ?? []).some(w => w.wayland?.fullscreen);
     }
+    // The bar along the bottom (Settings → Bar): its drawers rise from the bottom edge instead (BarSideFlip)
+    readonly property bool barAtBottom: Config.options.bar.bottom ?? false
     // Where a drawer's top goes: right below the bar, or near the screen's top edge while there's none
     readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
     function drawerTopOn(screen) { return barShownOn(screen) ? barBottom : 10; }
@@ -30,6 +32,16 @@ Singleton {
     property bool gameOverlayOpen: false // The in-game overlay (modules/gameOverlay, Super+Shift+G)
     property bool gameLauncherFilePickerActive: false
     property bool sidebarRightOpen: false
+    // Quick settings window (modules/controlCenter): Sound, Wi-Fi, Bluetooth, Display. The sidebar tiles open it at theirs
+    property bool controlCenterOpen: false
+    property string controlCenterSection: "sound"
+    signal controlCenterRaiseRequested() // Asked to open while it's open: its window comes forward
+    function openControlCenter(section) {
+        if (section) controlCenterSection = section;
+        sidebarRightOpen = false;
+        if (controlCenterOpen) controlCenterRaiseRequested();
+        controlCenterOpen = true;
+    }
     property bool sysTrayOpen: false
     property bool mediaControlsOpen: false
     property bool osdBrightnessOpen: false

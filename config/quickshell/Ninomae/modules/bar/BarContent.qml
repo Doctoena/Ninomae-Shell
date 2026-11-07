@@ -44,8 +44,8 @@ Item { // Bar content region
         radius: Config.options.bar.cornerStyle === 1 ? Appearance.rounding.windowRounding : 0
         border.width: Config.options.bar.cornerStyle === 1 ? 1 : 0
         border.color: Appearance.colors.colLayer0Border
-        // Skip the bottom border where a drawer (launcher, sidebar, popups…) is attached;
-        // painting the bar's own fill over it, so the join has no line through it.
+        // Skip the border on the drawers' side (the bottom edge, or the top with the bar along the bottom) where a
+        // drawer (launcher, sidebar, popups…) is attached, painting the bar's own fill over it, so the join has no line through it.
         Repeater {
             model: Object.values(GlobalStates.barJoins)
             delegate: Rectangle {
@@ -54,7 +54,7 @@ Item { // Bar content region
                 readonly property real joinRight: Math.min(barBackground.width - barBackground.radius, modelData[0] + modelData[1] - barBackground.x)
                 visible: barBackground.border.width > 0 && joinRight > joinLeft
                 x: joinLeft
-                y: barBackground.height - barBackground.border.width
+                y: GlobalStates.barAtBottom ? 0 : barBackground.height - barBackground.border.width
                 width: joinRight - joinLeft
                 height: barBackground.border.width
                 color: barBackground.color

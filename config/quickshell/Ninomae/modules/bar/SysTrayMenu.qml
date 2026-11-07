@@ -101,7 +101,7 @@ PanelWindow {
 
     visible: false
     color: "transparent"
-    anchors { top: true; left: true }
+    anchors { top: !GlobalStates.barAtBottom; bottom: GlobalStates.barAtBottom; left: true }
     exclusionMode: ExclusionMode.Ignore
     exclusiveZone: 0
     WlrLayershell.namespace: "quickshell:trayMenu"
@@ -109,7 +109,8 @@ PanelWindow {
     implicitWidth: panelWidth + sideMargin * 2
     implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
     margins {
-        top: root.barBottom // Directly below the bar, which skips its border here (BarJoin)
+        bottom: GlobalStates.barAtBottom ? root.barBottom : 0 // Or right above it, along the bottom
+        top: GlobalStates.barAtBottom ? 0 : root.barBottom // Directly below the bar, which skips its border here (BarJoin)
         left: Math.max(0, Math.min(root.centerX - root.implicitWidth / 2, (root.screen?.width ?? 0) - root.implicitWidth))
     }
     mask: Region { item: maskArea }
@@ -117,6 +118,7 @@ PanelWindow {
     Item {
         id: maskArea
         x: root.sideMargin
+        y: GlobalStates.barAtBottom ? root.height - height : 0
         width: root.panelWidth
         height: root.visibleHeight
     }
@@ -125,6 +127,7 @@ PanelWindow {
         id: stage
         anchors.fill: parent
         clip: true
+        transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
 
         DrawerReadiness {
             id: readiness
@@ -160,9 +163,10 @@ PanelWindow {
             height: root.contentHeight
             clip: true // While resizing for a submenu
             opacity: 1 - root.offsetScale
-            transform: Matrix4x4 { // Wobble with the blob
-                matrix: background.deformMatrix
-            }
+            transform: [
+                BarSideFlip { size: contentHolder.height }, // Upright in a flipped stage
+                Matrix4x4 { matrix: background.deformMatrix } // Wobble with the blob
+            ]
             MouseArea { // Back / right click inside a submenu goes up a level
                 anchors.fill: parent
                 acceptedButtons: Qt.BackButton | Qt.RightButton

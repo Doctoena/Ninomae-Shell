@@ -53,7 +53,8 @@ Scope {
             right: true
             bottom: true
         }
-        margins.top: barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+        margins.bottom: GlobalStates.barAtBottom ? barBottom : 0 // Or right above it, along the bottom
         mask: Region { item: maskArea }
         HyprlandFocusGrab {
             id: grab
@@ -67,6 +68,7 @@ Scope {
         Item {
             id: maskArea
             x: sidebarRoot.sideMargin
+            y: GlobalStates.barAtBottom ? sidebarRoot.height - height : 0
             width: sidebarRoot.panelWidth
             height: sidebarRoot.visibleHeight
         }
@@ -75,6 +77,7 @@ Scope {
             id: stage
             anchors.fill: parent
             clip: true
+            transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
 
             DrawerReadiness {
                 id: readiness
@@ -119,9 +122,10 @@ Scope {
                 sourceComponent: SidebarRightContent {
                     drawnByDrawer: true // The blob drawer draws the background
                 }
-                transform: Matrix4x4 { // Wobble with the blob
-                    matrix: background.deformMatrix
-                }
+                transform: [
+                    BarSideFlip { size: sidebarRoot.fullHeight }, // Upright in a flipped stage
+                    Matrix4x4 { matrix: background.deformMatrix } // Wobble with the blob
+                ]
             }
         }
     }

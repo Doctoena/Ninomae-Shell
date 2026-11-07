@@ -89,9 +89,12 @@ Scope {
                 visible: root.visible
                 anchors {
                     horizontalCenter: parent.horizontalCenter
-                    top: parent.top
-                    // The bar's visual bottom edge (it floats inside its gaps when cornerStyle is 1)
-                    topMargin: GlobalStates.drawerTopOn(root.screen) // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+                    // Directly against the bar's visual edge (it floats inside its gaps when cornerStyle is 1): overlapping
+                    // its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+                    top: GlobalStates.barAtBottom ? undefined : parent.top
+                    bottom: GlobalStates.barAtBottom ? parent.bottom : undefined
+                    topMargin: GlobalStates.drawerTopOn(root.screen)
+                    bottomMargin: GlobalStates.drawerTopOn(root.screen)
                 }
                 spacing: -8
                 Keys.onPressed: event => {

@@ -52,7 +52,8 @@ Scope {
             right: true
             bottom: true
         }
-        margins.top: topEdge
+        margins.top: GlobalStates.barAtBottom ? 0 : topEdge
+        margins.bottom: GlobalStates.barAtBottom ? topEdge : 0 // Bar along the bottom: right above it
         implicitWidth: panelWidth + sideMargin * 2
         color: "transparent"
         mask: Region { item: maskArea }
@@ -60,6 +61,7 @@ Scope {
         Item {
             id: maskArea
             x: root.sideMargin
+            y: GlobalStates.barAtBottom ? root.height - height : 0
             width: root.panelWidth
             height: root.drawerHeight
         }
@@ -68,6 +70,7 @@ Scope {
             id: stage
             anchors.fill: parent
             clip: true
+            transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
 
             DrawerReadiness {
                 id: readiness
@@ -95,6 +98,8 @@ Scope {
             }
 
             Item { // Cards, revealed as the drawer grows
+                id: cards
+                transform: BarSideFlip { size: cards.height } // Upright in a flipped stage
                 x: root.sideMargin + root.padding
                 y: root.padding
                 width: root.panelWidth - root.padding * 2
