@@ -111,9 +111,11 @@ ApplicationWindow {
     property int selectedResult: 0
     // The page list's Collapse (icons only), kept for next time in ~/.local/state/quickshell/user/settings_app.json
     readonly property bool navCollapsed: appState.value.navCollapsed ?? false
+    property bool navStateLoaded: false // Until then the list is at its default: it snaps to the saved state, no slide
     JsonStore {
         id: appState
         filePath: `${CF.FileUtils.trimFileProtocol(Directories.state)}/user/settings_app.json`
+        onLoaded: root.navStateLoaded = true
     }
     onQueryChanged: {
         if (query === "") return; // Folding away: the panel keeps its rows and highlight
@@ -219,6 +221,7 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 Layout.preferredWidth: expanded ? 236 : 64
                 Behavior on Layout.preferredWidth {
+                    enabled: root.navStateLoaded
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }
                 pages: root.pages

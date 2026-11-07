@@ -676,6 +676,7 @@ ContentPage {
             model: page.shownApps
             delegate: RuleRow {}
         }
+        Item { implicitHeight: 6; visible: builtinButton.visible } // Apart from the app rules' group
         RippleButton { // The built-in fixes, folded
             id: builtinButton
             visible: page.shownBuiltin.length > 0
@@ -684,7 +685,6 @@ ContentPage {
             buttonRadiusTop: builtinCorners.top
             buttonRadiusBottom: builtinCorners.bottom
             Layout.fillWidth: true
-            Layout.topMargin: 6
             implicitHeight: builtinHeader.implicitHeight + 24
             buttonRadius: Appearance.rounding.normal
             colBackground: Appearance.m3colors.m3surfaceContainer

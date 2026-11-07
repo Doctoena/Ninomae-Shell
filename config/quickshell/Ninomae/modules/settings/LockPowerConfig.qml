@@ -15,158 +15,148 @@ ContentPage {
     ContentSection {
         title: Translation.tr("Lock screen")
         spacing: 10
+        // The look beside a little lock screen as yours looks, so a change shows right there; security under
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
-            // A little lock screen as yours looks: the wallpaper (blurred as set), the chips top right, the time
-            // bottom left, the password pill bottom right.
-            // Centred against the settings beside it
-            Rectangle { // The preview in a card as tall as the settings beside it, centred in it
+            // The wallpaper (blurred as set), the chips top right, the time bottom left, the password pill bottom
+            // right. In a card as tall as the settings beside it, centred in it
+            SettingsCard {
+                Layout.fillWidth: false
                 Layout.fillHeight: true
-                Layout.preferredWidth: 380
-                radius: Appearance.rounding.normal
-                color: Appearance.m3colors.m3surfaceContainer
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    width: 340
-                    spacing: 8
-                    ClippingRectangle {
-                        id: lockPreview
-                        Layout.alignment: Qt.AlignHCenter // In the middle of its half, as the Display page's screen
-                        Layout.preferredWidth: 340
-                        Layout.preferredHeight: Math.round(340 * 9 / 16)
-                        radius: Appearance.rounding.small
-                        color: Appearance.colors.colLayer2
-                        StyledImage {
-                            id: previewWallpaper
-                            anchors.fill: parent
-                            source: Config.wallpaperPath
-                            fillMode: Image.PreserveAspectCrop
-                            sourceSize.width: 560
-                            asynchronous: true
-                            visible: !page.lock.blur.enable
+                Layout.preferredWidth: 340
+                spacing: 8
+                ClippingRectangle {
+                    id: lockPreview
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.round(width * 9 / 16)
+                    radius: Appearance.rounding.small
+                    color: Appearance.colors.colLayer2
+                    StyledImage {
+                        id: previewWallpaper
+                        anchors.fill: parent
+                        source: Config.wallpaperPath
+                        fillMode: Image.PreserveAspectCrop
+                        sourceSize.width: 560
+                        asynchronous: true
+                        visible: !page.lock.blur.enable
+                    }
+                    MultiEffect { // The blur, scaled down to the preview's size
+                        anchors.fill: parent
+                        visible: page.lock.blur.enable
+                        source: previewWallpaper
+                        blurEnabled: true
+                        blurMax: 32
+                        blur: Math.min(1, page.lock.blur.radius * (lockPreview.width / 1920) / 8)
+                    }
+                    Rectangle { // The lock screen's shade: light at the top, deeper at the foot
+                        anchors.fill: parent
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.8) }
+                            GradientStop { position: 0.5; color: "transparent" }
+                            GradientStop { position: 1.0; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.25) }
                         }
-                        MultiEffect { // The blur, scaled down to the preview's size
-                            anchors.fill: parent
-                            visible: page.lock.blur.enable
-                            source: previewWallpaper
-                            blurEnabled: true
-                            blurMax: 32
-                            blur: Math.min(1, page.lock.blur.radius * (lockPreview.width / 1920) / 8)
-                        }
-                        Rectangle { // The lock screen's shade: light at the top, deeper at the foot
-                            anchors.fill: parent
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.8) }
-                                GradientStop { position: 0.5; color: "transparent" }
-                                GradientStop { position: 1.0; color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.25) }
+                    }
+                    Row { // The chips, top right
+                        anchors { right: parent.right; top: parent.top; margins: 6 }
+                        spacing: 3
+                        Repeater {
+                            model: [18, 18, 10, 10, 10]
+                            Rectangle {
+                                required property int modelData
+                                width: modelData; height: 10; radius: 3.5
+                                color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
                             }
                         }
-                        Row { // The chips, top right
-                            anchors { right: parent.right; top: parent.top; margins: 6 }
-                            spacing: 3
+                    }
+                    Column { // The time and the day, bottom left
+                        anchors { left: parent.left; bottom: parent.bottom; leftMargin: 10; bottomMargin: 8 }
+                        spacing: -2
+                        StyledText {
+                            text: DateTime.time
+                            font.family: Appearance.font.family.expressive
+                            font.pixelSize: Math.round(lockPreview.height * 0.2)
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colOnLayer0
+                        }
+                        StyledText {
+                            text: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM d")
+                            font.pixelSize: 8
+                            color: Appearance.colors.colOnLayer0
+                        }
+                    }
+                    Rectangle { // The password pill, bottom right
+                        anchors { right: parent.right; bottom: parent.bottom; rightMargin: 10; bottomMargin: 12 }
+                        width: parent.width * 0.36
+                        height: Math.round(parent.height * 0.13)
+                        radius: height / 3
+                        color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
+                        Row { // Dots
+                            visible: !page.lock.materialShapeChars
+                            anchors.centerIn: parent
+                            spacing: 5
                             Repeater {
-                                model: [18, 18, 10, 10, 10]
-                                Rectangle {
-                                    required property int modelData
-                                    width: modelData; height: 10; radius: 3.5
-                                    color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
-                                }
+                                model: 6
+                                Rectangle { width: 5; height: 5; radius: 2.5; color: Appearance.colors.colOnLayer1 }
                             }
                         }
-                        Column { // The time and the day, bottom left
-                            anchors { left: parent.left; bottom: parent.bottom; leftMargin: 10; bottomMargin: 8 }
-                            spacing: -2
-                            StyledText {
-                                text: DateTime.time
-                                font.family: Appearance.font.family.expressive
-                                font.pixelSize: Math.round(lockPreview.height * 0.2)
-                                font.weight: Font.DemiBold
-                                color: Appearance.colors.colOnLayer0
-                            }
-                            StyledText {
-                                text: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM d")
-                                font.pixelSize: 8
-                                color: Appearance.colors.colOnLayer0
-                            }
-                        }
-                        Rectangle { // The password pill, bottom right
-                            anchors { right: parent.right; bottom: parent.bottom; rightMargin: 10; bottomMargin: 12 }
-                            width: parent.width * 0.36
-                            height: Math.round(parent.height * 0.13)
-                            radius: height / 3
-                            color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
-                            Row { // Dots
-                                visible: !page.lock.materialShapeChars
-                                anchors.centerIn: parent
-                                spacing: 5
-                                Repeater {
-                                    model: 6
-                                    Rectangle { width: 5; height: 5; radius: 2.5; color: Appearance.colors.colOnLayer1 }
-                                }
-                            }
-                            Loader { // Or the lock screen's own shapes
-                                active: page.lock.materialShapeChars
-                                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
-                                sourceComponent: PasswordChars { length: 6 }
-                            }
+                        Loader { // Or the lock screen's own shapes
+                            active: page.lock.materialShapeChars
+                            anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                            sourceComponent: PasswordChars { length: 6 }
                         }
                     }
-                    StyledText {
-                        Layout.fillWidth: true
-                        horizontalAlignment: Text.AlignHCenter
-                        text: Translation.tr("Locks by itself after 5 minutes. Super+L locks now")
-                        wrapMode: Text.Wrap
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtext
-                    }
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: Translation.tr("Locks by itself after 5 minutes. Super+L locks now")
+                    wrapMode: Text.Wrap
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
                 }
             }
-            ColumnLayout { // The settings
-                Layout.fillWidth: true
+            ContentSubsection { // The look: no name, the preview beside says it. Lined up with its top
                 Layout.alignment: Qt.AlignTop
-                spacing: 4
-                ContentSubsection {
-                    title: Translation.tr("Security")
-                    ConfigSwitch {
-                        text: Translation.tr("Lock at login")
-                        option: "lock.launchOnStartup"
-                        tooltip: Translation.tr("For logins that skip the password, like auto-login")
-                    }
-                    ConfigSwitch {
-                        text: Translation.tr("Unlocking also unlocks the keyring")
-                        option: "lock.security.unlockKeyring"
-                        tooltip: Translation.tr("Where saved passwords and the game launcher's API keys are kept")
-                    }
-                    ConfigSwitch {
-                        text: Translation.tr("Ask for the password to power off")
-                        option: "lock.security.requirePasswordToPower"
-                        tooltip: Translation.tr("For the power buttons on the lock screen")
-                    }
+                Layout.topMargin: 0
+                ConfigSwitch {
+                    text: Translation.tr("Shapes instead of dots in the password")
+                    description: Translation.tr("Each character shows as a small shape as you type")
+                    option: "lock.materialShapeChars"
                 }
-                ContentSubsection {
-                    title: Translation.tr("Look")
-                    ConfigSwitch {
-                        text: Translation.tr("Shapes instead of dots in the password")
-                        description: Translation.tr("Each character shows as a small shape as you type")
-                        option: "lock.materialShapeChars"
-                    }
-                    ConfigSwitch {
-                        text: Translation.tr("Blur the wallpaper")
-                        description: Translation.tr("The lock screen's wallpaper, softened behind the clock")
-                        option: "lock.blur.enable"
-                    }
-                    ConfigSpinBox {
-                        text: Translation.tr("Blur amount")
-                        description: Translation.tr("How soft the wallpaper gets")
-                        visible: page.lock.blur.enable
-                        option: "lock.blur.radius"
-                        suffix: "px"
-                        from: 0
-                        to: 200
-                        stepSize: 10
-                    }
+                ConfigSwitch {
+                    text: Translation.tr("Blur the wallpaper")
+                    description: Translation.tr("The lock screen's wallpaper, softened behind the clock")
+                    option: "lock.blur.enable"
                 }
+                ConfigSpinBox {
+                    text: Translation.tr("Blur amount")
+                    description: Translation.tr("How soft the wallpaper gets")
+                    visible: page.lock.blur.enable
+                    option: "lock.blur.radius"
+                    suffix: "px"
+                    from: 0
+                    to: 200
+                    stepSize: 10
+                }
+            }
+        }
+        ContentSubsection {
+            title: Translation.tr("Security")
+            ConfigSwitch {
+                text: Translation.tr("Lock at login")
+                option: "lock.launchOnStartup"
+                tooltip: Translation.tr("For logins that skip the password, like auto-login")
+            }
+            ConfigSwitch {
+                text: Translation.tr("Unlocking also unlocks the keyring")
+                option: "lock.security.unlockKeyring"
+                tooltip: Translation.tr("Where saved passwords and the game launcher's API keys are kept")
+            }
+            ConfigSwitch {
+                text: Translation.tr("Ask for the password to power off")
+                option: "lock.security.requirePasswordToPower"
+                tooltip: Translation.tr("For the power buttons on the lock screen")
             }
         }
     }
@@ -241,7 +231,7 @@ ContentPage {
             }
         }
         ContentSubsection {
-            title: Translation.tr("Warnings")
+            title: Translation.tr("Notifications")
             ConfigSpinBox {
                 text: Translation.tr("Low battery warning at")
                 description: Translation.tr("A notification when the battery drops to this")
@@ -260,9 +250,6 @@ ContentPage {
                 to: 25
                 stepSize: 1
             }
-        }
-        ContentSubsection {
-            title: Translation.tr("Charging")
             ConfigSpinBox {
                 text: Translation.tr("Fully charged at")
                 tooltip: Translation.tr("A notification to unplug when charging reaches this. 101 % turns it off")

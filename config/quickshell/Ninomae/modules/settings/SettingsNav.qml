@@ -90,7 +90,7 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: Quickshell.execDetached([Quickshell.shellPath("scripts/set-avatar.sh")])
                 }
-                StyledToolTip {
+                SideToolTip {
                     text: Translation.tr("Change your picture")
                     visible: faceArea.containsMouse
                 }
@@ -149,6 +149,11 @@ Rectangle {
         }
     }
 
+    // Beside what it's for, centred on it: above, the window's edge would push it off centre
+    component SideToolTip: StyledToolTip {
+        x: parent.width + 8
+        y: (parent.height - height) / 2
+    }
     component Hairline: Rectangle {
         Layout.fillWidth: true
         Layout.leftMargin: 12
@@ -169,7 +174,7 @@ Rectangle {
         colBackgroundToggled: Appearance.m3colors.m3surfaceContainerHigh
         colBackgroundToggledHover: Appearance.m3colors.m3surfaceContainerHighest
         colRippleToggled: Appearance.m3colors.m3surfaceContainerHighest
-        StyledToolTip { // Icons only: the name on hover
+        SideToolTip { // Icons only: the name on hover
             text: button.text
             visible: !nav.expanded && button.hovered
         }
