@@ -439,7 +439,6 @@ ApplicationWindow {
                             spacing: 14
                             ConfigSwitch {
                                 Layout.fillWidth: true
-                                buttonIcon: "cloud"
                                 text: Translation.tr("Show the weather")
                                 option: "bar.weather.enable"
                             }

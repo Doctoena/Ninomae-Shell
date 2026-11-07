@@ -250,6 +250,7 @@ MouseArea {
                     width: 38
                     height: 38
                     source: faceFile.loaded ? `file://${faceFile.path}` : ""
+                    cache: false // A new picture (Settings → your picture) under the same path
                     fillMode: Image.PreserveAspectCrop
                     sourceSize: Qt.size(88, 88)
                     visible: status === Image.Ready

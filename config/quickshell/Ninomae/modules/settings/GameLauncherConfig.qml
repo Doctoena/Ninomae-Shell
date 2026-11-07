@@ -10,12 +10,11 @@ import qs.modules.common.widgets
 ContentPage {
     Component.onCompleted: KeyringStorage.fetchKeyringData() // This Settings window is its own process
     ContentSection {
-        icon: "sports_esports"
         title: Translation.tr("Launcher")
         spacing: 10
         ConfigChoiceRow {
-            icon: "sort"
             text: Translation.tr("Sort by")
+            description: Translation.tr("The order of the library grid")
             option: "gameLauncher.sortOrder"
             options: [
                 { displayName: Translation.tr("Recent"), icon: "history", value: "recency" },
@@ -25,13 +24,11 @@ ContentPage {
             ]
         }
         ConfigSwitch {
-            buttonIcon: "rocket_launch"
             text: Translation.tr("Show launch progress")
             option: "gameLauncher.launchAnimation"
             tooltip: Translation.tr("A drawer under the bar while the game starts: what Steam is doing (updating, shaders…)\nwith progress, until the game's window opens. Says so if the game quits before then")
         }
         ConfigSwitch {
-            buttonIcon: "login"
             text: Translation.tr("Start Steam at login")
             option: "gameLauncher.steamAtLogin"
             tooltip: Translation.tr("Hidden in the tray, without its window. Games start without waiting for Steam,\nand updates download before you play. Uses some memory while it runs")
@@ -66,7 +63,6 @@ ContentPage {
     // last change (picking both hours restarts it once)
     ContentSection {
         id: steamDownloads
-        icon: "download"
         title: Translation.tr("Steam downloads")
         spacing: 10
         readonly property string helper: Quickshell.shellPath("scripts/game-launcher/launch_options.py")
@@ -126,7 +122,6 @@ ContentPage {
             id: duringGameplaySwitch
             visible: steamDownloads.current !== null
             enabled: !writeProc.running
-            buttonIcon: "sports_esports"
             text: Translation.tr("Download while playing")
             checked: steamDownloads.shown.duringGameplay ?? false
             onClicked: steamDownloads.toggle(duringGameplaySwitch, "duringGameplay")
@@ -136,7 +131,6 @@ ContentPage {
             id: windowSwitch
             visible: steamDownloads.current !== null
             enabled: !writeProc.running
-            buttonIcon: "schedule"
             text: Translation.tr("Only update games at certain hours")
             checked: steamDownloads.shown.windowEnabled ?? false
             onClicked: steamDownloads.toggle(windowSwitch, "windowEnabled")
@@ -145,8 +139,8 @@ ContentPage {
         ConfigComboBox {
             visible: steamDownloads.current !== null && (steamDownloads.shown.windowEnabled ?? false)
             enabled: !writeProc.running
-            icon: "bedtime"
             text: Translation.tr("From")
+            description: Translation.tr("When updates may start")
             options: [...Array(24).keys()].map(h => ({ displayName: Qt.formatTime(new Date(2000, 0, 1, h), Qt.locale().timeFormat(Locale.ShortFormat)), value: h }))
             currentValue: steamDownloads.shown.windowStart ?? 1
             onSelected: v => steamDownloads.change("windowStart", v)
@@ -154,74 +148,72 @@ ContentPage {
         ConfigComboBox {
             visible: steamDownloads.current !== null && (steamDownloads.shown.windowEnabled ?? false)
             enabled: !writeProc.running
-            icon: "wb_sunny"
             text: Translation.tr("Until")
+            description: Translation.tr("When they stop for the day")
             options: [...Array(24).keys()].map(h => ({ displayName: Qt.formatTime(new Date(2000, 0, 1, h), Qt.locale().timeFormat(Locale.ShortFormat)), value: h }))
             currentValue: steamDownloads.shown.windowEnd ?? 7
             onSelected: v => steamDownloads.change("windowEnd", v)
         }
         // Pause and resume from the launcher go through the shell's Millennium plugin
         // (themes/steam/ninomae-plugin, scripts/game-launcher/steam_control.py): whether it's there
-        RowLayout {
-            id: plugin
-            property string status: "" // steam_control.py status: on, outdated, installed (Steam isn't running) or missing
-            Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            spacing: 10
-            Component.onCompleted: pluginCheck.running = true
-            Process {
-                id: pluginCheck
-                command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_control.py"), "status"]
-                stdout: StdioCollector { onStreamFinished: plugin.status = text.trim() }
-            }
-            MaterialSymbol {
-                text: plugin.status === "missing" ? "extension_off" : "extension"
-                iconSize: Appearance.font.pixelSize.larger
-                color: plugin.status === "on" || plugin.status === "outdated" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+        SettingsCard {
+            RowLayout {
+                id: plugin
+                property string status: "" // steam_control.py status: on, outdated, installed (Steam isn't running) or missing
+                Layout.fillWidth: true
+                Layout.leftMargin: 8
+                Layout.rightMargin: 8
+                spacing: 10
+                Component.onCompleted: pluginCheck.running = true
+                Process {
+                    id: pluginCheck
+                    command: ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_control.py"), "status"]
+                    stdout: StdioCollector { onStreamFinished: plugin.status = text.trim() }
+                }
+                MaterialSymbol {
+                    text: plugin.status === "missing" ? "extension_off" : "extension"
+                    iconSize: Appearance.font.pixelSize.larger
+                    color: plugin.status === "on" || plugin.status === "outdated" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnLayer1
+                    text: plugin.status === "on" ? Translation.tr("The launcher can pause, resume and order Steam's downloads, and save launch options without restarting Steam.")
+                        : plugin.status === "outdated" ? Translation.tr("The Ninomae plugin was updated. Restart Steam to load it.")
+                        : plugin.status === "installed" ? Translation.tr("Pause and resume in the launcher work while Steam is running.")
+                        : plugin.status === "missing" ? Translation.tr("To pause and resume downloads from the launcher, Steam needs Millennium and the Ninomae plugin. Run ninomae update to set them up.")
+                        : ""
+                }
             }
             StyledText {
                 Layout.fillWidth: true
+                Layout.leftMargin: 8
+                visible: steamDownloads.current !== null
                 wrapMode: Text.Wrap
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnLayer1
-                text: plugin.status === "on" ? Translation.tr("The launcher can pause, resume and order Steam's downloads, and save launch options without restarting Steam.")
-                    : plugin.status === "outdated" ? Translation.tr("The Ninomae plugin was updated. Restart Steam to load it.")
-                    : plugin.status === "installed" ? Translation.tr("Pause and resume in the launcher work while Steam is running.")
-                    : plugin.status === "missing" ? Translation.tr("To pause and resume downloads from the launcher, Steam needs Millennium and the Ninomae plugin. Run ninomae update to set them up.")
-                    : ""
+                color: steamDownloads.error !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                text: steamDownloads.error !== "" ? steamDownloads.error
+                    : writeProc.running || applyTimer.running ? Translation.tr("Restarting Steam in the tray…")
+                    : Translation.tr("Changing these restarts Steam in the tray. Speed limits are in Steam's Downloads page.")
             }
-        }
-        StyledText {
-            Layout.fillWidth: true
-            Layout.leftMargin: 8
-            visible: steamDownloads.current !== null
-            wrapMode: Text.Wrap
-            color: steamDownloads.error !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            text: steamDownloads.error !== "" ? steamDownloads.error
-                : writeProc.running || applyTimer.running ? Translation.tr("Restarting Steam in the tray…")
-                : Translation.tr("Changing these restarts Steam in the tray. Speed limits are in Steam's Downloads page.")
         }
     }
     ContentSection {
-        icon: "image"
         title: Translation.tr("Artwork")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "image_not_supported"
             text: Translation.tr("Hide games without box art")
             option: "gameLauncher.hideWithoutBoxArt"
             tooltip: Translation.tr("Mostly dedicated servers and tools, which have no cover art")
         }
         ConfigSwitch {
-            buttonIcon: "blur_on"
             text: Translation.tr("Hide games with partial box art")
             option: "gameLauncher.hidePartialBoxArt"
             tooltip: Translation.tr("Games with only an auto-made cover")
         }
         ConfigSwitch {
-            buttonIcon: "broken_image"
             text: Translation.tr("Use the game's icon when there's no art")
             option: "gameLauncher.fallbackToIcons"
             tooltip: Translation.tr("Instead of hiding the game or showing a blank tile")

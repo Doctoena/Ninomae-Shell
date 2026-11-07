@@ -55,6 +55,28 @@ ApplicationWindow {
         return Math.max(0, index);
     }
     visible: true
+    // For checking the design: NINOMAE_SETTINGS_SNAPSHOT=/dir renders every page, all of it, to /dir/NN-name.png
+    // and quits. It takes no input meanwhile, so a click meant for something else can't change a setting
+    readonly property string snapshotDir: Quickshell.env("NINOMAE_SETTINGS_SNAPSHOT") ?? ""
+    flags: snapshotDir !== "" ? (Qt.Window | Qt.WindowTransparentForInput) : Qt.Window
+    property int snapshotPage: -1
+    Timer {
+        running: root.snapshotDir !== "" && Config.ready
+        interval: 1500
+        repeat: true
+        onTriggered: {
+            if (root.snapshotPage >= 0) {
+                const page = pageLoader.item;
+                const target = page?.column ?? page;
+                const n = root.snapshotPage;
+                const file = `${root.snapshotDir}/${String(n + 1).padStart(2, "0")}-${root.pages[n].name.replace(/[^A-Za-z]+/g, "-")}.png`;
+                target?.grabToImage(result => result.saveToFile(file));
+            }
+            root.snapshotPage += 1;
+            if (root.snapshotPage >= root.pages.length) { stop(); Qt.callLater(Qt.quit); return; }
+            root.currentPage = root.snapshotPage;
+        }
+    }
     onClosing: Qt.quit()
     title: "Ninomae Settings"
     // scripts/open-settings.sh calls this when Settings is already open: switch page and come forward
@@ -62,8 +84,8 @@ ApplicationWindow {
         target: "settings"
         // `qs -p settings.qml ipc call settings search "blur"`: fills the search box
         function search(text: string): void {
-            searchField.text = text;
-            searchField.forceActiveFocus();
+            headerBar.searchField.text = text;
+            headerBar.searchField.forceActiveFocus();
         }
         // Opens the best match for `text`, like pressing Enter in the search box
         function jump(text: string): void {
@@ -82,17 +104,30 @@ ApplicationWindow {
         id: search
         pages: root.pages
     }
-    property string query: ""
-    readonly property var results: search.results(query)
+    readonly property string query: headerBar.searchField.text
+    property string shownQuery: "" // What the results panel shows: the last query, kept while the panel folds away
+    readonly property var shownResults: search.results(shownQuery)
+    readonly property var results: query !== "" ? shownResults : [] // What Up, Down and Enter act on
     property int selectedResult: 0
-    onQueryChanged: selectedResult = 0
+    // The page list's Collapse (icons only), kept for next time in ~/.local/state/quickshell/user/settings_app.json
+    readonly property bool navCollapsed: appState.value.navCollapsed ?? false
+    JsonStore {
+        id: appState
+        filePath: `${CF.FileUtils.trimFileProtocol(Directories.state)}/user/settings_app.json`
+    }
+    onQueryChanged: {
+        if (query === "") return; // Folding away: the panel keeps its rows and highlight
+        shownQuery = query;
+        selectedResult = 0;
+        resultsList.contentY = 0;
+    }
     property var pendingJump: null // { label, keybind }: found and highlighted once its page has loaded
     function openResult(result) {
         if (!result) return;
         root.pendingJump = { label: result.label, keybind: result.keybind, tries: 0 };
         if (root.currentPage !== result.page) root.currentPage = result.page; // The page loads, then jumpTimer runs
         else jumpTimer.restart();
-        searchField.text = "";
+        headerBar.searchField.text = "";
     }
     // After a page change (or right away on the same page): find the option, scroll to it and flash it
     Timer {
@@ -162,373 +197,52 @@ ApplicationWindow {
     }
     minimumWidth: 750
     minimumHeight: 500
-    width: 1100
-    height: 750
+    width: 1477 // As the window rule "settings-window" floats it
+    height: 859
     color: Appearance.colors.colLayer0
+    // Ctrl K / Ctrl F: search. Ctrl Page Up / Down: the page before / after. Ctrl Tab: round and round
+    Shortcut { sequences: ["Ctrl+K", "Ctrl+F"]; onActivated: headerBar.searchField.forceActiveFocus() }
+    Shortcut { sequence: "Ctrl+PgDown"; onActivated: root.currentPage = Math.min(root.currentPage + 1, root.pages.length - 1) }
+    Shortcut { sequence: "Ctrl+PgUp"; onActivated: root.currentPage = Math.max(root.currentPage - 1, 0) }
+    Shortcut { sequence: "Ctrl+Tab"; onActivated: root.currentPage = (root.currentPage + 1) % root.pages.length }
+    Shortcut { sequence: "Ctrl+Shift+Tab"; onActivated: root.currentPage = (root.currentPage - 1 + root.pages.length) % root.pages.length }
     ColumnLayout {
         anchors {
             fill: parent
             margins: contentPadding
         }
-        Keys.onPressed: (event) => {
-            if (event.modifiers === Qt.ControlModifier) {
-                if (event.key === Qt.Key_F) {
-                    searchField.forceActiveFocus();
-                    event.accepted = true;
-                    return;
-                }
-                if (event.key === Qt.Key_PageDown) {
-                    root.currentPage = Math.min(root.currentPage + 1, root.pages.length - 1)
-                    event.accepted = true;
-                }
-                else if (event.key === Qt.Key_PageUp) {
-                    root.currentPage = Math.max(root.currentPage - 1, 0)
-                    event.accepted = true;
-                }
-                else if (event.key === Qt.Key_Tab) {
-                    root.currentPage = (root.currentPage + 1) % root.pages.length;
-                    event.accepted = true;
-                }
-                else if (event.key === Qt.Key_Backtab) {
-                    root.currentPage = (root.currentPage - 1 + root.pages.length) % root.pages.length;
-                    event.accepted = true;
-                }
-            }
-        }
         RowLayout { // Sidebar + content
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: root.contentPadding
-            Rectangle { // Sidebar
-                id: sidebar
-                readonly property bool expanded: root.width > 900
+            SettingsNav { // You, the pages in their groups, Collapse
                 Layout.fillHeight: true
-                implicitWidth: expanded ? 210 : 60
-                Behavior on implicitWidth {
+                Layout.preferredWidth: expanded ? 236 : 64
+                Behavior on Layout.preferredWidth {
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }
-                color: Appearance.m3colors.m3surfaceContainer
-                radius: Appearance.rounding.windowRounding - root.contentPadding
-                clip: true
-                ColumnLayout {
-                    anchors {
-                        fill: parent
-                        margins: 10
-                    }
-                    spacing: 2
-                    // Header: badge + title
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.margins: 2
-                        Layout.bottomMargin: 12
-                        spacing: 10
-                        Rectangle {
-                            implicitWidth: 36
-                            implicitHeight: 36
-                            radius: 12
-                            color: Appearance.m3colors.m3surfaceContainerHighest
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                text: "settings"
-                                iconSize: 20
-                                color: Appearance.colors.colOnLayer2
-                            }
-                        }
-                        ColumnLayout {
-                            visible: sidebar.expanded
-                            spacing: 0
-                            StyledText {
-                                text: Translation.tr("Settings")
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                font.weight: Font.DemiBold
-                                color: Appearance.colors.colOnLayer1
-                            }
-                            StyledText {
-                                text: "Ninomae"
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                color: Appearance.colors.colSubtext
-                            }
-                        }
-                    }
-                    // Search: finds any option on any page, and keybinds
-                    Rectangle {
-                        visible: sidebar.expanded
-                        Layout.fillWidth: true
-                        Layout.bottomMargin: 8
-                        implicitHeight: 36
-                        radius: Appearance.rounding.container
-                        color: Appearance.m3colors.m3surfaceContainerHigh
-                        border.width: searchField.activeFocus ? 2 : 0
-                        border.color: CF.ColorUtils.transparentize(Appearance.colors.colPrimary, 0.45)
-                        MaterialSymbol {
-                            id: searchIcon
-                            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                            text: "search"
-                            iconSize: 18
-                            color: Appearance.colors.colOnSurfaceVariant
-                        }
-                        TextField {
-                            id: searchField
-                            anchors {
-                                left: searchIcon.right; leftMargin: 6
-                                right: clearButton.visible ? clearButton.left : parent.right; rightMargin: 8
-                                verticalCenter: parent.verticalCenter
-                            }
-                            background: null
-                            padding: 0
-                            color: Appearance.colors.colOnLayer1
-                            placeholderText: Translation.tr("Search settings")
-                            placeholderTextColor: Appearance.colors.colSubtext
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.smallie
-                            selectionColor: Appearance.colors.colSecondaryContainer
-                            onTextChanged: root.query = text
-                            Keys.onPressed: event => {
-                                if (event.key === Qt.Key_Down) root.selectedResult = Math.min(root.selectedResult + 1, root.results.length - 1);
-                                else if (event.key === Qt.Key_Up) root.selectedResult = Math.max(root.selectedResult - 1, 0);
-                                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.openResult(root.results[root.selectedResult]);
-                                else if (event.key === Qt.Key_Escape && text !== "") text = "";
-                                else return;
-                                event.accepted = true;
-                            }
-                        }
-                        RippleButton {
-                            id: clearButton
-                            visible: searchField.text !== ""
-                            anchors { right: parent.right; rightMargin: 4; verticalCenter: parent.verticalCenter }
-                            implicitWidth: 28
-                            implicitHeight: 28
-                            buttonRadius: Appearance.rounding.segment
-                            colBackgroundHover: Appearance.m3colors.m3surfaceContainerHighest
-                            onClicked: searchField.text = ""
-                            contentItem: MaterialSymbol {
-                                anchors.centerIn: parent
-                                horizontalAlignment: Text.AlignHCenter
-                                text: "close"
-                                iconSize: 16
-                                color: Appearance.colors.colOnSurfaceVariant
-                            }
-                        }
-                    }
-                    StyledText {
-                        visible: root.query !== "" && root.results.length === 0
-                        Layout.fillWidth: true
-                        Layout.margins: 8
-                        wrapMode: Text.Wrap
-                        text: Translation.tr("Nothing matches \"%1\"").arg(root.query)
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtext
-                    }
-                    StyledFlickable { // Results: the option, and where it is
-                        visible: root.query !== ""
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        contentHeight: resultColumn.implicitHeight
-                        clip: true
-                        ColumnLayout {
-                            id: resultColumn
-                            width: parent.width
-                            spacing: 2
-                            Repeater {
-                                model: root.results
-                                delegate: RippleButton {
-                                    id: resultButton
-                                    required property int index
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    implicitHeight: resultText.implicitHeight + 16
-                                    buttonRadius: 13
-                                    toggled: root.selectedResult === index
-                                    colBackground: "transparent"
-                                    colBackgroundHover: Appearance.m3colors.m3surfaceContainerHigh
-                                    colBackgroundToggled: Appearance.m3colors.m3surfaceContainerHigh
-                                    colBackgroundToggledHover: Appearance.m3colors.m3surfaceContainerHighest
-                                    colRippleToggled: Appearance.m3colors.m3surfaceContainerHighest
-                                    onClicked: root.openResult(modelData)
-                                    contentItem: RowLayout {
-                                        spacing: 10
-                                        MaterialSymbol {
-                                            Layout.leftMargin: 4
-                                            text: resultButton.modelData.keybind ? "keyboard" : root.pages[resultButton.modelData.page].icon
-                                            rotation: resultButton.modelData.keybind ? 0 : (root.pages[resultButton.modelData.page].iconRotation || 0)
-                                            iconSize: Appearance.font.pixelSize.larger
-                                            color: resultButton.toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
-                                        }
-                                        ColumnLayout {
-                                            id: resultText
-                                            Layout.fillWidth: true
-                                            spacing: 0
-                                            StyledText {
-                                                Layout.fillWidth: true
-                                                text: resultButton.modelData.label
-                                                wrapMode: Text.Wrap
-                                                font.pixelSize: Appearance.font.pixelSize.smallie
-                                                color: resultButton.toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
-                                            }
-                                            StyledText {
-                                                Layout.fillWidth: true
-                                                text: resultButton.modelData.where
-                                                elide: Text.ElideRight
-                                                font.pixelSize: Appearance.font.pixelSize.smallest
-                                                color: Appearance.colors.colSubtext
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Repeater {
-                        model: root.query === "" ? root.pages : []
-                        // A group's name over its first page (a gap when the list is folded to icons). Squircle style
-                        // like the rest of the shell: the current page stays on the neutral surface, with its icon on
-                        // an accent squircle and its name in accent
-                        delegate: ColumnLayout {
-                            id: pageEntry
-                            required property int index
-                            required property var modelData
-                            readonly property bool startsGroup: index === 0 || root.pages[index - 1].group !== modelData.group
-                            Layout.fillWidth: true
-                            spacing: 2
-                            RowLayout { // The group's name in small capitals, then a hairline out to the edge
-                                visible: pageEntry.startsGroup && sidebar.expanded
-                                Layout.fillWidth: true
-                                Layout.leftMargin: 12
-                                Layout.rightMargin: 8
-                                Layout.topMargin: pageEntry.index === 0 ? 2 : 14
-                                Layout.bottomMargin: 4
-                                spacing: 10
-                                StyledText {
-                                    text: pageEntry.modelData.group.toUpperCase()
-                                    font.pixelSize: Appearance.font.pixelSize.smallest
-                                    font.weight: Font.DemiBold
-                                    font.letterSpacing: 1.4
-                                    color: Appearance.colors.colOnSurfaceVariant
-                                }
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: 1
-                                    color: Appearance.colors.colOutlineVariant
-                                    opacity: 0.6
-                                }
-                            }
-                            Item {
-                                visible: pageEntry.startsGroup && !sidebar.expanded && pageEntry.index > 0
-                                implicitHeight: 10
-                            }
-                            RippleButton {
-                                id: pageButton
-                                Layout.fillWidth: true
-                                implicitHeight: 42
-                                buttonRadius: 13
-                                toggled: root.currentPage === pageEntry.index
-                                onClicked: root.currentPage = pageEntry.index
-                                colBackground: "transparent"
-                                colBackgroundHover: Appearance.m3colors.m3surfaceContainerHigh
-                                colBackgroundToggled: Appearance.m3colors.m3surfaceContainerHigh
-                                colBackgroundToggledHover: Appearance.m3colors.m3surfaceContainerHighest
-                                colRippleToggled: Appearance.m3colors.m3surfaceContainerHighest
-                                contentItem: RowLayout {
-                                    spacing: 12
-                                    Rectangle {
-                                        Layout.leftMargin: sidebar.expanded ? 4 : 0
-                                        Layout.alignment: sidebar.expanded ? Qt.AlignVCenter : Qt.AlignCenter
-                                        implicitWidth: 30
-                                        implicitHeight: 30
-                                        radius: Appearance.rounding.segment
-                                        color: pageButton.toggled ? Appearance.colors.colPrimary : CF.ColorUtils.transparentize(Appearance.colors.colPrimary) // Not black: no dark flash
-                                        Behavior on color {
-                                            animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-                                        }
-                                        MaterialSymbol {
-                                            anchors.centerIn: parent
-                                            text: pageEntry.modelData.icon
-                                            rotation: pageEntry.modelData.iconRotation || 0
-                                            iconSize: Appearance.font.pixelSize.larger
-                                            fill: pageButton.toggled ? 1 : 0
-                                            color: pageButton.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurfaceVariant
-                                        }
-                                    }
-                                    StyledText {
-                                        visible: sidebar.expanded
-                                        Layout.fillWidth: true
-                                        text: pageEntry.modelData.name
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        font.weight: pageButton.toggled ? Font.DemiBold : Font.Normal
-                                        color: pageButton.toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Item {
-                        visible: root.query === ""
-                        Layout.fillHeight: true
-                    }
-                }
+                pages: root.pages
+                currentPage: root.currentPage
+                expanded: !root.navCollapsed && root.width > 900 // Narrow windows show icons only
+                onPageChosen: index => root.currentPage = index
+                onCollapseToggled: appState.commit(Object.assign({}, appState.value, { navCollapsed: !root.navCollapsed }))
             }
-            Rectangle { // Content container
+            Item { // The open page
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: Appearance.m3colors.m3surfaceContainerLow
-                radius: Appearance.rounding.windowRounding - root.contentPadding
                 clip: true
-                // Page header: lined up with the page's cards (ContentPage's column), icon on an accent squircle
-                Item {
+                Item { // Lined up with the page's cards (ContentPage's column: 20 px margin, 1260 at most)
                     id: pageHeader
-                    anchors { top: parent.top; left: parent.left; right: parent.right; topMargin: 20 }
-                    height: headerRow.implicitHeight + 6
-                    RowLayout {
-                        id: headerRow
-                        width: Math.min(parent.width - 40, 1260) // As ContentPage's margin and maxWidth
+                    anchors { top: parent.top; left: parent.left; right: parent.right; topMargin: 14 }
+                    height: headerBar.implicitHeight + 18
+                    SettingsHeader {
+                        id: headerBar
+                        width: Math.min(parent.width - 40, 1260)
                         x: (parent.width - width) / 2
-                        spacing: 14
-                        Rectangle {
-                            implicitWidth: 46
-                            implicitHeight: 46
-                            radius: Appearance.rounding.normal
-                            color: Appearance.colors.colPrimary
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                text: root.pages[root.currentPage].icon
-                                rotation: root.pages[root.currentPage].iconRotation || 0
-                                iconSize: 26
-                                fill: 1
-                                color: Appearance.colors.colOnPrimary
-                            }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 1
-                            StyledText {
-                                text: root.pages[root.currentPage].name
-                                font.pixelSize: Appearance.font.pixelSize.title
-                                font.weight: Font.DemiBold
-                                color: Appearance.colors.colOnLayer0
-                            }
-                            StyledText {
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                                text: root.pages[root.currentPage].description
-                                font.pixelSize: Appearance.font.pixelSize.smallie
-                                color: Appearance.colors.colSubtext
-                            }
-                        }
-                    }
-                }
-                RippleButton {
-                    anchors { top: parent.top; right: parent.right; margins: 14 }
-                    buttonRadius: Appearance.rounding.container
-                    implicitWidth: 34
-                    implicitHeight: 34
-                    colBackgroundHover: Appearance.m3colors.m3surfaceContainerHigh
-                    onClicked: root.close()
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "close"
-                        iconSize: 20
-                        color: Appearance.colors.colOnSurfaceVariant
+                        page: root.pages[root.currentPage]
+                        onCloseClicked: root.close()
+                        onSearchMoved: step => root.selectedResult = Math.max(0, Math.min(root.selectedResult + step, root.results.length - 1))
+                        onSearchAccepted: root.openResult(root.results[root.selectedResult])
                     }
                 }
                 Loader {
@@ -539,7 +253,6 @@ ApplicationWindow {
                         right: parent.right
                         bottom: parent.bottom
                     }
-                    opacity: 1.0
                     active: Config.ready
                     Component.onCompleted: {
                         source = root.pages[root.currentPage].component
@@ -592,6 +305,120 @@ ApplicationWindow {
                                 duration: 200
                                 easing.type: Appearance.animation.elementMoveEnter.type
                                 easing.bezierCurve: Appearance.animationCurves.emphasizedLastHalf
+                            }
+                        }
+                    }
+                }
+                StyledRectangularShadow {
+                    target: resultsPanel
+                    visible: resultsPanel.visible
+                }
+                Rectangle { // Search results, under the search box: each setting with its page's icon and where it is
+                    id: resultsPanel
+                    readonly property bool open: root.query !== ""
+                    // Unfolds down out of the search box on the drawers' curves (as the tray menu and bar drawers)
+                    property real reveal: open ? 1 : 0
+                    Behavior on reveal {
+                        NumberAnimation {
+                            duration: resultsPanel.open ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: resultsPanel.open ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
+                        }
+                    }
+                    readonly property real fullHeight: Math.min(resultColumn.implicitHeight + 16, parent.height - pageHeader.height - 20)
+                    visible: reveal > 0
+                    clip: true
+                    anchors { top: pageHeader.top; topMargin: headerBar.searchBox.y + headerBar.searchBox.height + 8; right: pageHeader.right; rightMargin: headerBar.x }
+                    width: Math.min(420, parent.width - 40)
+                    height: fullHeight * reveal
+                    radius: Math.min(Appearance.rounding.large, height / 2)
+                    color: Appearance.m3colors.m3surfaceContainer
+                    StyledFlickable {
+                        id: resultsList
+                        anchors { top: parent.top; left: parent.left; right: parent.right; margins: 8 }
+                        height: resultsPanel.fullHeight - 16 // Full size from the start: the panel uncovers it
+                        opacity: Math.min(1, resultsPanel.reveal * 1.4)
+                        contentHeight: resultColumn.implicitHeight
+                        clip: true
+                        ColumnLayout {
+                            id: resultColumn
+                            width: parent.width
+                            spacing: 2
+                            StyledText {
+                                visible: root.shownResults.length === 0
+                                Layout.fillWidth: true
+                                Layout.margins: 10
+                                wrapMode: Text.Wrap
+                                text: Translation.tr("Nothing matches \"%1\"").arg(root.shownQuery)
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: Appearance.colors.colSubtext
+                            }
+                            Repeater {
+                                model: root.shownResults
+                                delegate: RippleButton {
+                                    id: resultButton
+                                    required property int index
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    implicitHeight: 52
+                                    buttonRadius: Appearance.rounding.normal
+                                    toggled: root.selectedResult === index
+                                    onToggledChanged: if (toggled) { // Up / Down past the edge: scroll it into view
+                                        const top = y, bottom = y + height;
+                                        if (top < resultsList.contentY) resultsList.contentY = top;
+                                        else if (bottom > resultsList.contentY + resultsList.height) resultsList.contentY = bottom - resultsList.height;
+                                    }
+                                    colBackground: "transparent"
+                                    colBackgroundHover: Appearance.m3colors.m3surfaceContainerHigh
+                                    colBackgroundToggled: Appearance.m3colors.m3surfaceContainerHigh
+                                    colBackgroundToggledHover: Appearance.m3colors.m3surfaceContainerHighest
+                                    colRippleToggled: Appearance.m3colors.m3surfaceContainerHighest
+                                    onClicked: root.openResult(modelData)
+                                    contentItem: RowLayout {
+                                        spacing: 12
+                                        Rectangle { // The page's icon (a keyboard for a keybind), accent on the selected one
+                                            Layout.leftMargin: 4
+                                            implicitWidth: 32
+                                            implicitHeight: 32
+                                            radius: Appearance.rounding.segment
+                                            color: resultButton.toggled ? Appearance.colors.colPrimary : Appearance.m3colors.m3surfaceContainerHighest
+                                            MaterialSymbol {
+                                                anchors.centerIn: parent
+                                                text: resultButton.modelData.keybind ? "keyboard" : root.pages[resultButton.modelData.page].icon
+                                                rotation: resultButton.modelData.keybind ? 0 : (root.pages[resultButton.modelData.page].iconRotation || 0)
+                                                iconSize: Appearance.font.pixelSize.larger
+                                                fill: resultButton.toggled ? 1 : 0
+                                                color: resultButton.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurfaceVariant
+                                            }
+                                        }
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 1
+                                            StyledText {
+                                                Layout.fillWidth: true
+                                                text: resultButton.modelData.label
+                                                elide: Text.ElideRight
+                                                font.pixelSize: Appearance.font.pixelSize.small
+                                                font.weight: Font.Medium
+                                                color: resultButton.toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
+                                            }
+                                            StyledText {
+                                                Layout.fillWidth: true
+                                                text: resultButton.modelData.where
+                                                elide: Text.ElideRight
+                                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                                color: Appearance.colors.colSubtext
+                                            }
+                                        }
+                                        MaterialSymbol { // Enter opens the selected one
+                                            visible: resultButton.toggled
+                                            Layout.rightMargin: 6
+                                            text: "keyboard_return"
+                                            iconSize: Appearance.font.pixelSize.normal
+                                            color: Appearance.colors.colSubtext
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

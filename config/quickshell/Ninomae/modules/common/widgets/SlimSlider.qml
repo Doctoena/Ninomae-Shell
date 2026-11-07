@@ -4,9 +4,10 @@ import QtQuick
 import QtQuick.Controls
 
 /**
- * The control centre's slider: a thin neutral track, an accent gradient filling it up to a round knob that sits
- * on a ring of the card's colour. Pointing at it or dragging shows a soft halo; a change from elsewhere (media
- * keys, another app) glides there. Drag, click or scroll (2 % a notch).
+ * A slim slider (the control centre, Settings): a thin neutral track, an accent gradient filling it up to a
+ * round knob that sits on a ring of the card's colour. Pointing at it or dragging shows a soft halo; a change
+ * from elsewhere (media keys, another app) glides there. Drag, click or scroll (2 % a notch; Settings turns
+ * the wheel off, where it scrolls the page).
  * Bind `level` (not `value`) to the setting and write it back in onMoved: while it's held the slider follows only
  * the pointer, so the setting's own echo (PipeWire rounds the volume, brightness is applied a beat later)
  * can't pull the knob back and forth.

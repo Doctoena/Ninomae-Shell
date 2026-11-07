@@ -141,7 +141,9 @@ ContentPage {
                     font.weight: Font.DemiBold
                     color: Appearance.colors.colOnLayer0
                 }
-                StyledText {
+                StyledText { // Wraps, so a narrow window keeps the buttons beside it inside the banner
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
                     text: Translation.tr("A Quickshell desktop, coloured by your wallpaper")
                     font.pixelSize: Appearance.font.pixelSize.small
                     color: Appearance.colors.colSubtext
@@ -188,73 +190,75 @@ ContentPage {
 
     // ── This computer ──
     ContentSection {
-        icon: "computer"
         title: Translation.tr("This computer")
         spacing: 14
-        RowLayout { // The distro
-            Layout.fillWidth: true
-            Layout.leftMargin: 4
-            spacing: 16
-            IconImage {
-                implicitSize: 52
-                source: SystemInfo.logo ? Quickshell.iconPath(SystemInfo.logo) : "" // Read from os-release a moment after start
-            }
-            ColumnLayout {
+        SettingsCard {
+            RowLayout { // The distro
                 Layout.fillWidth: true
-                spacing: 2
-                StyledText {
-                    text: SystemInfo.distroName
-                    font.pixelSize: Appearance.font.pixelSize.larger
-                    font.weight: Font.Medium
-                    color: Appearance.colors.colOnLayer1
+                Layout.leftMargin: 4
+                spacing: 16
+                IconImage {
+                    implicitSize: 52
+                    source: SystemInfo.logo ? Quickshell.iconPath(SystemInfo.logo) : "" // Read from os-release a moment after start
                 }
-                Flow {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.leftMargin: -10 // The links' own padding: lines them up with the name
-                    spacing: 0
-                    Link { label: Translation.tr("Website"); url: SystemInfo.homeUrl.replace(/^\[.*\]\((.*)\)$/, "$1") }
-                    Link { label: Translation.tr("Documentation"); url: SystemInfo.documentationUrl }
-                    Link { label: Translation.tr("Help"); url: SystemInfo.supportUrl }
-                    Link { label: Translation.tr("Report a bug"); url: SystemInfo.bugReportUrl }
-                    Link { label: Translation.tr("Privacy"); url: SystemInfo.privacyPolicyUrl }
+                    spacing: 2
+                    StyledText {
+                        text: SystemInfo.distroName
+                        font.pixelSize: Appearance.font.pixelSize.larger
+                        font.weight: Font.Medium
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    Flow {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -10 // The links' own padding: lines them up with the name
+                        spacing: 0
+                        Link { label: Translation.tr("Website"); url: SystemInfo.homeUrl.replace(/^\[.*\]\((.*)\)$/, "$1") }
+                        Link { label: Translation.tr("Documentation"); url: SystemInfo.documentationUrl }
+                        Link { label: Translation.tr("Help"); url: SystemInfo.supportUrl }
+                        Link { label: Translation.tr("Report a bug"); url: SystemInfo.bugReportUrl }
+                        Link { label: Translation.tr("Privacy"); url: SystemInfo.privacyPolicyUrl }
+                    }
                 }
             }
-        }
-        GridLayout { // The hardware, in two columns
-            Layout.fillWidth: true
-            Layout.leftMargin: 4
-            columns: width >= 700 ? 2 : 1
-            columnSpacing: 24
-            rowSpacing: 12
-            uniformCellWidths: true
-            InfoRow { icon: "laptop_chromebook"; label: Translation.tr("Device"); value: [page.info.model, page.info.host ? `(${page.info.host})` : ""].filter(x => x).join(" ") }
-            InfoRow { icon: "memory"; label: Translation.tr("Processor"); value: page.info.cpu ?? "" }
-            InfoRow { icon: "developer_board"; label: Translation.tr("Graphics"); value: (page.info.gpu ?? "").split("|").filter(x => x).join(" + ") }
-            InfoRow { icon: "memory_alt"; label: Translation.tr("Memory"); value: page.info.memory ?? "" }
-            InfoRow { icon: "terminal"; label: Translation.tr("Kernel"); value: page.info.kernel ?? "" }
-            InfoRow { icon: "schedule"; label: Translation.tr("Up for"); value: DateTime.uptime }
+            GridLayout { // The hardware, in two columns
+                Layout.fillWidth: true
+                Layout.leftMargin: 4
+                columns: width >= 700 ? 2 : 1
+                columnSpacing: 24
+                rowSpacing: 12
+                uniformCellWidths: true
+                InfoRow { icon: "laptop_chromebook"; label: Translation.tr("Device"); value: [page.info.model, page.info.host ? `(${page.info.host})` : ""].filter(x => x).join(" ") }
+                InfoRow { icon: "memory"; label: Translation.tr("Processor"); value: page.info.cpu ?? "" }
+                InfoRow { icon: "developer_board"; label: Translation.tr("Graphics"); value: (page.info.gpu ?? "").split("|").filter(x => x).join(" + ") }
+                InfoRow { icon: "memory_alt"; label: Translation.tr("Memory"); value: page.info.memory ?? "" }
+                InfoRow { icon: "terminal"; label: Translation.tr("Kernel"); value: page.info.kernel ?? "" }
+                InfoRow { icon: "schedule"; label: Translation.tr("Up for"); value: DateTime.uptime }
+            }
         }
     }
 
     // ── Credits ──
     ContentSection {
-        icon: "favorite"
         title: Translation.tr("Built on")
         spacing: 6
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 4
-            spacing: 6
-            StyledText {
+        SettingsCard {
+            RowLayout {
                 Layout.fillWidth: true
-                text: Translation.tr("illogical-impulse by end-4, the starting point, with ideas from Caelestia")
-                wrapMode: Text.Wrap
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnLayer1
+                Layout.leftMargin: 4
+                spacing: 6
+                StyledText {
+                    Layout.fillWidth: true
+                    text: Translation.tr("illogical-impulse by end-4, the starting point, with ideas from Caelestia")
+                    wrapMode: Text.Wrap
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnLayer1
+                }
+                Link { label: "illogical-impulse"; url: "https://github.com/end-4/dots-hyprland" }
+                Link { label: "Caelestia"; url: "https://github.com/caelestia-dots/shell" }
+                Link { label: "Quickshell"; url: "https://quickshell.org" }
             }
-            Link { label: "illogical-impulse"; url: "https://github.com/end-4/dots-hyprland" }
-            Link { label: "Caelestia"; url: "https://github.com/caelestia-dots/shell" }
-            Link { label: "Quickshell"; url: "https://quickshell.org" }
         }
     }
 }

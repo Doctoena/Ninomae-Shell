@@ -9,33 +9,24 @@ import qs.modules.common.widgets
 // Immich. The crosshair has its own page (CrosshairConfig.qml)
 ContentPage {
     Component.onCompleted: KeyringStorage.fetchKeyringData() // Immich's address and key are in the keyring
-    ContentSection { // The in-game overlay (modules/gameOverlay), on and off from its title
-        icon: "stadia_controller"
-        title: Translation.tr("In-game overlay")
-        toggleOption: "gameLauncher.overlayEnabled"
-        StyledText {
-            Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            wrapMode: Text.Wrap
-            text: Translation.tr("Super+Shift+G while a game runs: save a clip or screenshot, the crosshair, do not disturb, game mode, performance and each app's volume")
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colSubtext
+    ContentSection { // The in-game overlay (modules/gameOverlay)
+        title: Translation.tr("Overlay")
+        ConfigSwitch {
+            text: Translation.tr("In-game overlay")
+            option: "gameLauncher.overlayEnabled"
+            description: Translation.tr("Super+Shift+G while a game runs: save a clip or screenshot, the crosshair, do not disturb, game mode, performance and each app's volume")
         }
     }
     ContentSection {
-        icon: "movie"
         title: Translation.tr("Clips")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "fiber_smart_record"
             text: Translation.tr("Record clips while playing")
             option: "gameLauncher.clipsEnabled"
             tooltip: Translation.tr("While a game runs, the last moments are kept in memory. Press %1 to save them to %2. Nothing records outside games")
                 .arg(Config.options.gameLauncher.clipKeyLabel || "`").arg(Config.options.gameLauncher.clipsFolder)
         }
         ConfigSwitch {
-            buttonIcon: "mic"
             text: Translation.tr("Include my mic")
             visible: Config.options.gameLauncher.clipsEnabled
             option: "gameLauncher.clipMic"
@@ -49,10 +40,8 @@ ContentPage {
             visible: Config.options.gameLauncher.clipsEnabled
             property bool recording: false
             readonly property bool isDefault: (Config.options.gameLauncher.clipKey || "grave") === "grave"
-            icon: recording ? "radio_button_checked" : "keyboard"
             text: recording ? Translation.tr("Press the new key or combo. Esc cancels") : Translation.tr("Save key")
             tooltip: recording ? "" : Translation.tr("Saves the clip while a game runs. It still types normally everywhere")
-            iconColor: recording ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
             labelColor: recording ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
             Repeater { // The key, as in the Keybinds list
                 model: clipKeyRow.recording ? [] : (Config.options.gameLauncher.clipKeyLabel || "`").split("+")
@@ -187,8 +176,8 @@ ContentPage {
         }
         ConfigChoiceRow {
             visible: Config.options.gameLauncher.clipsEnabled
-            icon: "timer"
             text: Translation.tr("Clip length")
+            description: Translation.tr("How much of what just happened a clip keeps")
             option: "gameLauncher.clipSeconds"
             options: [
                 { displayName: Translation.tr("30 s"), value: 30 },
@@ -199,11 +188,9 @@ ContentPage {
         }
     }
     ContentSection {
-        icon: "cloud_upload"
         title: Translation.tr("Immich backup")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "cloud_upload"
             text: Translation.tr("Back up to Immich")
             option: "gameLauncher.immichEnabled"
             tooltip: Translation.tr("A cloud button on a game's screenshots and clips uploads them to your own Immich server, in an album named after the game")

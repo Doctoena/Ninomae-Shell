@@ -11,6 +11,8 @@ MultiEffect {
     property real radius: 0
     property real leftRadius: radius // One side's corners apart (a split button's)
     property real rightRadius: radius
+    property real topRadius: -1 // Top and bottom apart instead (a settings row in its group); -1: as the sides
+    property real bottomRadius: -1
     property real maskWidth: width
     property real maskHeight: height
 
@@ -24,10 +26,10 @@ MultiEffect {
         width: root.maskWidth
         height: root.maskHeight
         radius: root.radius
-        topLeftRadius: root.leftRadius
-        bottomLeftRadius: root.leftRadius
-        topRightRadius: root.rightRadius
-        bottomRightRadius: root.rightRadius
+        topLeftRadius: root.topRadius >= 0 ? root.topRadius : root.leftRadius
+        bottomLeftRadius: root.bottomRadius >= 0 ? root.bottomRadius : root.leftRadius
+        topRightRadius: root.topRadius >= 0 ? root.topRadius : root.rightRadius
+        bottomRightRadius: root.bottomRadius >= 0 ? root.bottomRadius : root.rightRadius
         visible: false
         layer.enabled: true
         layer.smooth: true

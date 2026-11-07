@@ -6,8 +6,10 @@ import qs.modules.common
 
 /**
  * Settings search: an index of every option, read from the pages' own QML, so it never needs updating by hand.
- * Each `text:`, `title:` or `placeholderText:` given through Translation.tr() is an entry. Tooltips and choice
- * names are added to the entry before them as extra words to match. Keybinds come from Hyprland.
+ * An entry is a setting's name given through Translation.tr(): a row's `text:` (ConfigSwitch, SettingRow,
+ * ConfigSpinBox…), a group's `title:`, or a named field's `placeholderText:`. Buttons, chips and status text
+ * aren't settings, so they're left out. Descriptions, tooltips and choice names are added to the entry before
+ * them as extra words to match. Keybinds come from Hyprland.
  *   results(query) → [{ page, label, where, keybind }] best first; `label` is what the page shows
  */
 Item {
@@ -35,22 +37,27 @@ Item {
         let section = "";
         let sectionNext = false; // Just inside a ContentSection: its title is the section's name
         let tooltipNext = false; // Just inside a StyledToolTip: its text describes the entry before
+        let owner = ""; // The type of the last block opened: whose `text:` a line sets
+        const settingTypes = /^(ConfigSwitch|ConfigSpinBox|ConfigComboBox|ConfigChoiceRow|SettingRow|PrefixRow|RowText|ContentSection|ContentSubsection|StyledSecretField|StyledTextField)$/
         const tr = /(\w+)\s*:\s*Translation\.tr\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*\)/g;
         for (const line of source.split("\n")) {
             if (/\bContentSection\s*\{/.test(line)) sectionNext = true;
             if (/\bStyledToolTip\s*\{/.test(line)) tooltipNext = true;
+            const opened = line.match(/\b([A-Z]\w*)\s*\{/);
+            if (opened) owner = opened[1];
             tr.lastIndex = 0;
             let m;
             while ((m = tr.exec(line)) !== null) { // No String.matchAll in this JS engine
                 const prop = m[1];
                 const value = (m[2] ?? m[3]).replace(/\\n/g, " ").replace(/\\(.)/g, "$1");
                 const last = found[found.length - 1];
-                if (prop === "tooltip" || prop === "displayName" || (tooltipNext && prop === "text")) {
+                if (prop === "tooltip" || prop === "description" || prop === "displayName" || (tooltipNext && prop === "text")) {
                     if (last) last.words += " " + value;
                     tooltipNext = false;
                     continue;
                 }
-                if (!["title", "text", "placeholderText", "mainText"].includes(prop)) continue;
+                if (!["title", "text", "placeholderText", "name"].includes(prop)) continue;
+                if (!settingTypes.test(owner)) continue; // A button, a chip, a line of status: not a setting
                 if (value.includes("%1") || value.length > 70) continue; // Filled in at run time, or a paragraph
                 if (prop === "title" && sectionNext) {
                     section = value;
@@ -107,6 +114,6 @@ Item {
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
-        }).slice(0, 30);
+        }).slice(0, 8);
     }
 }

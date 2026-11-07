@@ -23,6 +23,20 @@
     "builtin": true
   },
   {
+    "name": "settings-window",
+    "note": "The shell's Settings app floats in the middle at the size it was set up at",
+    "enabled": true,
+    "match": {
+      "title": "^(Ninomae Settings)$"
+    },
+    "effects": {
+      "float": true,
+      "size": "1477 859",
+      "center": true
+    },
+    "builtin": true
+  },
+  {
     "name": "control-centre",
     "note": "The shell's control centre (sidebar tile arrows): floats in the middle, see-through like Settings",
     "enabled": true,

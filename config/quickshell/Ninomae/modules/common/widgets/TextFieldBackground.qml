@@ -7,16 +7,24 @@ import QtQuick
  * taller and shows it as its label: inside the box while it's empty, small at the top once there's text
  * or you're typing (the fields leave room for it: topPadding).
  *   background: TextFieldBackground { field: root }
+ * A settings row's field (StyledSecretField) sets the card's colours and its group's corners instead.
  */
 Rectangle {
     id: root
     required property Item field
     readonly property bool hasLabel: (root.field.placeholderText ?? "") !== ""
     readonly property bool floated: root.field.activeFocus || root.field.length > 0
+    property color restColor: Appearance.m3colors.m3surfaceContainerHigh
+    property color hoverColor: Appearance.m3colors.m3surfaceContainerHighest
+    property real topRadius: -1 // -1: as `radius`
+    property real bottomRadius: -1
     implicitHeight: root.hasLabel ? 52 : 40
     radius: Appearance.rounding.container
-    color: root.field.hovered && !root.field.activeFocus ? Appearance.m3colors.m3surfaceContainerHighest
-        : Appearance.m3colors.m3surfaceContainerHigh
+    topLeftRadius: topRadius >= 0 ? topRadius : radius
+    topRightRadius: topRadius >= 0 ? topRadius : radius
+    bottomLeftRadius: bottomRadius >= 0 ? bottomRadius : radius
+    bottomRightRadius: bottomRadius >= 0 ? bottomRadius : radius
+    color: root.field.hovered && !root.field.activeFocus ? root.hoverColor : root.restColor
     border.width: root.field.activeFocus ? 2 : 0
     border.color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.45)
     Behavior on color {

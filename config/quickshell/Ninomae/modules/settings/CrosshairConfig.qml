@@ -23,7 +23,7 @@ Item {
         stepSize: 1
     }
     component Opacity: Num {
-        icon: "opacity"; text: Translation.tr("Opacity")
+        text: Translation.tr("Opacity")
         suffix: "%"
         from: 10; to: 100; stepSize: 10
     }
@@ -40,11 +40,9 @@ Item {
             Layout.fillHeight: true
             margin: 0
             ContentSection {
-                icon: "palette"
                 title: Translation.tr("Colour")
                 spacing: 10
                 ConfigSwitch {
-                    buttonIcon: "wallpaper"
                     text: Translation.tr("Accent colour")
                     tooltip: Translation.tr("Follows the wallpaper")
                     checked: page.opts.color === "accent"
@@ -60,26 +58,23 @@ Item {
             }
 
             ContentSection {
-                icon: "border_outer"
                 title: Translation.tr("Outline")
                 toggleOption: "crosshair.outline"
                 spacing: 10
-                Num { key: "outlineThickness"; icon: "line_weight"; text: Translation.tr("Thickness"); from: 1; to: 4 }
+                Num { key: "outlineThickness"; text: Translation.tr("Thickness"); from: 1; to: 4 }
                 Opacity { key: "outlineOpacity" }
             }
 
             ContentSection {
-                icon: "add"
                 title: Translation.tr("Inner lines")
                 toggleOption: "crosshair.lines"
                 spacing: 10
-                Num { key: "length"; icon: "straighten"; text: Translation.tr("Length"); from: 1; to: 30 }
-                Num { key: "verticalLength"; icon: "height"; text: Translation.tr("Vertical length"); tooltip: Translation.tr("0 uses the same length"); from: 0; to: 30 }
-                Num { key: "thickness"; icon: "line_weight"; text: Translation.tr("Thickness"); from: 1; to: 10 }
-                Num { key: "gap"; icon: "space_bar"; text: Translation.tr("Gap from the centre"); from: 0; to: 30 }
+                Num { key: "length"; text: Translation.tr("Length"); from: 1; to: 30 }
+                Num { key: "verticalLength"; text: Translation.tr("Vertical length"); tooltip: Translation.tr("0 uses the same length"); from: 0; to: 30 }
+                Num { key: "thickness"; text: Translation.tr("Thickness"); from: 1; to: 10 }
+                Num { key: "gap"; text: Translation.tr("Gap from the centre"); from: 0; to: 30 }
                 Opacity { key: "lineOpacity" }
                 ConfigSwitch {
-                    buttonIcon: "vertical_align_top"
                     text: Translation.tr("Top line")
                     tooltip: Translation.tr("Off makes a T shape, for the outer lines too")
                     option: "crosshair.topLine"
@@ -87,17 +82,15 @@ Item {
             }
 
             ContentSection {
-                icon: "open_with"
                 title: Translation.tr("Outer lines")
                 toggleOption: "crosshair.outerLines"
                 spacing: 10
-                Num { key: "outerLength"; icon: "straighten"; text: Translation.tr("Length"); from: 1; to: 30 }
-                Num { key: "outerThickness"; icon: "line_weight"; text: Translation.tr("Thickness"); from: 1; to: 10 }
-                Num { key: "outerGap"; icon: "space_bar"; text: Translation.tr("Gap from the centre"); from: 0; to: 40 }
+                Num { key: "outerLength"; text: Translation.tr("Length"); from: 1; to: 30 }
+                Num { key: "outerThickness"; text: Translation.tr("Thickness"); from: 1; to: 10 }
+                Num { key: "outerGap"; text: Translation.tr("Gap from the centre"); from: 0; to: 40 }
                 Opacity { key: "outerOpacity" }
                 ConfigSwitch { // Also here when the inner lines are off: it shapes these too
                     visible: !page.opts.lines
-                    buttonIcon: "vertical_align_top"
                     text: Translation.tr("Top line")
                     tooltip: Translation.tr("Off makes a T shape")
                     option: "crosshair.topLine"
@@ -105,21 +98,19 @@ Item {
             }
 
             ContentSection {
-                icon: "fiber_manual_record"
                 title: Translation.tr("Centre dot")
                 toggleOption: "crosshair.dot"
                 spacing: 10
-                Num { key: "dotSize"; icon: "photo_size_select_small"; text: Translation.tr("Size"); from: 1; to: 10 }
+                Num { key: "dotSize"; text: Translation.tr("Size"); from: 1; to: 10 }
                 Opacity { key: "dotOpacity" }
             }
 
             ContentSection {
-                icon: "radio_button_unchecked"
                 title: Translation.tr("Circle")
                 toggleOption: "crosshair.circle"
                 spacing: 10
-                Num { key: "circleRadius"; icon: "straighten"; text: Translation.tr("Size"); from: 3; to: 40 }
-                Num { key: "circleThickness"; icon: "line_weight"; text: Translation.tr("Thickness"); from: 1; to: 6 }
+                Num { key: "circleRadius"; text: Translation.tr("Size"); from: 3; to: 40 }
+                Num { key: "circleThickness"; text: Translation.tr("Thickness"); from: 1; to: 6 }
                 Opacity { key: "circleOpacity" }
             }
         }
@@ -131,7 +122,6 @@ Item {
             Layout.fillHeight: true
             spacing: 0
             ContentSection {
-                icon: "my_location"
                 title: Translation.tr("Preview")
                 spacing: 8
                 Repeater {

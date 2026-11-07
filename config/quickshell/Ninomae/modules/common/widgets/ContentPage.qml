@@ -11,6 +11,7 @@ StyledFlickable {
     property real maxWidth: 1260
     property real bottomContentPadding: 24
     default property alias contentData: contentColumn.data
+    readonly property alias column: contentColumn // All of the page, for snapshots (settings.qml)
 
     clip: true
     contentHeight: contentColumn.implicitHeight + margin + bottomContentPadding

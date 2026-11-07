@@ -112,30 +112,27 @@ ContentPage {
     }
 
     ContentSection {
-        icon: "dashboard_customize"
         title: Translation.tr("Quick toggles")
         spacing: 10
-        Item { // The two side by side in the middle, each the size of a bar shape tile (a third of the row)
-            id: styleRow
-            Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.topMargin: 2
-            Layout.bottomMargin: 6
-            readonly property real spacing: 20
-            readonly property real tileWidth: (width - spacing * 2) / 3
-            implicitHeight: styleTiles.implicitHeight
-            RowLayout {
-                id: styleTiles
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: styleRow.spacing
-                StyleTile { styleName: "classic"; name: Translation.tr("Classic"); Layout.fillWidth: false; Layout.preferredWidth: styleRow.tileWidth }
-                StyleTile { styleName: "android"; name: Translation.tr("Android"); Layout.fillWidth: false; Layout.preferredWidth: styleRow.tileWidth }
+        SettingsCard {
+            Item { // The two side by side in the middle, each the size of a bar shape tile (a third of the row)
+                id: styleRow
+                Layout.fillWidth: true
+                readonly property real spacing: 20
+                readonly property real tileWidth: (width - spacing * 2) / 3
+                implicitHeight: styleTiles.implicitHeight
+                RowLayout {
+                    id: styleTiles
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: styleRow.spacing
+                    StyleTile { styleName: "classic"; name: Translation.tr("Classic"); Layout.fillWidth: false; Layout.preferredWidth: styleRow.tileWidth }
+                    StyleTile { styleName: "android"; name: Translation.tr("Android"); Layout.fillWidth: false; Layout.preferredWidth: styleRow.tileWidth }
+                }
             }
         }
         ConfigSpinBox {
-            icon: "view_column"
             text: Translation.tr("Columns")
+            description: Translation.tr("How many quick toggles fit in a row")
             visible: page.toggles.style === "android"
             option: "sidebar.quickToggles.android.columns"
             from: 2
@@ -144,17 +141,16 @@ ContentPage {
         }
     }
     ContentSection {
-        icon: "side_navigation"
         title: Translation.tr("Contents")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "monitoring"
             text: Translation.tr("Resource monitor")
+            description: Translation.tr("CPU, memory and graphics use at the bottom of the sidebar")
             option: "sidebar.resourceMonitor.enable"
         }
         ConfigSpinBox {
-            icon: "update"
             text: Translation.tr("Update every")
+            description: Translation.tr("How often the resource monitor reads the numbers")
             visible: Config.options.sidebar.resourceMonitor.enable
             option: "resources.updateInterval"
             suffix: "ms"
@@ -163,43 +159,41 @@ ContentPage {
             stepSize: 500
         }
         ConfigSwitch {
-            buttonIcon: "tune"
             text: Translation.tr("Quick sliders")
+            description: Translation.tr("Volume, brightness and mic sliders at the top of the sidebar")
             option: "sidebar.quickSliders.enable"
         }
         ContentSubsection {
             title: Translation.tr("Sliders")
             visible: Config.options.sidebar.quickSliders.enable
             ConfigSwitch {
-                buttonIcon: "volume_up"
                 text: Translation.tr("Volume")
+                description: Translation.tr("A slider for the speakers or headphones in use")
                 option: "sidebar.quickSliders.showVolume"
             }
             ConfigSwitch {
-                buttonIcon: "brightness_6"
                 text: Translation.tr("Brightness")
+                description: Translation.tr("A slider for the screen's brightness")
                 option: "sidebar.quickSliders.showBrightness"
             }
             ConfigSwitch {
-                buttonIcon: "mic"
                 text: Translation.tr("Microphone")
+                description: Translation.tr("A slider for the mic in use")
                 option: "sidebar.quickSliders.showMic"
             }
         }
         ConfigSwitch {
-            buttonIcon: "keep"
             text: Translation.tr("Keep the sidebar loaded")
             option: "sidebar.keepRightSidebarLoaded"
             tooltip: Translation.tr("Opens faster, uses a little more memory")
         }
     }
     ContentSection {
-        icon: "notifications"
         title: Translation.tr("Notifications")
         spacing: 10
         ConfigSpinBox {
-            icon: "av_timer"
             text: Translation.tr("Pop-ups stay for")
+            description: Translation.tr("How long a notification shows before it tucks away")
             option: "notifications.timeout"
             factor: 0.001 // Stored in milliseconds
             suffix: Translation.tr("seconds")

@@ -219,7 +219,6 @@ ContentPage {
 
     // ── The screens, to scale ──
     ContentSection {
-        icon: "dashboard"
         title: page.monitors.length > 1 ? Translation.tr("Arrangement") : Translation.tr("Your screen")
         spacing: 10
 
@@ -399,19 +398,19 @@ ContentPage {
             // Other screens it can show: on, and not mirroring something themselves
             readonly property var mirrorSources: page.monitors.filter(o => o.description !== description && !o.disabled && !page.isMirror(o))
 
-            icon: m.name.startsWith("eDP") ? "laptop" : "monitor"
             title: page.label(m)
             spacing: 10
 
-            Flow { // What it is and what it runs at
-                Layout.fillWidth: true
-                Layout.leftMargin: 8
-                spacing: 6
-                InfoChip { icon: "cable"; text: section.m.name }
-                InfoChip { visible: section.isOn; icon: "aspect_ratio"; text: `${section.m.width} × ${section.m.height}` }
-                InfoChip { visible: section.isOn; icon: "speed"; text: section.rateLabel(section.currentRate) }
-                InfoChip { visible: section.isOn; icon: "zoom_in"; text: `${Math.round(section.m.scale * 100)}%` }
-                InfoChip { visible: !section.isOn; icon: "desktop_access_disabled"; text: Translation.tr("Off") }
+            SettingsCard {
+                Flow { // What it is and what it runs at
+                    Layout.fillWidth: true
+                    spacing: 6
+                    InfoChip { icon: "cable"; text: section.m.name }
+                    InfoChip { visible: section.isOn; icon: "aspect_ratio"; text: `${section.m.width} × ${section.m.height}` }
+                    InfoChip { visible: section.isOn; icon: "speed"; text: section.rateLabel(section.currentRate) }
+                    InfoChip { visible: section.isOn; icon: "zoom_in"; text: `${Math.round(section.m.scale * 100)}%` }
+                    InfoChip { visible: !section.isOn; icon: "desktop_access_disabled"; text: Translation.tr("Off") }
+                }
             }
             StyledText {
                 visible: !section.m.name.startsWith("eDP") && section.description !== section.m.model
@@ -425,7 +424,6 @@ ContentPage {
 
             ConfigSwitch {
                 visible: page.monitors.length > 1
-                buttonIcon: "desktop_windows"
                 text: Translation.tr("Use this screen")
                 tooltip: section.isOn && page.onCount <= 1 ? Translation.tr("It's the only screen that's on") : ""
                 enabled: !(section.isOn && page.onCount <= 1)
@@ -437,7 +435,6 @@ ContentPage {
             }
             ConfigComboBox {
                 visible: section.isOn && section.mirrorSources.length > 0
-                icon: "screen_share"
                 text: Translation.tr("Mirror")
                 tooltip: Translation.tr("Show the same picture as another screen")
                 currentValue: section.entry.mirror ?? (section.mirroring ? (page.byName(section.m.mirrorOf)?.description ?? "") : "")
@@ -445,62 +442,59 @@ ContentPage {
                     .concat(section.mirrorSources.map(o => ({ displayName: page.label(o), value: o.description })))
                 onSelected: v => page.change(section.description, { mirror: v === "" ? undefined : v }, true)
             }
-            ColumnLayout { // Its own picture: not while off or mirroring
-                visible: section.isOn && !section.mirroring
-                Layout.fillWidth: true
-                spacing: 10
-                ConfigComboBox {
-                    icon: "aspect_ratio"
-                    text: Translation.tr("Resolution")
-                    currentValue: section.currentRes
-                    fallbackText: section.currentRes.replace("x", " × ")
-                    options: section.resolutions.map(r => ({ displayName: r.replace("x", " × "), value: r }))
-                    // The new resolution at its highest refresh rate
-                    onSelected: res => page.change(section.description, { mode:
-                        `${res}@${section.modes.filter(x => x.res === res).map(x => x.rate).sort((a, b) => parseFloat(b) - parseFloat(a))[0]}` }, true)
-                }
-                ConfigComboBox {
-                    visible: section.rates.length > 1
-                    icon: "speed"
-                    text: Translation.tr("Refresh rate")
-                    currentValue: section.currentRate
-                    fallbackText: section.rateLabel(section.currentRate)
-                    options: section.rates.map(r => ({ displayName: section.rateLabel(r), value: r }))
-                    onSelected: rate => page.change(section.description, { mode: `${section.currentRes}@${rate}` }, true)
-                }
-                ConfigComboBox {
-                    icon: "zoom_in"
-                    text: Translation.tr("Scale")
-                    tooltip: Translation.tr("Hyprland only accepts scales that divide the resolution evenly, so it picks the nearest one that does")
-                    currentValue: section.m.scale
-                    fallbackText: `${Math.round(section.m.scale * 100)}%`
-                    options: [1, 1.25, 1.5, 1.75, 2].map(s => ({ displayName: `${Math.round(s * 100)}%`, value: s }))
-                    onSelected: s => page.change(section.description, { scale: s }, true)
-                }
-                ConfigComboBox {
-                    icon: "rotate_right"
-                    text: Translation.tr("Rotation")
-                    currentValue: section.m.transform
-                    options: [
-                        { displayName: Translation.tr("Normal"), value: 0 },
-                        { displayName: "90°", value: 1 },
-                        { displayName: "180°", value: 2 },
-                        { displayName: "270°", value: 3 }
-                    ]
-                    onSelected: t => page.change(section.description, { transform: t }, true)
-                }
-                ConfigComboBox {
-                    icon: "sync"
-                    text: Translation.tr("Variable refresh rate")
-                    tooltip: Translation.tr("Matches the refresh rate to what's drawn, for smoother games and video. Fullscreen only avoids flicker some screens show on the desktop")
-                    currentValue: section.entry.vrr ?? (section.m.vrr ? 1 : 0)
-                    options: [
-                        { displayName: Translation.tr("Off"), value: 0 },
-                        { displayName: Translation.tr("On"), value: 1 },
-                        { displayName: Translation.tr("Fullscreen only"), value: 2 }
-                    ]
-                    onSelected: v => page.change(section.description, { vrr: v }, false)
-                }
+            ConfigComboBox {
+                visible: section.isOn && !section.mirroring // Its own picture: not while off or mirroring
+                text: Translation.tr("Resolution")
+                description: Translation.tr("How many pixels the screen shows")
+                currentValue: section.currentRes
+                fallbackText: section.currentRes.replace("x", " × ")
+                options: section.resolutions.map(r => ({ displayName: r.replace("x", " × "), value: r }))
+                // The new resolution at its highest refresh rate
+                onSelected: res => page.change(section.description, { mode:
+                    `${res}@${section.modes.filter(x => x.res === res).map(x => x.rate).sort((a, b) => parseFloat(b) - parseFloat(a))[0]}` }, true)
+            }
+            ConfigComboBox {
+                visible: section.isOn && !section.mirroring && (section.rates.length > 1)
+                text: Translation.tr("Refresh rate")
+                description: Translation.tr("How many times a second the picture updates")
+                currentValue: section.currentRate
+                fallbackText: section.rateLabel(section.currentRate)
+                options: section.rates.map(r => ({ displayName: section.rateLabel(r), value: r }))
+                onSelected: rate => page.change(section.description, { mode: `${section.currentRes}@${rate}` }, true)
+            }
+            ConfigComboBox {
+                visible: section.isOn && !section.mirroring // Its own picture: not while off or mirroring
+                text: Translation.tr("Scale")
+                tooltip: Translation.tr("Hyprland only accepts scales that divide the resolution evenly, so it picks the nearest one that does")
+                currentValue: section.m.scale
+                fallbackText: `${Math.round(section.m.scale * 100)}%`
+                options: [1, 1.25, 1.5, 1.75, 2].map(s => ({ displayName: `${Math.round(s * 100)}%`, value: s }))
+                onSelected: s => page.change(section.description, { scale: s }, true)
+            }
+            ConfigComboBox {
+                visible: section.isOn && !section.mirroring // Its own picture: not while off or mirroring
+                text: Translation.tr("Rotation")
+                description: Translation.tr("Turn the picture for a screen on its side")
+                currentValue: section.m.transform
+                options: [
+                    { displayName: Translation.tr("Normal"), value: 0 },
+                    { displayName: "90°", value: 1 },
+                    { displayName: "180°", value: 2 },
+                    { displayName: "270°", value: 3 }
+                ]
+                onSelected: t => page.change(section.description, { transform: t }, true)
+            }
+            ConfigComboBox {
+                visible: section.isOn && !section.mirroring // Its own picture: not while off or mirroring
+                text: Translation.tr("Variable refresh rate")
+                tooltip: Translation.tr("Matches the refresh rate to what's drawn, for smoother games and video. Fullscreen only avoids flicker some screens show on the desktop")
+                currentValue: section.entry.vrr ?? (section.m.vrr ? 1 : 0)
+                options: [
+                    { displayName: Translation.tr("Off"), value: 0 },
+                    { displayName: Translation.tr("On"), value: 1 },
+                    { displayName: Translation.tr("Fullscreen only"), value: 2 }
+                ]
+                onSelected: v => page.change(section.description, { vrr: v }, false)
             }
             RippleButtonWithIcon {
                 visible: page.saved[section.description] !== undefined
@@ -549,11 +543,9 @@ ContentPage {
         }
     }
     ContentSection {
-        icon: "light_mode"
         title: Translation.tr("Night light")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "schedule"
             text: Translation.tr("Turn on automatically")
             option: "light.night.automatic"
             tooltip: Translation.tr("Between the times below. You can still switch it from the sidebar")
@@ -561,45 +553,49 @@ ContentPage {
         TimeRow {
             visible: Config.options.light.night.automatic
             key: "from"
-            icon: "bedtime"
             text: Translation.tr("From")
+            description: Translation.tr("When night light comes on")
         }
         TimeRow {
             visible: Config.options.light.night.automatic
             key: "to"
-            icon: "wb_sunny"
             text: Translation.tr("To")
+            description: Translation.tr("When it goes off again")
         }
-        // Colour temperature: a slider over the colours it goes through, as the sidebar's (cooler on the left)
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.topMargin: 4
+        // Colour temperature: a slider over the colours it goes through, as the sidebar's (cooler on the left).
+        // It saves when you let go
+        SettingsCard {
             spacing: 6
-            SettingRow {
-                Layout.leftMargin: 0 // The column has the margins
-                Layout.rightMargin: 0
-                icon: "device_thermostat"
-                text: Translation.tr("Colour temperature")
-                StyledText {
-                    text: `${Math.round(temperatureSlider.value / 100) * 100} K`
-                    font.family: Appearance.font.family.numbers
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colSubtext
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+                RowText {
+                    text: Translation.tr("Colour temperature (K)")
+                    description: Translation.tr("How warm night light makes the screen")
+                }
+                NumberField { // Type it (in K), or slide it below
+                    Layout.alignment: Qt.AlignTop
+                    value: Math.round(temperatureSlider.value / 100) * 100
+                    from: 1200
+                    to: 6500
+                    stepSize: 100
+                    onAccepted: newValue => Config.options.light.night.colorTemperature = newValue
                 }
             }
-            StyledSlider {
+            SlimSlider {
                 id: temperatureSlider
                 Layout.fillWidth: true
-                configuration: StyledSlider.Configuration.S
+                Layout.leftMargin: -4 // The knob's own room: the track lines up with the text
+                Layout.rightMargin: -4
+                ringColor: Appearance.m3colors.m3surfaceContainer
                 from: 6500
                 to: 1200
                 stepSize: 100
-                stopIndicatorValues: [5000, to]
-                value: Config.options.light.night.colorTemperature
-                onMoved: Config.options.light.night.colorTemperature = Math.round(value / 100) * 100
-                tooltipContent: `${Math.round(value / 100) * 100} K`
+                snapMode: Slider.SnapAlways
+                wheelEnabled: false // The wheel scrolls the page
+                level: Config.options.light.night.colorTemperature
+                onPressedChanged: if (!pressed) Config.options.light.night.colorTemperature = Math.round(value / 100) * 100
+                onMoved: if (!pressed) Config.options.light.night.colorTemperature = Math.round(value / 100) * 100
             }
             Rectangle { // Roughly how the screen tints at each point (daylight on the left, candle on the right)
                 Layout.fillWidth: true
@@ -630,7 +626,6 @@ ContentPage {
             }
         }
         ConfigSwitch {
-            buttonIcon: "flash_off"
             text: Translation.tr("Dim bright windows in dark mode")
             option: "light.antiFlashbang.enable"
             tooltip: Translation.tr("Lowers the brightness while a bright window, like a white web page, is on screen")

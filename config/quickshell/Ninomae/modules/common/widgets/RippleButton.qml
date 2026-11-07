@@ -19,6 +19,8 @@ Button {
     property real buttonRadiusRight: -1
     readonly property real _radiusLeft: buttonRadiusLeft >= 0 ? buttonRadiusLeft : buttonEffectiveRadius
     readonly property real _radiusRight: buttonRadiusRight >= 0 ? buttonRadiusRight : buttonEffectiveRadius
+    property real buttonRadiusTop: -1 // Top and bottom corners apart (a settings row in its group); -1: as the sides
+    property real buttonRadiusBottom: -1
     property int rippleDuration: 1200
     property bool rippleEnabled: true
     property var downAction // When left clicking (down)
@@ -126,10 +128,10 @@ Button {
     background: Rectangle {
         id: buttonBackground
         radius: root.buttonEffectiveRadius
-        topLeftRadius: root._radiusLeft
-        bottomLeftRadius: root._radiusLeft
-        topRightRadius: root._radiusRight
-        bottomRightRadius: root._radiusRight
+        topLeftRadius: root.buttonRadiusTop >= 0 ? root.buttonRadiusTop : root._radiusLeft
+        bottomLeftRadius: root.buttonRadiusBottom >= 0 ? root.buttonRadiusBottom : root._radiusLeft
+        topRightRadius: root.buttonRadiusTop >= 0 ? root.buttonRadiusTop : root._radiusRight
+        bottomRightRadius: root.buttonRadiusBottom >= 0 ? root.buttonRadiusBottom : root._radiusRight
         implicitHeight: 30
         color: root.buttonColor
         Behavior on color {
@@ -138,7 +140,8 @@ Button {
         // Clip only while a ripple shows: a permanent layer cost an offscreen texture per button
         layer.enabled: ripple.visible && ripple.opacity > 0
         layer.effect: RoundedMask { maskWidth: buttonBackground.width; maskHeight: buttonBackground.height; radius: root.buttonEffectiveRadius
-            leftRadius: root._radiusLeft; rightRadius: root._radiusRight }
+            leftRadius: root._radiusLeft; rightRadius: root._radiusRight
+            topRadius: root.buttonRadiusTop; bottomRadius: root.buttonRadiusBottom }
         Item {
             id: ripple
             width: ripple.implicitWidth

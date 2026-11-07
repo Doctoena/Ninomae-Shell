@@ -36,23 +36,19 @@ ContentPage {
     }
 
     ContentSection {
-        icon: "search"
         title: Translation.tr("Search")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "new_releases"
             text: Translation.tr("Always offer to run, calculate and search the web")
             option: "search.prefix.showDefaultActionsWithoutPrefix"
             tooltip: Translation.tr("At the end of the results, without typing their prefix")
         }
         ConfigSwitch {
-            buttonIcon: "manage_search"
             text: Translation.tr("Forgiving matching")
             option: "search.sloppy"
             tooltip: Translation.tr("Finds results even with typos, but ranks them less tidily")
         }
         ConfigSpinBox {
-            icon: "timer"
             text: Translation.tr("Wait before results other than apps")
             tooltip: Translation.tr("Keeps typing smooth")
             option: "search.nonAppResultDelay"
@@ -64,29 +60,27 @@ ContentPage {
         ContentSubsection {
             title: Translation.tr("Prefixes")
             tooltip: Translation.tr("Start a search with one of these to search only that kind of thing")
-            PrefixRow { key: "app"; name: Translation.tr("Apps"); icon: "apps" }
-            PrefixRow { key: "action"; name: Translation.tr("Actions"); icon: "bolt" }
-            PrefixRow { key: "clipboard"; name: Translation.tr("Clipboard"); icon: "content_paste" }
-            PrefixRow { key: "emojis"; name: Translation.tr("Emoji"); icon: "mood" }
-            PrefixRow { key: "math"; name: Translation.tr("Calculator"); icon: "calculate" }
-            PrefixRow { key: "shellCommand"; name: Translation.tr("Run a command"); icon: "terminal" }
-            PrefixRow { key: "webSearch"; name: Translation.tr("Web search"); icon: "travel_explore" }
+            PrefixRow { key: "app"; name: Translation.tr("Apps"); description: Translation.tr("Only apps") }
+            PrefixRow { key: "action"; name: Translation.tr("Actions"); description: Translation.tr("Commands such as /dark or /light") }
+            PrefixRow { key: "clipboard"; name: Translation.tr("Clipboard"); description: Translation.tr("What you copied lately") }
+            PrefixRow { key: "emojis"; name: Translation.tr("Emoji"); description: Translation.tr("Find an emoji by name") }
+            PrefixRow { key: "math"; name: Translation.tr("Calculator"); description: Translation.tr("Work something out") }
+            PrefixRow { key: "shellCommand"; name: Translation.tr("Run a command"); description: Translation.tr("Run what you type in a shell") }
+            PrefixRow { key: "webSearch"; name: Translation.tr("Web search"); description: Translation.tr("Search the web for what you type") }
         }
     }
     ContentSection {
-        icon: "screenshot_region"
         title: Translation.tr("Screenshots")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "save"
             text: Translation.tr("Also save them to a folder")
             option: "regionSelector.save"
             tooltip: Translation.tr("They're always copied to the clipboard")
         }
         SettingRow {
             visible: Config.options.regionSelector.save
-            icon: "folder"
             text: Translation.tr("Folder")
+            description: Translation.tr("Where screenshots are saved")
             StyledTextArea {
                 Layout.preferredWidth: 320
                 text: Config.options.regionSelector.saveDir
@@ -100,23 +94,19 @@ ContentPage {
         }
     }
     ContentSection {
-        icon: "terminal"
         title: Translation.tr("Expert")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "notifications_off"
             text: Translation.tr("Stop other notification daemons")
             option: "conflictKiller.autoKillNotificationDaemons"
             tooltip: Translation.tr("Only one app can show notifications, so others (dunst, mako…) are closed")
         }
         ConfigSwitch {
-            buttonIcon: "shelf_auto_hide"
             text: Translation.tr("Stop other system trays")
             option: "conflictKiller.autoKillTrays"
             tooltip: Translation.tr("Other tray apps would take the tray icons away from the bar")
         }
         SettingRow {
-            icon: "description"
             text: Translation.tr("Shell config file")
             tooltip: Translation.tr("Every option, including ones not shown here")
             RippleButtonWithIcon {

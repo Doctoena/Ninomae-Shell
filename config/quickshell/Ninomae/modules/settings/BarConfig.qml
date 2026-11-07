@@ -56,25 +56,22 @@ ContentPage {
     }
     ContentSection {
         id: layoutSection
-        icon: "tune"
-        title: Translation.tr("Layout")
+        title: Translation.tr("Shape")
         spacing: 10
         readonly property var bar: Config.options.bar
-        RowLayout { // The three shapes share the card's width
-            Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.topMargin: 2
-            Layout.bottomMargin: 6
-            spacing: 20
-            uniformCellSizes: true
-            ShapeTile { shape: 0; name: Translation.tr("Hug") }
-            ShapeTile { shape: 1; name: Translation.tr("Float") }
-            ShapeTile { shape: 2; name: Translation.tr("Square") }
+        SettingsCard {
+            RowLayout { // The three shapes share the card's width
+                Layout.fillWidth: true
+                spacing: 20
+                uniformCellSizes: true
+                ShapeTile { shape: 0; name: Translation.tr("Hug") }
+                ShapeTile { shape: 1; name: Translation.tr("Float") }
+                ShapeTile { shape: 2; name: Translation.tr("Square") }
+            }
         }
         ConfigChoiceRow {
-            icon: "vertical_align_top"
             text: Translation.tr("Position")
+            description: Translation.tr("Along the top or the bottom of the screen. Its drawers open from there")
             option: "bar.bottom"
             options: [
                 { displayName: Translation.tr("Top"), icon: "arrow_upward", value: false },
@@ -82,88 +79,83 @@ ContentPage {
             ]
         }
         ConfigSwitch {
-            buttonIcon: "rectangle"
             text: Translation.tr("Bar background")
             option: "bar.showBackground"
-            tooltip: Translation.tr("Off: the bar's items sit straight on the wallpaper")
+            description: Translation.tr("Off: the bar's items sit straight on the wallpaper")
         }
         ConfigSwitch {
-            buttonIcon: "blur_on"
             text: Translation.tr("Shadow under the bar")
+            description: Translation.tr("A soft shadow under the floating bar")
             visible: layoutSection.bar.cornerStyle === 1 && layoutSection.bar.showBackground // Only the floating bar has one
             option: "bar.floatStyleShadow"
         }
     }
     ContentSection {
-        icon: "view_week"
         title: Translation.tr("On the bar")
         spacing: 10
         ConfigSpinBox {
-            icon: "workspaces"
             text: Translation.tr("Workspaces shown")
+            description: Translation.tr("How many workspace dots the bar has")
             option: "bar.workspaces.shown"
             from: 1
             to: 20
             stepSize: 1
         }
         ConfigSwitch {
-            buttonIcon: "counter_2"
             text: Translation.tr("Unread notification count")
+            description: Translation.tr("A number on the bell while notifications wait")
             option: "bar.indicators.notifications.showUnreadCount"
         }
         ConfigSwitch {
-            buttonIcon: "battery_android_full"
             text: Translation.tr("Battery")
+            description: Translation.tr("The charge level, with the time left when you point at it")
             visible: Battery.available
             option: "bar.indicators.battery.show"
         }
     }
     ContentSection {
-        icon: "shelf_auto_hide"
         title: Translation.tr("System tray")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "keep"
             text: Translation.tr("Show new tray icons on the bar")
             option: "bar.tray.invertPinnedItems"
             tooltip: Translation.tr("Off: they start hidden behind the ‹ arrow, and you pin the ones you want")
         }
         ConfigSwitch {
-            buttonIcon: "filter_alt"
             text: Translation.tr("Hide idle tray icons")
+            description: Translation.tr("Icons the app marks as passive, with nothing to show right now")
             option: "bar.tray.filterPassive"
             tooltip: Translation.tr("Icons the app marks as passive (nothing to show right now)")
         }
         ConfigSwitch {
-            buttonIcon: "palette"
             text: Translation.tr("Monochrome icons")
+            description: Translation.tr("In one colour, to match the rest of the shell")
             option: "bar.tray.monochromeIcons"
         }
         ConfigSwitch {
-            buttonIcon: "info"
             text: Translation.tr("Show item IDs in tooltips")
+            description: Translation.tr("Each icon's ID when you point at it, for writing tray rules")
             option: "bar.tray.showItemId"
         }
     }
     ContentSection {
-        icon: "weather_mix"
         title: Translation.tr("Weather")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "cloud"
             text: Translation.tr("Weather in the clock drawer")
+            description: Translation.tr("Today's forecast when you open the clock")
             option: "bar.weather.enable"
         }
         ConfigSwitch {
-            buttonIcon: "my_location"
             text: Translation.tr("Use my location")
+            description: Translation.tr("Find where you are instead of using a city name")
             visible: Config.options.bar.weather.enable
             option: "bar.weather.enableGPS"
         }
         SettingRow { // Where to get the weather for, without location
             visible: Config.options.bar.weather.enable && !Config.options.bar.weather.enableGPS
-            icon: "location_city"
             text: Translation.tr("City")
+            description: Translation.tr("Where the forecast is for")
             StyledTextArea {
                 Layout.preferredWidth: 260 // The row says what it is: no floating label
                 text: WeatherLocation.city
@@ -171,14 +163,14 @@ ContentPage {
             }
         }
         ConfigSwitch {
-            buttonIcon: "thermometer"
             text: Translation.tr("Fahrenheit")
+            description: Translation.tr("°F and miles per hour instead of °C and km/h")
             visible: Config.options.bar.weather.enable
             option: "bar.weather.useUSCS"
         }
         ConfigSpinBox {
-            icon: "update"
             text: Translation.tr("Update every")
+            description: Translation.tr("How often the forecast refreshes")
             visible: Config.options.bar.weather.enable
             option: "bar.weather.fetchInterval"
             suffix: Translation.tr("minutes")
@@ -188,30 +180,28 @@ ContentPage {
         }
     }
     ContentSection {
-        icon: "call_to_action"
         title: Translation.tr("Dock")
         spacing: 10
         ConfigSwitch {
-            buttonIcon: "call_to_action"
             text: Translation.tr("Show the dock")
             option: "dock.enable"
             tooltip: Translation.tr("Running and pinned apps along the bottom of the screen")
         }
         ConfigSwitch {
-            buttonIcon: "push_pin"
             text: Translation.tr("Keep it open at login")
+            description: Translation.tr("Off: it stays hidden until you call it up")
             visible: Config.options.dock.enable
             option: "dock.pinnedOnStartup"
         }
         ConfigSwitch {
-            buttonIcon: "visibility"
             text: Translation.tr("Show it on hover")
+            description: Translation.tr("Point at the bottom edge of the screen to bring it up")
             visible: Config.options.dock.enable
             option: "dock.hoverToReveal"
         }
         ConfigSpinBox {
-            icon: "height"
             text: Translation.tr("Hover area height")
+            description: Translation.tr("How close to the edge the pointer has to be")
             visible: Config.options.dock.enable && Config.options.dock.hoverToReveal
             option: "dock.hoverRegionHeight"
             suffix: "px"
@@ -220,8 +210,8 @@ ContentPage {
             stepSize: 1
         }
         ConfigSpinBox {
-            icon: "straighten"
             text: Translation.tr("Height")
+            description: Translation.tr("How tall the dock is")
             visible: Config.options.dock.enable
             option: "dock.height"
             suffix: "px"
@@ -230,8 +220,8 @@ ContentPage {
             stepSize: 5
         }
         ConfigSwitch {
-            buttonIcon: "palette"
             text: Translation.tr("Monochrome icons")
+            description: Translation.tr("In one colour, to match the rest of the shell")
             visible: Config.options.dock.enable
             option: "dock.monochromeIcons"
         }

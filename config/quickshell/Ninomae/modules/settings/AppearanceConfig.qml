@@ -7,67 +7,66 @@ import qs.modules.common
 import qs.modules.common.widgets
 ContentPage {
     ContentSection {
-        icon: "format_paint"
         title: Translation.tr("Wallpaper & colours")
         Layout.fillWidth: true
         spacing: 10
-        WallpaperSelector {
-            Layout.fillWidth: true
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.topMargin: 4
-            spacing: 12
-            StyledText {
-                text: Translation.tr("Colour scheme")
-                color: Appearance.colors.colOnLayer2
-                font.pixelSize: Appearance.font.pixelSize.small
+        SettingsCard {
+            WallpaperSelector {
+                Layout.fillWidth: true
             }
-            Timer {
-                id: colorSchemeApplyTimer
-                interval: 150
-                repeat: false
-                onTriggered: Quickshell.execDetached(["bash", Directories.wallpaperSwitchScriptPath, "--noswitch"])
-            }
-            StyledComboBox {
-                value: Config.options.appearance.palette.type
-                fallbackText: Translation.tr("Auto")
-                options: [
-                    { value: "auto", displayName: Translation.tr("Auto") },
-                    { value: "scheme-content", displayName: Translation.tr("Content") },
-                    { value: "scheme-expressive", displayName: Translation.tr("Expressive") },
-                    { value: "scheme-fidelity", displayName: Translation.tr("Fidelity") },
-                    { value: "scheme-fruit-salad", displayName: Translation.tr("Fruit Salad") },
-                    { value: "scheme-monochrome", displayName: Translation.tr("Monochrome") },
-                    { value: "scheme-neutral", displayName: Translation.tr("Neutral") },
-                    { value: "scheme-rainbow", displayName: Translation.tr("Rainbow") },
-                    { value: "scheme-tonal-spot", displayName: Translation.tr("Tonal Spot") }
-                ]
-                onSelected: newValue => {
-                    Config.options.appearance.palette.type = newValue;
-                    colorSchemeApplyTimer.restart();
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                spacing: 12
+                StyledText {
+                    text: Translation.tr("Colour scheme")
+                    color: Appearance.colors.colOnLayer2
+                    font.pixelSize: Appearance.font.pixelSize.small
                 }
-            }
-            Item { Layout.fillWidth: true }
-            ConfigSelectionArray { // Light or dark: makes the colours again from the same wallpaper
-                Layout.fillWidth: false
-                currentValue: Appearance.m3colors.darkmode
-                onSelected: dark => Quickshell.execDetached(["bash", Directories.wallpaperSwitchScriptPath, "--mode", dark ? "dark" : "light", "--noswitch"])
-                options: [
-                    { displayName: Translation.tr("Light"), icon: "light_mode", value: false },
-                    { displayName: Translation.tr("Dark"), icon: "dark_mode", value: true }
-                ]
+                Timer {
+                    id: colorSchemeApplyTimer
+                    interval: 150
+                    repeat: false
+                    onTriggered: Quickshell.execDetached(["bash", Directories.wallpaperSwitchScriptPath, "--noswitch"])
+                }
+                StyledComboBox {
+                    value: Config.options.appearance.palette.type
+                    fallbackText: Translation.tr("Auto")
+                    options: [
+                        { value: "auto", displayName: Translation.tr("Auto") },
+                        { value: "scheme-content", displayName: Translation.tr("Content") },
+                        { value: "scheme-expressive", displayName: Translation.tr("Expressive") },
+                        { value: "scheme-fidelity", displayName: Translation.tr("Fidelity") },
+                        { value: "scheme-fruit-salad", displayName: Translation.tr("Fruit Salad") },
+                        { value: "scheme-monochrome", displayName: Translation.tr("Monochrome") },
+                        { value: "scheme-neutral", displayName: Translation.tr("Neutral") },
+                        { value: "scheme-rainbow", displayName: Translation.tr("Rainbow") },
+                        { value: "scheme-tonal-spot", displayName: Translation.tr("Tonal Spot") }
+                    ]
+                    onSelected: newValue => {
+                        Config.options.appearance.palette.type = newValue;
+                        colorSchemeApplyTimer.restart();
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                ConfigSelectionArray { // Light or dark: makes the colours again from the same wallpaper
+                    Layout.fillWidth: false
+                    currentValue: Appearance.m3colors.darkmode
+                    onSelected: dark => Quickshell.execDetached(["bash", Directories.wallpaperSwitchScriptPath, "--mode", dark ? "dark" : "light", "--noswitch"])
+                    options: [
+                        { displayName: Translation.tr("Light"), icon: "light_mode", value: false },
+                        { displayName: Translation.tr("Dark"), icon: "dark_mode", value: true }
+                    ]
+                }
             }
         }
     }
     ContentSection {
         id: themingSection
-        icon: "colors"
         title: Translation.tr("App theming")
         spacing: 10
         readonly property var theming: Config.options.appearance.wallpaperTheming
         ConfigSwitch {
-            buttonIcon: "palette"
             text: Translation.tr("Colour everything from the wallpaper")
             option: "appearance.wallpaperTheming.enableAppsAndShell"
             tooltip: Translation.tr("The shell, window borders, GTK apps, Steam, Discord, VS Code, Zen and the login screen")
@@ -76,17 +75,16 @@ ContentPage {
             title: Translation.tr("Also colour")
             visible: themingSection.theming.enableAppsAndShell
             ConfigSwitch {
-                buttonIcon: "tv_options_input_settings"
                 text: Translation.tr("Qt apps")
+                description: Translation.tr("KDE and other Qt programs take the wallpaper's colours too")
                 option: "appearance.wallpaperTheming.enableQtApps"
             }
             ConfigSwitch {
-                buttonIcon: "terminal"
                 text: Translation.tr("The terminal")
+                description: Translation.tr("kitty's colours follow the wallpaper")
                 option: "appearance.wallpaperTheming.enableTerminal"
             }
             ConfigSwitch {
-                buttonIcon: "dark_mode"
                 text: Translation.tr("Keep the terminal dark")
                 visible: themingSection.theming.enableTerminal
                 option: "appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode"
@@ -96,13 +94,13 @@ ContentPage {
         ContentSubsection {
             title: Translation.tr("Shell")
             ConfigSwitch {
-                buttonIcon: "motion_photos_on"
                 text: Translation.tr("Smooth transition when colours change")
+                description: Translation.tr("The new colours fade in from where you clicked")
                 option: "appearance.themeTransition"
             }
             ConfigSwitch {
-                buttonIcon: "format_color_fill"
                 text: Translation.tr("Tint backgrounds with the accent")
+                description: Translation.tr("Panels and cards lean towards the accent instead of plain grey")
                 option: "appearance.extraBackgroundTint"
             }
         }
@@ -118,7 +116,6 @@ ContentPage {
         }
     }
     ContentSection {
-        icon: "view_column"
         title: Translation.tr("Windows")
         spacing: 10
         ContentSubsection {
@@ -147,62 +144,64 @@ ContentPage {
                 sideBySide: [[0, 0, 0.5, 1, true], [0.5, 0, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]],
                 columns: [[0, 0, 0.333, 1], [0.333, 0, 0.333, 1, true], [0.667, 0, 0.333, 1], [1, 0, 0.333, 1]]
             })
-            GridLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 4
-                Layout.bottomMargin: 4
-                columns: Math.max(2, Math.min(5, Math.floor((width + columnSpacing) / (170 + columnSpacing))))
-                columnSpacing: 16
-                rowSpacing: 14
-                uniformCellWidths: true
-                Repeater {
-                    model: tilingLayout.choices
-                    delegate: PreviewTile {
-                        id: tile
-                        required property var modelData
-                        readonly property string drawn: modelData.value === "auto"
-                            ? (tilingLayout.ultrawide ? "centred" : "normal") : modelData.value
-                        readonly property real gap: Math.max(3, Math.round(width * 0.022))
-                        readonly property real barHeight: Math.max(8, Math.round(width * 0.045))
-                        name: modelData.displayName
-                        chosen: tilingLayout.chosen === modelData.value
-                        badge: modelData.value === "auto" ? (tilingLayout.ultrawide ? Translation.tr("Centred") : Translation.tr("Normal")) : ""
-                        onClicked: Config.set("windows.layoutPreset", modelData.value)
-                        Rectangle { // A thin bar, for scale
-                            x: tile.gap; y: tile.gap
-                            width: parent.width - tile.gap * 2
-                            height: tile.barHeight
-                            radius: height / 2
-                            color: Appearance.colors.colLayer0
-                        }
-                        Repeater {
-                            model: tilingLayout.windows[tile.drawn]
-                            delegate: Rectangle {
-                                required property var modelData
-                                readonly property real areaY: tile.gap * 2 + tile.barHeight
-                                readonly property real areaWidth: parent.width - tile.gap
-                                readonly property real areaHeight: parent.height - areaY - tile.gap / 2
-                                x: tile.gap / 2 + modelData[0] * areaWidth + tile.gap / 2
-                                y: areaY + modelData[1] * areaHeight
-                                width: modelData[2] * areaWidth - tile.gap
-                                height: modelData[3] * areaHeight - tile.gap / 2
-                                radius: Math.max(2, tile.gap)
+            SettingsCard {
+                GridLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 4
+                    columns: Math.max(2, Math.min(5, Math.floor((width + columnSpacing) / (170 + columnSpacing))))
+                    columnSpacing: 16
+                    rowSpacing: 14
+                    uniformCellWidths: true
+                    Repeater {
+                        model: tilingLayout.choices
+                        delegate: PreviewTile {
+                            id: tile
+                            required property var modelData
+                            readonly property string drawn: modelData.value === "auto"
+                                ? (tilingLayout.ultrawide ? "centred" : "normal") : modelData.value
+                            readonly property real gap: Math.max(3, Math.round(width * 0.022))
+                            readonly property real barHeight: Math.max(8, Math.round(width * 0.045))
+                            name: modelData.displayName
+                            chosen: tilingLayout.chosen === modelData.value
+                            badge: modelData.value === "auto" ? (tilingLayout.ultrawide ? Translation.tr("Centred") : Translation.tr("Normal")) : ""
+                            onClicked: Config.set("windows.layoutPreset", modelData.value)
+                            Rectangle { // A thin bar, for scale
+                                x: tile.gap; y: tile.gap
+                                width: parent.width - tile.gap * 2
+                                height: tile.barHeight
+                                radius: height / 2
                                 color: Appearance.colors.colLayer0
-                                opacity: 0.92
-                                border.width: modelData[4] ? 2 : 1
-                                border.color: modelData[4] ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                            }
+                            Repeater {
+                                model: tilingLayout.windows[tile.drawn]
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    readonly property real areaY: tile.gap * 2 + tile.barHeight
+                                    readonly property real areaWidth: parent.width - tile.gap
+                                    readonly property real areaHeight: parent.height - areaY - tile.gap / 2
+                                    x: tile.gap / 2 + modelData[0] * areaWidth + tile.gap / 2
+                                    y: areaY + modelData[1] * areaHeight
+                                    width: modelData[2] * areaWidth - tile.gap
+                                    height: modelData[3] * areaHeight - tile.gap / 2
+                                    radius: Math.max(2, tile.gap)
+                                    color: Appearance.colors.colLayer0
+                                    opacity: 0.92
+                                    border.width: modelData[4] ? 2 : 1
+                                    border.color: modelData[4] ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                                }
                             }
                         }
                     }
                 }
-            }
-            StyledText { // What the chosen one does
-                Layout.fillWidth: true
-                Layout.leftMargin: 2
-                wrapMode: Text.Wrap
-                text: tilingLayout.choices.find(c => c.value === tilingLayout.chosen)?.about ?? ""
-                font.pixelSize: Appearance.font.pixelSize.smallie
-                color: Appearance.colors.colSubtext
+                StyledText { // What the chosen one does
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 2
+                    wrapMode: Text.Wrap
+                    text: tilingLayout.choices.find(c => c.value === tilingLayout.chosen)?.about ?? ""
+                    font.pixelSize: Appearance.font.pixelSize.smallie
+                    color: Appearance.colors.colSubtext
+                }
             }
         }
     }

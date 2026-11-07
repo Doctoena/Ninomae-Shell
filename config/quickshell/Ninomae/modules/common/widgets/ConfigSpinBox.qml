@@ -1,79 +1,78 @@
 import qs.modules.common.widgets
 import qs.modules.common
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 /**
- * A settings row with a number box. Give it `option: "dock.height"` to read and write that option (times
- * `factor`: 100 shows a 0–1 option as a percentage, 0.001 shows milliseconds as seconds), or bind
- * `value` and handle `onValueChanged` yourself. `suffix` is the unit, shown after the label: "Height (px)".
+ * A settings row with a number on a slider: a card of its own, the name and the line about it on the left, the
+ * value top right in a box you can type in (NumberField), the slider across under. Give it
+ * `option: "dock.height"` to read and write that option (times `factor`: 100 shows a 0–1 option as a percentage, 0.001 shows milliseconds as seconds), or bind `value` and
+ * handle `onValueChanged` yourself. `suffix` is the unit, in the name: "Height (px)". It saves when you let go,
+ * not at every step of a drag. (Named for the number box it used to be.)
  */
-RowLayout {
+SettingsCard {
     id: root
     property string text: ""
-    property string icon
     property string tooltip: ""
+    property string description: ""
     property string option: ""
     property real factor: 1
     property string suffix: ""
-    property alias value: spinBoxWidget.value
-    property alias stepSize: spinBoxWidget.stepSize
-    property alias from: spinBoxWidget.from
-    property alias to: spinBoxWidget.to
-    spacing: 10
-    Layout.leftMargin: 8
-    Layout.rightMargin: 8
+    property real value: 0
+    property real stepSize: 1
+    property real from: 0
+    property real to: 100
+    readonly property int decimals: Math.max(0, (String(stepSize).split(".")[1] ?? "").length)
+    verticalPadding: 12
     Binding {
         when: root.option !== ""
-        target: spinBoxWidget
+        target: root
         property: "value"
-        value: Math.round((Config.get(root.option) ?? 0) * root.factor)
+        value: Math.round((Config.get(root.option) ?? 0) * root.factor * 1000) / 1000
     }
-    // Only what you change writes the option. Not valueChanged: that also fires while the box is built
-    // (the value starts at `from` before the binding fills it in), which would save the minimum
-    Connections {
-        target: spinBoxWidget
-        enabled: root.option !== ""
-        function onValueModified() {
-            Config.set(root.option, root.factor < 1 ? Math.round(spinBoxWidget.value / root.factor) // 7 / 0.001 can be 6999.99…
-                : spinBoxWidget.value / root.factor);
-        }
+    function commit() {
+        if (root.option === "") return;
+        Config.set(root.option, root.factor < 1 ? Math.round(root.value / root.factor) // 7 / 0.001 can be 6999.99…
+            : root.value / root.factor);
     }
-    RowLayout {
+    content: ColumnLayout {
         Layout.fillWidth: true
-        spacing: 10
-        OptionalMaterialSymbol {
-            icon: root.icon
-            opacity: root.enabled ? 1 : 0.4
-        }
-        StyledText {
-            id: labelWidget
-            // Wraps in a narrow card rather than pushing the box out; with a tip, no wider than its text, so
-            // the tip stays right after it. Measured unwrapped: a wrapped label's implicitWidth shrinks with it
+        spacing: 6
+        opacity: root.enabled ? 1 : 0.4
+        RowLayout {
             Layout.fillWidth: true
-            Layout.preferredWidth: Math.ceil(labelMetrics.advanceWidth)
-            Layout.maximumWidth: infoTip.visible ? Math.ceil(labelMetrics.advanceWidth) : Number.POSITIVE_INFINITY
-            wrapMode: Text.Wrap
-            text: root.suffix !== "" ? `${root.text} (${root.suffix})` : root.text
-            color: Appearance.colors.colOnLayer1
-            opacity: root.enabled ? 1 : 0.4
+            spacing: 14
+            RowText {
+                text: root.suffix !== "" ? `${root.text} (${root.suffix})` : root.text
+                description: root.description !== "" ? root.description : root.tooltip
+            }
+            NumberField { // Type it, or slide it below
+                Layout.alignment: Qt.AlignTop
+                value: root.value
+                from: root.from
+                to: root.to
+                decimals: root.decimals
+                stepSize: root.stepSize
+                onAccepted: newValue => { root.value = newValue; root.commit(); }
+            }
         }
-        TextMetrics {
-            id: labelMetrics
-            font: labelWidget.font
-            text: labelWidget.text
-        }
-        InfoTip { // Right after the label, like ConfigComboBox's
-            id: infoTip
-            tip: root.tooltip
-        }
-        Item {
-            visible: infoTip.visible
+        SlimSlider {
             Layout.fillWidth: true
+            Layout.leftMargin: -4 // The knob's own room: the track lines up with the text
+            Layout.rightMargin: -4
+            ringColor: root.color
+            from: root.from
+            to: root.to
+            stepSize: root.stepSize
+            snapMode: Slider.SnapAlways
+            wheelEnabled: false // The wheel scrolls the page: a slider under the pointer mustn't take it
+            level: root.value
+            onMoved: {
+                root.value = Math.round(value / root.stepSize) * root.stepSize;
+                if (!pressed) root.commit(); // A click on the track: done
+            }
+            onPressedChanged: if (!pressed) root.commit() // The end of a drag
         }
-    }
-    StyledSpinBox {
-        id: spinBoxWidget
-        Layout.fillWidth: false
     }
 }

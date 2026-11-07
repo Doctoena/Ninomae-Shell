@@ -187,13 +187,19 @@ ContentPage {
         readonly property int ruleIndex: modelData.index
         readonly property var apps: page.classList(rule.match?.class) ?? []
         Layout.fillWidth: true
-        implicitHeight: ruleContent.implicitHeight + 16
-        radius: Appearance.rounding.small
-        color: rowHover.hovered ? Appearance.m3colors.m3surfaceContainerHigh : "transparent"
+        implicitHeight: ruleContent.implicitHeight + 24
+        radius: Appearance.rounding.normal // A card of its own, like the rows on the other pages
+        readonly property bool settingsRow: true // Joins the rows next to it into one group (GroupCorners)
+        GroupCorners { id: ruleCorners; item: ruleRow }
+        topLeftRadius: ruleCorners.top
+        topRightRadius: ruleCorners.top
+        bottomLeftRadius: ruleCorners.bottom
+        bottomRightRadius: ruleCorners.bottom
+        color: rowHover.hovered ? Appearance.m3colors.m3surfaceContainerHigh : Appearance.m3colors.m3surfaceContainer
         HoverHandler { id: rowHover }
         RowLayout {
             id: ruleContent
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 8; rightMargin: 8 }
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 14; rightMargin: 14 }
             spacing: 12
             opacity: ruleRow.rule.enabled === false ? 0.55 : 1
             Item { // Up to three app icons, else what it matches by
@@ -294,7 +300,6 @@ ContentPage {
         visible: active
         sourceComponent: ContentSection {
             id: editor
-            icon: page.editing >= 0 ? "edit" : "add"
             title: page.editing >= 0 ? Translation.tr("Edit: %1").arg(page.target(WindowRules.rules[page.editing])) : Translation.tr("New rule")
             spacing: 10
             readonly property var apps: page.classList(page.form.match?.class)
@@ -413,19 +418,18 @@ ContentPage {
                 Layout.fillWidth: true
                 title: Translation.tr("Placement")
                 ConfigSwitch {
-                    buttonIcon: "picture_in_picture"
                     text: Translation.tr("Floating")
+                    description: Translation.tr("Opens over the tiled windows instead of between them")
                     checked: !!page.form.effects?.float
                     onCheckedChanged: page.setEffect("float", checked)
                 }
                 ConfigSwitch {
-                    buttonIcon: "center_focus_strong"
                     text: Translation.tr("Centred")
+                    description: Translation.tr("In the middle of the screen")
                     checked: !!page.form.effects?.center
                     onCheckedChanged: page.setEffect("center", checked)
                 }
                 SettingRow {
-                    icon: "aspect_ratio"
                     text: Translation.tr("Size")
                     tooltip: Translation.tr("Width and height, in % of the screen or pixels, like 60% 65%. For floating windows")
                     StyledTextArea {
@@ -436,7 +440,6 @@ ContentPage {
                 }
                 SettingRow {
                     visible: editor.more
-                    icon: "open_with"
                     text: Translation.tr("Position")
                     tooltip: Translation.tr("Left and top, in % of the screen or pixels, like 73% 72%. For floating windows")
                     StyledTextArea {
@@ -447,22 +450,22 @@ ContentPage {
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "push_pin"
                     text: Translation.tr("On every workspace")
+                    description: Translation.tr("Follows you to whichever workspace you switch to")
                     checked: !!page.form.effects?.pin
                     onCheckedChanged: page.setEffect("pin", checked)
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "crop_free"
                     text: Translation.tr("Maximised")
+                    description: Translation.tr("Fills the screen but keeps the bar")
                     checked: !!page.form.effects?.maximize
                     onCheckedChanged: page.setEffect("maximize", checked)
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "fullscreen"
                     text: Translation.tr("Fullscreen")
+                    description: Translation.tr("Covers the whole screen, bar too")
                     checked: !!page.form.effects?.fullscreen
                     onCheckedChanged: page.setEffect("fullscreen", checked)
                 }
@@ -476,8 +479,8 @@ ContentPage {
                 }
                 ConfigSwitch {
                     visible: String(page.form.effects?.workspace ?? "") !== ""
-                    buttonIcon: "do_not_disturb_on"
                     text: Translation.tr("Stay where I am when it opens")
+                    description: Translation.tr("Opening it doesn't switch you to its workspace")
                     checked: String(page.form.effects?.workspace ?? "").includes("silent")
                     onCheckedChanged: {
                         const n = String(page.form.effects?.workspace ?? "").split(" ")[0];
@@ -524,36 +527,36 @@ ContentPage {
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "blur_off"
                     text: Translation.tr("No blur behind it")
+                    description: Translation.tr("Its see-through parts show the windows behind sharp")
                     checked: !!page.form.effects?.no_blur
                     onCheckedChanged: page.setEffect("no_blur", checked)
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "shadow"
                     text: Translation.tr("No shadow")
+                    description: Translation.tr("Without the drop shadow")
                     checked: !!page.form.effects?.no_shadow
                     onCheckedChanged: page.setEffect("no_shadow", checked)
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "rounded_corner"
                     text: Translation.tr("Square corners")
+                    description: Translation.tr("Without the rounded corners")
                     checked: page.form.effects?.rounding === 0
                     onCheckedChanged: page.setEffect("rounding", checked ? 0 : undefined)
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "animation"
                     text: Translation.tr("No animations")
+                    description: Translation.tr("It appears and closes at once")
                     checked: !!page.form.effects?.no_anim
                     onCheckedChanged: page.setEffect("no_anim", checked)
                 }
                 ConfigSwitch {
                     visible: editor.more
-                    buttonIcon: "fit_screen"
                     text: Translation.tr("Keep its shape when resized")
+                    description: Translation.tr("Resizing keeps its width to height ratio")
                     checked: !!page.form.effects?.keep_aspect_ratio
                     onCheckedChanged: page.setEffect("keep_aspect_ratio", checked)
                 }
@@ -564,14 +567,14 @@ ContentPage {
                 Layout.fillWidth: true
                 title: Translation.tr("Behaviour")
                 ConfigSwitch {
-                    buttonIcon: "center_focus_weak"
                     text: Translation.tr("Don't take focus when it opens")
+                    description: Translation.tr("Keep typing where you were")
                     checked: !!page.form.effects?.no_initial_focus
                     onCheckedChanged: page.setEffect("no_initial_focus", checked)
                 }
                 ConfigSwitch {
-                    buttonIcon: "speed"
                     text: Translation.tr("Allow tearing (lower input lag in games)")
+                    description: Translation.tr("Frames show the moment they're ready, at the cost of the odd tear")
                     checked: !!page.form.effects?.immediate
                     onCheckedChanged: page.setEffect("immediate", checked)
                 }
@@ -593,7 +596,6 @@ ContentPage {
                 Layout.fillWidth: true
                 title: Translation.tr("Advanced")
                 SettingRow {
-                    icon: "badge"
                     text: Translation.tr("Window class pattern")
                     tooltip: Translation.tr("A regular expression. The app search fills it in")
                     StyledTextArea {
@@ -603,7 +605,6 @@ ContentPage {
                     }
                 }
                 SettingRow {
-                    icon: "title"
                     text: Translation.tr("Window title pattern")
                     tooltip: Translation.tr("A regular expression, like ^(Picture-in-Picture)(.*)$ for titles that start that way")
                     StyledTextArea {
@@ -613,7 +614,6 @@ ContentPage {
                     }
                 }
                 SettingRow {
-                    icon: "sticky_note_2"
                     text: Translation.tr("Note")
                     tooltip: Translation.tr("Why the rule is there, for later")
                     StyledTextArea {
@@ -660,7 +660,6 @@ ContentPage {
 
     // ── Every rule ──
     ContentSection {
-        icon: "select_window"
         title: page.query.trim() === "" ? Translation.tr("Rules (%1)").arg(page.shownApps.length)
                                         : Translation.tr("Rules matching “%1”").arg(page.query.trim())
         spacing: 4
@@ -678,12 +677,17 @@ ContentPage {
             delegate: RuleRow {}
         }
         RippleButton { // The built-in fixes, folded
+            id: builtinButton
             visible: page.shownBuiltin.length > 0
+            readonly property bool settingsRow: true
+            GroupCorners { id: builtinCorners; item: builtinButton }
+            buttonRadiusTop: builtinCorners.top
+            buttonRadiusBottom: builtinCorners.bottom
             Layout.fillWidth: true
             Layout.topMargin: 6
-            implicitHeight: builtinHeader.implicitHeight + 16
-            buttonRadius: Appearance.rounding.small
-            colBackground: "transparent"
+            implicitHeight: builtinHeader.implicitHeight + 24
+            buttonRadius: Appearance.rounding.normal
+            colBackground: Appearance.m3colors.m3surfaceContainer
             colBackgroundHover: Appearance.m3colors.m3surfaceContainerHigh
             onClicked: page.builtinOpen = !page.builtinOpen
             contentItem: RowLayout {

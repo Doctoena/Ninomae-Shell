@@ -308,13 +308,11 @@ ContentPage {
     // ── Add a shortcut ──
     ContentSection {
         visible: page.adding
-        icon: "add"
         title: Translation.tr("Add a shortcut")
         spacing: 10
         ColumnLayout {
             Layout.fillWidth: true
             SettingRow {
-                icon: "label"
                 text: Translation.tr("Name")
                 StyledTextArea {
                     Layout.preferredWidth: 300
@@ -323,7 +321,6 @@ ContentPage {
                 }
             }
             SettingRow {
-                icon: "terminal"
                 text: Translation.tr("Command")
                 tooltip: Translation.tr("What runs, like zen-browser or kitty -e btop")
                 StyledTextArea {
@@ -353,27 +350,28 @@ ContentPage {
     // ── Turned off: shown while there are any, to turn them back on ──
     ContentSection {
         visible: Object.keys(KeybindOverrides.changed).some(d => KeybindOverrides.changed[d] === false)
-        icon: "block"
         title: Translation.tr("Turned off")
         spacing: 10
-        ColumnLayout {
-            Layout.fillWidth: true
-            Repeater {
-                model: Object.keys(KeybindOverrides.changed).filter(d => KeybindOverrides.changed[d] === false)
-                delegate: RowLayout {
-                    id: offRow
-                    required property string modelData
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 4
-                    StyledText {
+        SettingsCard {
+            ColumnLayout {
+                Layout.fillWidth: true
+                Repeater {
+                    model: Object.keys(KeybindOverrides.changed).filter(d => KeybindOverrides.changed[d] === false)
+                    delegate: RowLayout {
+                        id: offRow
+                        required property string modelData
                         Layout.fillWidth: true
-                        text: offRow.modelData.replace(": ", " · ")
-                        color: Appearance.colors.colOnLayer1
-                    }
-                    RippleButtonWithIcon {
-                        materialIcon: "undo"
-                        mainText: Translation.tr("Turn back on")
-                        onClicked: KeybindOverrides.reset(offRow.modelData)
+                        Layout.leftMargin: 4
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: offRow.modelData.replace(": ", " · ")
+                            color: Appearance.colors.colOnLayer1
+                        }
+                        RippleButtonWithIcon {
+                            materialIcon: "undo"
+                            mainText: Translation.tr("Turn back on")
+                            onClicked: KeybindOverrides.reset(offRow.modelData)
+                        }
                     }
                 }
             }
@@ -404,140 +402,141 @@ ContentPage {
             id: section
             required property var modelData
             title: modelData.name
-            icon: page.categoryIcons[modelData.name] ?? "keyboard"
             spacing: 0
-            GridLayout {
-                id: bindGrid
-                Layout.fillWidth: true
-                columns: width >= 820 ? 2 : 1
-                rows: Math.ceil(section.modelData.keybinds.length / columns)
-                flow: GridLayout.TopToBottom // Down the first column, then the second, as you read
-                columnSpacing: 24
-                rowSpacing: 0
-                uniformCellWidths: true
-                Repeater {
-                    model: section.modelData.keybinds
-                    delegate: Rectangle {
-                        id: bindRow
-                        required property var modelData
-                        required property int index
-                        readonly property bool editing: page.editingRow === modelData.description
-                        readonly property bool recording: page.capturing !== "" && page.capturing === modelData.description
-                        readonly property bool custom: page.isCustom(modelData.description)
-                        Layout.fillWidth: true
-                        implicitHeight: 40 + (rowMessage.visible ? rowMessage.implicitHeight + 8 : 0)
-                        radius: Appearance.rounding.small
-                        color: rowHover.hovered || editing ? Appearance.m3colors.m3surfaceContainerHigh : "transparent"
-                        HoverHandler {
-                            id: rowHover
-                        }
-                        // The parts only the row being edited shows are built for that row alone: ~140 rows
-                        // with all of them built cost the window about 40 MB
-                        Loader { // Why the keys pressed weren't taken
-                            id: rowMessage
-                            anchors {
-                                left: parent.left
-                                right: parent.right
-                                bottom: parent.bottom
-                                leftMargin: 10
-                                rightMargin: 8
-                                bottomMargin: 8
+            SettingsCard {
+                GridLayout {
+                    id: bindGrid
+                    Layout.fillWidth: true
+                    columns: width >= 820 ? 2 : 1
+                    rows: Math.ceil(section.modelData.keybinds.length / columns)
+                    flow: GridLayout.TopToBottom // Down the first column, then the second, as you read
+                    columnSpacing: 24
+                    rowSpacing: 0
+                    uniformCellWidths: true
+                    Repeater {
+                        model: section.modelData.keybinds
+                        delegate: Rectangle {
+                            id: bindRow
+                            required property var modelData
+                            required property int index
+                            readonly property bool editing: page.editingRow === modelData.description
+                            readonly property bool recording: page.capturing !== "" && page.capturing === modelData.description
+                            readonly property bool custom: page.isCustom(modelData.description)
+                            Layout.fillWidth: true
+                            implicitHeight: 40 + (rowMessage.visible ? rowMessage.implicitHeight + 8 : 0)
+                            radius: Appearance.rounding.small
+                            color: rowHover.hovered || editing ? Appearance.m3colors.m3surfaceContainerHigh : "transparent"
+                            HoverHandler {
+                                id: rowHover
                             }
-                            active: bindRow.editing && page.captureMessage !== ""
-                            visible: active
-                            sourceComponent: StyledText {
-                                wrapMode: Text.Wrap
-                                text: page.captureMessage
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: Appearance.colors.colError
-                            }
-                        }
-                        RowLayout {
-                            anchors {
-                                left: parent.left
-                                right: parent.right
-                                top: parent.top
-                                leftMargin: 10
-                                rightMargin: 8
-                            }
-                            height: 40
-                            spacing: 12
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: bindRow.modelData.comment
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: Appearance.colors.colOnLayer1
-                                elide: Text.ElideRight
-                            }
-                            Loader { // Recording this one
-                                active: bindRow.recording
+                            // The parts only the row being edited shows are built for that row alone: ~140 rows
+                            // with all of them built cost the window about 40 MB
+                            Loader { // Why the keys pressed weren't taken
+                                id: rowMessage
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    bottom: parent.bottom
+                                    leftMargin: 10
+                                    rightMargin: 8
+                                    bottomMargin: 8
+                                }
+                                active: bindRow.editing && page.captureMessage !== ""
                                 visible: active
-                                sourceComponent: KeyPreview {}
+                                sourceComponent: StyledText {
+                                    wrapMode: Text.Wrap
+                                    text: page.captureMessage
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colError
+                                }
                             }
-                            Repeater { // Each combo, "or" between them
-                                model: bindRow.modelData.combos
-                                delegate: Row {
-                                    id: combo
-                                    required property var modelData
-                                    required property int index
-                                    visible: !bindRow.recording
-                                    spacing: 4
-                                    StyledText {
-                                        visible: combo.index > 0
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        rightPadding: 2
-                                        text: Translation.tr("or")
-                                        font.pixelSize: Appearance.font.pixelSize.smaller
-                                        color: Appearance.colors.colSubtext
-                                    }
-                                    Repeater {
-                                        model: combo.modelData
-                                        delegate: KeyChip {
-                                            required property string modelData
-                                            key: page.keySubstitutions[modelData] ?? modelData
+                            RowLayout {
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    top: parent.top
+                                    leftMargin: 10
+                                    rightMargin: 8
+                                }
+                                height: 40
+                                spacing: 12
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: bindRow.modelData.comment
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colOnLayer1
+                                    elide: Text.ElideRight
+                                }
+                                Loader { // Recording this one
+                                    active: bindRow.recording
+                                    visible: active
+                                    sourceComponent: KeyPreview {}
+                                }
+                                Repeater { // Each combo, "or" between them
+                                    model: bindRow.modelData.combos
+                                    delegate: Row {
+                                        id: combo
+                                        required property var modelData
+                                        required property int index
+                                        visible: !bindRow.recording
+                                        spacing: 4
+                                        StyledText {
+                                            visible: combo.index > 0
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            rightPadding: 2
+                                            text: Translation.tr("or")
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
+                                            color: Appearance.colors.colSubtext
+                                        }
+                                        Repeater {
+                                            model: combo.modelData
+                                            delegate: KeyChip {
+                                                required property string modelData
+                                                key: page.keySubstitutions[modelData] ?? modelData
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            // Edit starts listening for the new keys at once, with this row's other buttons beside
-                            // it: turn it off (or remove your own), put it back, close
-                            Loader {
-                                active: bindRow.editing
-                                visible: active
-                                sourceComponent: Row {
-                                    spacing: 12
-                                    IconAction { // Listen again (recording stops by itself after 20 s)
-                                        visible: !bindRow.recording && page.editable(bindRow.modelData)
-                                        symbol: "keyboard"
-                                        tip: Translation.tr("Change the keys")
-                                        onClicked: page.startCapture(bindRow.modelData.description)
-                                    }
-                                    IconAction {
-                                        visible: !bindRow.custom
-                                        symbol: "block"
-                                        tip: Translation.tr("Turn off")
-                                        onClicked: { page.closeRow(); KeybindOverrides.turnOff(bindRow.modelData.description); }
-                                    }
-                                    IconAction {
-                                        visible: bindRow.custom
-                                        symbol: "delete"
-                                        tip: Translation.tr("Remove")
-                                        onClicked: { page.closeRow(); KeybindOverrides.removeShortcut(page.customIndex(bindRow.modelData.description)); }
-                                    }
-                                    IconAction {
-                                        visible: KeybindOverrides.changed[bindRow.modelData.description] !== undefined
-                                        symbol: "undo"
-                                        tip: Translation.tr("Back to the original keys")
-                                        onClicked: { page.closeRow(); KeybindOverrides.reset(bindRow.modelData.description); }
+                                // Edit starts listening for the new keys at once, with this row's other buttons beside
+                                // it: turn it off (or remove your own), put it back, close
+                                Loader {
+                                    active: bindRow.editing
+                                    visible: active
+                                    sourceComponent: Row {
+                                        spacing: 12
+                                        IconAction { // Listen again (recording stops by itself after 20 s)
+                                            visible: !bindRow.recording && page.editable(bindRow.modelData)
+                                            symbol: "keyboard"
+                                            tip: Translation.tr("Change the keys")
+                                            onClicked: page.startCapture(bindRow.modelData.description)
+                                        }
+                                        IconAction {
+                                            visible: !bindRow.custom
+                                            symbol: "block"
+                                            tip: Translation.tr("Turn off")
+                                            onClicked: { page.closeRow(); KeybindOverrides.turnOff(bindRow.modelData.description); }
+                                        }
+                                        IconAction {
+                                            visible: bindRow.custom
+                                            symbol: "delete"
+                                            tip: Translation.tr("Remove")
+                                            onClicked: { page.closeRow(); KeybindOverrides.removeShortcut(page.customIndex(bindRow.modelData.description)); }
+                                        }
+                                        IconAction {
+                                            visible: KeybindOverrides.changed[bindRow.modelData.description] !== undefined
+                                            symbol: "undo"
+                                            tip: Translation.tr("Back to the original keys")
+                                            onClicked: { page.closeRow(); KeybindOverrides.reset(bindRow.modelData.description); }
+                                        }
                                     }
                                 }
-                            }
-                            IconAction { // Edit, or Close while open. Kept in place on every row, so they line up
-                                opacity: page.fixed(bindRow.modelData.description) ? 0 : 1
-                                enabled: !page.fixed(bindRow.modelData.description)
-                                symbol: bindRow.editing ? "close" : "edit"
-                                tip: bindRow.editing ? Translation.tr("Close") : Translation.tr("Edit")
-                                onClicked: bindRow.editing ? page.closeRow() : page.editRow(bindRow.modelData)
+                                IconAction { // Edit, or Close while open. Kept in place on every row, so they line up
+                                    opacity: page.fixed(bindRow.modelData.description) ? 0 : 1
+                                    enabled: !page.fixed(bindRow.modelData.description)
+                                    symbol: bindRow.editing ? "close" : "edit"
+                                    tip: bindRow.editing ? Translation.tr("Close") : Translation.tr("Edit")
+                                    onClicked: bindRow.editing ? page.closeRow() : page.editRow(bindRow.modelData)
+                                }
                             }
                         }
                     }
