@@ -109,14 +109,6 @@ ApplicationWindow {
     readonly property var shownResults: search.results(shownQuery)
     readonly property var results: query !== "" ? shownResults : [] // What Up, Down and Enter act on
     property int selectedResult: 0
-    // The page list's Collapse (icons only), kept for next time in ~/.local/state/quickshell/user/settings_app.json
-    readonly property bool navCollapsed: appState.value.navCollapsed ?? false
-    property bool navStateLoaded: false // Until then the list is at its default: it snaps to the saved state, no slide
-    JsonStore {
-        id: appState
-        filePath: `${CF.FileUtils.trimFileProtocol(Directories.state)}/user/settings_app.json`
-        onLoaded: root.navStateLoaded = true
-    }
     onQueryChanged: {
         if (query === "") return; // Folding away: the panel keeps its rows and highlight
         shownQuery = query;
@@ -218,17 +210,11 @@ ApplicationWindow {
             Layout.fillHeight: true
             spacing: root.contentPadding
             SettingsNav { // You, the pages in their groups, Collapse
-                Layout.fillHeight: true
-                Layout.preferredWidth: expanded ? 236 : 64
-                Behavior on Layout.preferredWidth {
-                    enabled: root.navStateLoaded
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
                 pages: root.pages
                 currentPage: root.currentPage
-                expanded: !root.navCollapsed && root.width > 900 // Narrow windows show icons only
+                stateFile: `${CF.FileUtils.trimFileProtocol(Directories.state)}/user/settings_app.json`
+                narrow: root.width <= 900
                 onPageChosen: index => root.currentPage = index
-                onCollapseToggled: appState.commit(Object.assign({}, appState.value, { navCollapsed: !root.navCollapsed }))
             }
             Item { // The open page
                 Layout.fillWidth: true

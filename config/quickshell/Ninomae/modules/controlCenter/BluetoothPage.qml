@@ -10,7 +10,7 @@ import Quickshell.Bluetooth
 // Bluetooth: what's connected, what's paired, then everything else in range. It searches while the page is open
 ColumnLayout {
     id: page
-    spacing: 10
+    spacing: 14
     readonly property var adapter: Bluetooth.defaultAdapter
     readonly property bool on: adapter?.enabled ?? false
     // Named devices only (some just show a MAC address): connected, then paired, then the rest
@@ -51,68 +51,34 @@ ColumnLayout {
         icon: "bluetooth_disabled"
         text: page.adapter ? Translation.tr("Bluetooth is off") : Translation.tr("No Bluetooth adapter")
     }
-
-    // What's connected: a big card each, two to a row, battery large where the device reports it
-    GridLayout {
-        visible: page.on && page.connectedDevices.length > 0
-        Layout.fillWidth: true
-        columns: 2
-        columnSpacing: 10
-        rowSpacing: 10
-        Repeater {
-            model: ScriptModel { values: page.connectedDevices }
-            delegate: HeroCard {
-                required property BluetoothDevice modelData
-                Layout.preferredWidth: 1
-                Layout.alignment: Qt.AlignTop
-                symbol: Icons.getBluetoothDeviceMaterialSymbol(modelData?.icon || "")
-                title: modelData?.name ?? ""
-                detail: Translation.tr("Connected")
-                value: modelData?.batteryAvailable ? Math.round(modelData.battery * 100) : ""
-                unit: Translation.tr("% battery")
-                actions: DialogButton {
-                    buttonText: Translation.tr("Disconnect")
-                    onClicked: modelData?.disconnect()
-                }
-            }
-        }
-    }
-    Section {
-        visible: page.on && page.pairedDevices.length > 0
-        text: Translation.tr("Paired")
-    }
-    DeviceGroup { devices: page.pairedDevices }
-    Section {
-        visible: page.on && page.nearbyDevices.length > 0
-        text: Translation.tr("Nearby")
-    }
-    DeviceGroup { devices: page.nearbyDevices }
-
-    RowLayout {
-        Layout.topMargin: 6
-        Item { Layout.fillWidth: true }
-        DialogButton {
-            buttonText: Translation.tr("Bluetooth settings")
+    DeviceSection { title: Translation.tr("Connected"); devices: page.connectedDevices }
+    DeviceSection { title: Translation.tr("Paired"); devices: page.pairedDevices }
+    DeviceSection { title: Translation.tr("Nearby"); devices: page.nearbyDevices }
+    ContentSection {
+        RowButton {
+            text: Translation.tr("Bluetooth settings")
+            description: Translation.tr("Every device BlueZ knows, and the adapter's options")
             onClicked: {
                 Quickshell.execDetached(["bash", "-c", `${Config.options.apps.bluetooth}`]);
                 GlobalStates.controlCenterOpen = false;
             }
+            MaterialSymbol {
+                text: "open_in_new"
+                iconSize: 18
+                color: Appearance.colors.colSubtext
+            }
         }
     }
 
-    component Section: WindowDialogSectionHeader {
-        Layout.topMargin: 8
-    }
-    component DeviceGroup: QuickDialogGroup {
-        id: group
+    component DeviceSection: ContentSection {
+        id: section
         required property var devices
         visible: page.on && devices.length > 0
         Repeater {
-            model: ScriptModel { values: group.devices }
+            model: ScriptModel { values: section.devices }
             delegate: BluetoothDeviceItem {
                 required property BluetoothDevice modelData
                 device: modelData
-                Layout.fillWidth: true
             }
         }
     }

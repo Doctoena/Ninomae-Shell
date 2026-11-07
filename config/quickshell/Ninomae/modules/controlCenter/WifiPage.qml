@@ -11,7 +11,7 @@ import Quickshell
 // It scans while the page is open
 ColumnLayout {
     id: page
-    spacing: 10
+    spacing: 14
     readonly property var connected: Network.wifiNetworks.find(n => n.active) ?? null
     readonly property var others: [...Network.wifiNetworks].filter(n => !n.active).sort((a, b) => b.strength - a.strength)
     readonly property string subtitle: !Network.wifiEnabled ? Translation.tr("Off")
@@ -36,52 +36,59 @@ ColumnLayout {
         text: Translation.tr("Wi-Fi is off")
     }
 
-    // The network in use: its signal large, Disconnect and Forget beside it
-    HeroCard {
+    ContentSection {
         visible: Network.wifiEnabled && page.connected !== null
-        readonly property int strength: page.connected?.strength ?? 0
-        symbol: strength > 80 ? "signal_wifi_4_bar" : strength > 60 ? "network_wifi_3_bar" : strength > 40 ? "network_wifi_2_bar" : strength > 20 ? "network_wifi_1_bar" : "signal_wifi_0_bar"
-        title: page.connected?.ssid ?? ""
-        detail: page.connected?.isSecure ? Translation.tr("Connected · %1").arg(page.connected.security) : Translation.tr("Connected · open network")
-        value: strength
-        unit: Translation.tr("% signal")
-        actions: [
-            DialogButton {
-                buttonText: Translation.tr("Disconnect")
+        title: Translation.tr("Connected")
+        SettingRow {
+            text: page.connected?.ssid ?? ""
+            labelColor: Appearance.colors.colPrimary
+            description: Translation.tr("%1 · %2 % signal")
+                .arg(page.connected?.isSecure ? page.connected.security : Translation.tr("Open network"))
+                .arg(page.connected?.strength ?? 0)
+            RippleButtonWithIcon { // An open network (a café's, a hotel's) may want you to sign in on a web page
+                visible: !(page.connected?.isSecure ?? true)
+                materialIcon: "open_in_browser"
+                mainText: Translation.tr("Sign in")
+                onClicked: {
+                    Network.openPublicWifiPortal();
+                    GlobalStates.controlCenterOpen = false;
+                }
+            }
+            RippleButtonWithIcon {
+                materialIcon: "link_off"
+                mainText: Translation.tr("Disconnect")
                 onClicked: page.connected?.network?.disconnect()
-            },
-            DialogButton {
-                buttonText: Translation.tr("Forget")
+            }
+            RippleButtonWithIcon {
+                materialIcon: "delete"
+                mainText: Translation.tr("Forget")
                 onClicked: page.connected?.network?.forget()
             }
-        ]
+        }
     }
-
-    WindowDialogSectionHeader {
+    ContentSection {
         visible: Network.wifiEnabled && page.others.length > 0
-        Layout.topMargin: 8
-        text: Translation.tr("Available")
-    }
-    QuickDialogGroup {
-        visible: Network.wifiEnabled && page.others.length > 0
+        title: Translation.tr("Available")
         Repeater {
             model: ScriptModel { values: page.others }
             delegate: WifiNetworkItem {
                 required property WifiAccessPoint modelData
                 wifiNetwork: modelData
-                Layout.fillWidth: true
             }
         }
     }
-
-    RowLayout {
-        Layout.topMargin: 6
-        Item { Layout.fillWidth: true }
-        DialogButton {
-            buttonText: Translation.tr("Network settings")
+    ContentSection {
+        RowButton {
+            text: Translation.tr("Network settings")
+            description: Translation.tr("Saved networks, VPN and wired connections")
             onClicked: {
                 Quickshell.execDetached(["bash", "-c", `${Network.ethernet ? Config.options.apps.networkEthernet : Config.options.apps.network}`]);
                 GlobalStates.controlCenterOpen = false;
+            }
+            MaterialSymbol {
+                text: "open_in_new"
+                iconSize: 18
+                color: Appearance.colors.colSubtext
             }
         }
     }

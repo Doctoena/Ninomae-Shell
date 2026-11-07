@@ -8,10 +8,10 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Pipewire
 
-// Sound: the output and the mic side by side, the apps playing or recording, and the devices to pick from
+// Sound: the output and the mic, the apps playing or recording, and the devices to pick from
 ColumnLayout {
     id: page
-    spacing: 10
+    spacing: 14
     readonly property string subtitle: Translation.tr("Speakers, mic and app volumes")
 
     readonly property var audioNodes: Pipewire.nodes.values.filter(node => node.audio)
@@ -20,167 +20,139 @@ ColumnLayout {
     readonly property var playing: audioNodes.filter(node => node.isSink && node.isStream)
     readonly property var recording: audioNodes.filter(node => !node.isSink && node.isStream)
 
-    function deviceIcon(node, isOutput) {
-        const text = `${node?.description ?? ""} ${node?.name ?? ""}`.toLowerCase();
-        if (!isOutput) return text.includes("bluez") || text.includes("headset") ? "headset_mic" : "mic";
-        if (text.includes("hdmi") || text.includes("displayport")) return "tv";
-        if (text.includes("bluez") || text.includes("headphone") || text.includes("headset")) return "headphones";
-        return "speaker";
+    ContentSection {
+        title: Translation.tr("Volume")
+        VolumeRow { node: Audio.sink; isOutput: true }
+        VolumeRow { node: Audio.source; isOutput: false }
     }
-
-    RowLayout {
-        Layout.fillWidth: true
-        spacing: 10
-        VolumeCard {
-            title: Translation.tr("Output")
-            node: Audio.sink
-            isOutput: true
-        }
-        VolumeCard {
-            title: Translation.tr("Input")
-            node: Audio.source
-            isOutput: false
-        }
-    }
-
-    Section {
+    ContentSection {
         visible: page.playing.length > 0
-        text: Translation.tr("Apps")
+        title: Translation.tr("Apps")
+        Repeater {
+            model: ScriptModel { values: page.playing }
+            delegate: AppRow {}
+        }
     }
-    AppList { nodes: page.playing }
-    Section {
+    ContentSection {
         visible: page.recording.length > 0
-        text: Translation.tr("Apps using the mic")
+        title: Translation.tr("Apps using the mic")
+        Repeater {
+            model: ScriptModel { values: page.recording }
+            delegate: AppRow {}
+        }
     }
-    AppList { nodes: page.recording }
-
-    RowLayout {
+    RowLayout { // The devices, outputs and inputs side by side
         Layout.fillWidth: true
-        Layout.topMargin: 8
         spacing: 10
         DeviceList {
-            title: Translation.tr("Output devices")
+            title: Translation.tr("Output device")
             devices: page.outputs
             isOutput: true
         }
         DeviceList {
-            title: Translation.tr("Input devices")
+            title: Translation.tr("Input device")
             devices: page.inputs
             isOutput: false
         }
     }
-
-    RowLayout {
-        Layout.topMargin: 6
-        Item { Layout.fillWidth: true }
-        DialogButton {
-            buttonText: Translation.tr("Advanced mixer")
+    ContentSection {
+        RowButton {
+            text: Translation.tr("Advanced mixer")
+            description: Translation.tr("Every app and device, with more options")
             onClicked: {
                 Quickshell.execDetached(["bash", "-c", `${Config.options.apps.volumeMixer}`]);
                 GlobalStates.controlCenterOpen = false;
             }
-        }
-    }
-
-    component Section: WindowDialogSectionHeader {
-        Layout.topMargin: 8
-    }
-
-    // The device in use: its volume large, a Mute button beside it, the slider under
-    component VolumeCard: HeroCard {
-        id: card
-        required property var node
-        required property bool isOutput
-        readonly property bool muted: node?.audio?.muted ?? false
-        Layout.preferredWidth: 1 // Two equal halves
-        visible: node?.audio !== undefined
-        symbol: muted ? (isOutput ? "volume_off" : "mic_off") : (isOutput ? "volume_up" : "mic")
-        active: !muted
-        detail: node?.description ?? ""
-        value: Math.round((node?.audio?.volume ?? 0) * 100)
-        unit: "%"
-        dimmed: muted
-        actions: DialogButton {
-            buttonText: card.muted ? Translation.tr("Unmute") : Translation.tr("Mute")
-            onClicked: if (card.node?.audio) card.node.audio.muted = !card.node.audio.muted
-        }
-        SlimSlider {
-            Layout.fillWidth: true
-            level: card.node?.audio?.volume ?? 0
-            onMoved: if (card.node?.audio) card.node.audio.volume = value
-        }
-    }
-
-    // An app per row: its icon, name and what it's playing, a slider and the percentage
-    component AppList: QuickDialogGroup {
-        id: appList
-        required property var nodes
-        visible: nodes.length > 0
-        padding: 12
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 14
-            Repeater {
-                model: ScriptModel { values: appList.nodes }
-                delegate: VolumeMixerEntry {
-                    required property var modelData
-                    node: modelData
-                    Layout.fillWidth: true
-                }
+            MaterialSymbol {
+                text: "open_in_new"
+                iconSize: 18
+                color: Appearance.colors.colSubtext
             }
         }
     }
 
-    // Click one to use it; the one in use has its icon in accent and a check
-    component DeviceList: ColumnLayout {
+    // The device in use: its volume, Mute beside the figure, the slider under
+    component VolumeRow: SliderRow {
+        id: volumeRow
+        required property var node
+        required property bool isOutput
+        readonly property bool muted: node?.audio?.muted ?? false
+        visible: node?.audio !== undefined
+        text: isOutput ? Translation.tr("Output") : Translation.tr("Mic")
+        description: node?.description ?? ""
+        level: node?.audio?.volume ?? 0
+        dimmed: muted
+        onMoved: value => { if (volumeRow.node?.audio) volumeRow.node.audio.volume = value; }
+        trailing: RippleButton { // Mute: accent while muted
+            implicitWidth: 30
+            implicitHeight: 30
+            buttonRadius: Appearance.rounding.chip
+            toggled: volumeRow.muted
+            colBackground: Appearance.m3colors.m3surfaceContainerHigh
+            colBackgroundHover: Appearance.m3colors.m3surfaceContainerHighest
+            onClicked: if (volumeRow.node?.audio) volumeRow.node.audio.muted = !volumeRow.node.audio.muted
+            contentItem: MaterialSymbol {
+                anchors.centerIn: parent
+                horizontalAlignment: Text.AlignHCenter
+                text: volumeRow.muted ? (volumeRow.isOutput ? "volume_off" : "mic_off") : (volumeRow.isOutput ? "volume_up" : "mic")
+                iconSize: 18
+                fill: volumeRow.muted ? 1 : 0
+                color: volumeRow.muted ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurfaceVariant
+            }
+            StyledToolTip {
+                text: volumeRow.muted ? Translation.tr("Unmute") : Translation.tr("Mute")
+            }
+        }
+    }
+
+    // An app: its icon, name and what it's playing, its volume. Its node goes null for a moment as the app
+    // stops (the row is on its way out): everything reads it with ?.
+    component AppRow: SliderRow {
+        id: appRow
+        required property PwNode modelData
+        readonly property PwNode node: modelData
+        text: !node ? "" : node.properties["application.name"] ?? (node.description !== "" ? node.description : node.name)
+        description: node?.properties["media.name"] ?? ""
+        level: node?.audio?.volume ?? 0
+        dimmed: node?.audio?.muted ?? false
+        onMoved: value => { if (appRow.node?.audio) appRow.node.audio.volume = value; }
+        PwObjectTracker { objects: [appRow.node] }
+        leading: Image {
+            visible: source != ""
+            sourceSize: Qt.size(28, 28)
+            source: {
+                if (!appRow.node) return "";
+                const named = AppSearch.guessIcon(appRow.node.properties["application.icon-name"]);
+                if (AppSearch.iconExists(named)) return Quickshell.iconPath(named, "image-missing");
+                return Quickshell.iconPath(AppSearch.guessIcon(appRow.node.properties["node.name"]), "image-missing");
+            }
+        }
+    }
+
+    // Click one to use it; the one in use has its name in accent and a check
+    component DeviceList: ContentSection {
         id: deviceList
-        required property string title
         required property var devices
         required property bool isOutput
         readonly property var inUse: isOutput ? Pipewire.defaultAudioSink : Pipewire.defaultAudioSource
-        Layout.fillWidth: true
-        Layout.preferredWidth: 1
+        Layout.preferredWidth: 1 // Two equal halves
         Layout.alignment: Qt.AlignTop
-        spacing: 8
-        WindowDialogSectionHeader { text: deviceList.title }
-        QuickDialogGroup {
-            Repeater {
-                model: ScriptModel { values: deviceList.devices }
-                delegate: DialogListItem {
-                    id: deviceRow
-                    required property var modelData
-                    readonly property bool current: modelData.id === deviceList.inUse?.id
-                    Layout.fillWidth: true
-                    active: current
-                    onClicked: {
-                        if (deviceList.isOutput) Pipewire.preferredDefaultAudioSink = modelData;
-                        else Pipewire.preferredDefaultAudioSource = modelData;
-                    }
-                    contentItem: RowLayout {
-                        anchors {
-                            fill: parent
-                            leftMargin: deviceRow.horizontalPadding; rightMargin: deviceRow.horizontalPadding
-                            topMargin: deviceRow.verticalPadding; bottomMargin: deviceRow.verticalPadding
-                        }
-                        spacing: 12
-                        QuickDialogIcon {
-                            icon: page.deviceIcon(deviceRow.modelData, deviceList.isOutput)
-                            active: deviceRow.current
-                        }
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: deviceRow.modelData.description || deviceRow.modelData.name
-                            color: deviceRow.current ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
-                            font.weight: deviceRow.current ? Font.DemiBold : Font.Medium
-                            elide: Text.ElideRight
-                        }
-                        MaterialSymbol {
-                            visible: deviceRow.current
-                            text: "check"
-                            iconSize: 18
-                            color: Appearance.colors.colPrimary
-                        }
-                    }
+        Repeater {
+            model: ScriptModel { values: deviceList.devices }
+            delegate: RowButton {
+                id: deviceRow
+                required property var modelData
+                current: modelData.id === deviceList.inUse?.id
+                text: modelData.description || modelData.name
+                onClicked: {
+                    if (deviceList.isOutput) Pipewire.preferredDefaultAudioSink = modelData;
+                    else Pipewire.preferredDefaultAudioSource = modelData;
+                }
+                MaterialSymbol {
+                    visible: deviceRow.current
+                    text: "check"
+                    iconSize: 18
+                    color: Appearance.colors.colPrimary
                 }
             }
         }

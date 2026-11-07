@@ -7,15 +7,18 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 /**
- * Settings' header: the page's icon on an accent squircle, its group small over its name (large and bold) and the
- * line about it, and the search box (Ctrl K) and Close on the right.
- * The search's keys come out as signals, so the window decides what Up, Down and Enter do.
+ * Settings' header (and the control centre's): the page's icon on an accent squircle, its group small over its
+ * name (large and bold) and the line about it, and the search box (Ctrl K) and Close on the right.
+ * The search's keys come out as signals, so the window decides what Up, Down and Enter do. `searchable: false`
+ * leaves the search out; children go on the right, before Close (the control centre's on/off switch).
  */
 Item {
     id: header
     required property var page // { name, group, icon, iconRotation, description }
     property alias searchField: field
     property alias searchBox: searchBox // The results panel hangs just under it
+    property bool searchable: true
+    default property alias extras: extraRow.data
     signal closeClicked()
     signal searchMoved(int step) // Up / Down in the results
     signal searchAccepted() // Enter
@@ -70,8 +73,16 @@ Item {
             }
         }
 
+        RowLayout {
+            id: extraRow
+            Layout.alignment: Qt.AlignTop
+            Layout.minimumHeight: 42 // As tall as Close: what's in it lines up with it
+            visible: children.length > 0
+            spacing: 8
+        }
         Rectangle { // Search: any option on any page, and keybinds
             id: searchBox
+            visible: header.searchable
             Layout.alignment: Qt.AlignTop
             Layout.preferredWidth: Math.min(300, header.width * 0.36)
             implicitHeight: 42

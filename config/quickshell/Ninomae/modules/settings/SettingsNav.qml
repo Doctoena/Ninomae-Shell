@@ -9,19 +9,42 @@ import Quickshell
 import Quickshell.Io
 
 /**
- * Settings' page list: you at the top (your picture or initial, your name, the system), the pages in their groups
- * with a hairline between groups, and Collapse at the bottom (icons only). The open page: its icon on an accent
- * squircle and its name in accent, on a neutral row
+ * A window's page list (Settings, the control centre): you at the top (your picture or initial, your name, the
+ * system; or `title`, `subtitle` and a `badgeIcon` instead), the pages in their groups with a hairline between
+ * groups, `extras` and Collapse at the bottom. The open page: its icon on an accent squircle and its name in
+ * accent, on a neutral row. Collapse (icons only) is kept for next time in `stateFile`; `narrow` shows icons only
+ * too, without changing it.
+ *   pages: [{ name, icon, iconRotation?, group? }]
  */
 Rectangle {
     id: nav
     required property var pages
     required property int currentPage
-    property bool expanded: true
+    required property string stateFile
+    property bool narrow: false
+    property real expandedWidth: 236
+    property string title: SystemInfo.username
+    property string subtitle: SystemInfo.distroName.replace(/\s*\(.*\)$/, "") // "Fedora Linux 44", not the edition
+    property string badgeIcon: "" // Shown in the circle instead of your picture
+    default property alias extras: extraColumn.data
+    readonly property bool collapsed: navState.value.navCollapsed ?? false
+    readonly property bool expanded: !collapsed && !narrow
     signal pageChosen(int index)
-    signal collapseToggled()
     color: Appearance.m3colors.m3surfaceContainerLow
     radius: Appearance.rounding.windowRounding
+    Layout.fillHeight: true
+    Layout.fillWidth: false
+    Layout.preferredWidth: expanded ? expandedWidth : 64
+    Behavior on Layout.preferredWidth {
+        enabled: navState.ready
+        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
+    JsonStore {
+        id: navState
+        property bool ready: false // Until then the list is at its default: it snaps to the saved state, no slide
+        filePath: nav.stateFile
+        onLoaded: ready = true
+    }
 
     ColumnLayout {
         anchors { fill: parent; margins: 10 }
@@ -41,9 +64,16 @@ Rectangle {
                 color: Appearance.colors.colSecondaryContainer
                 border.width: 2
                 border.color: Appearance.colors.colPrimary
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    visible: nav.badgeIcon !== ""
+                    text: nav.badgeIcon
+                    iconSize: 22
+                    color: Appearance.colors.colOnSecondaryContainer
+                }
                 StyledText {
                     anchors.centerIn: parent
-                    visible: face.status !== Image.Ready
+                    visible: nav.badgeIcon === "" && face.status !== Image.Ready
                     text: SystemInfo.username.charAt(0).toUpperCase()
                     font.family: Appearance.font.family.expressive
                     font.pixelSize: 19
@@ -52,7 +82,7 @@ Rectangle {
                 }
                 FileView { // ~/.face, only when there is one; a new picture shows right away
                     id: faceFile
-                    path: `${FileUtils.trimFileProtocol(Directories.home)}/.face`
+                    path: nav.badgeIcon === "" ? `${FileUtils.trimFileProtocol(Directories.home)}/.face` : ""
                     printErrors: false
                     watchChanges: true
                     onFileChanged: reload()
@@ -71,6 +101,7 @@ Rectangle {
                     layer.effect: RoundedMask { maskWidth: 38; maskHeight: 38; radius: 19 }
                 }
                 Rectangle { // Pointed at: a pencil, a click picks a new picture
+                    visible: nav.badgeIcon === ""
                     anchors.fill: parent
                     radius: width / 2
                     color: Qt.rgba(0, 0, 0, 0.45)
@@ -85,6 +116,7 @@ Rectangle {
                 }
                 MouseArea {
                     id: faceArea
+                    enabled: nav.badgeIcon === ""
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
@@ -101,7 +133,7 @@ Rectangle {
                 spacing: 0
                 StyledText {
                     Layout.fillWidth: true
-                    text: SystemInfo.username
+                    text: nav.title
                     font.family: Appearance.font.family.expressive
                     font.pixelSize: Appearance.font.pixelSize.large
                     font.weight: Font.Bold
@@ -110,7 +142,7 @@ Rectangle {
                 }
                 StyledText {
                     Layout.fillWidth: true
-                    text: SystemInfo.distroName.replace(/\s*\(.*\)$/, "") // "Fedora Linux 44", not the edition
+                    text: nav.subtitle
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: Appearance.colors.colSubtext
                     elide: Text.ElideRight
@@ -131,7 +163,9 @@ Rectangle {
                     visible: entry.startsGroup
                     Layout.topMargin: 6
                 }
-                NavButton {
+                NavRow {
+                    Layout.fillWidth: true
+                    expanded: nav.expanded
                     symbol: entry.modelData.icon
                     symbolRotation: entry.modelData.iconRotation || 0
                     text: entry.modelData.name
@@ -142,10 +176,18 @@ Rectangle {
         }
         Item { Layout.fillHeight: true }
         Hairline {}
-        NavButton {
+        ColumnLayout {
+            id: extraColumn
+            Layout.fillWidth: true
+            visible: children.length > 0
+            spacing: 2
+        }
+        NavRow {
+            Layout.fillWidth: true
+            expanded: nav.expanded
             symbol: nav.expanded ? "left_panel_close" : "left_panel_open"
             text: nav.expanded ? Translation.tr("Collapse") : Translation.tr("Expand")
-            onClicked: nav.collapseToggled()
+            onClicked: navState.commit(Object.assign({}, navState.value, { navCollapsed: !nav.collapsed }))
         }
     }
 
@@ -153,64 +195,5 @@ Rectangle {
     component SideToolTip: StyledToolTip {
         x: parent.width + 8
         y: (parent.height - height) / 2
-    }
-    component Hairline: Rectangle {
-        Layout.fillWidth: true
-        Layout.leftMargin: 12
-        Layout.rightMargin: 12
-        Layout.bottomMargin: 6
-        implicitHeight: 1
-        color: Appearance.colors.colOutlineVariant
-    }
-    component NavButton: RippleButton {
-        id: button
-        property string symbol
-        property real symbolRotation: 0
-        Layout.fillWidth: true
-        implicitHeight: 44
-        buttonRadius: Appearance.rounding.normal
-        colBackground: "transparent"
-        colBackgroundHover: Appearance.m3colors.m3surfaceContainerHigh
-        colBackgroundToggled: Appearance.m3colors.m3surfaceContainerHigh
-        colBackgroundToggledHover: Appearance.m3colors.m3surfaceContainerHighest
-        colRippleToggled: Appearance.m3colors.m3surfaceContainerHighest
-        SideToolTip { // Icons only: the name on hover
-            text: button.text
-            visible: !nav.expanded && button.hovered
-        }
-        leftPadding: 0
-        rightPadding: 0
-        contentItem: Item { // Placed by hand: collapsed, the squircle sits exactly in the middle of the row
-            implicitHeight: 30
-            Rectangle {
-                id: squircle
-                x: nav.expanded ? 6 : Math.round((parent.width - width) / 2)
-                anchors.verticalCenter: parent.verticalCenter
-                width: 30
-                height: 30
-                radius: Appearance.rounding.segment
-                color: button.toggled ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colPrimary) // Not black: no dark flash
-                Behavior on color {
-                    animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-                }
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: button.symbol
-                    rotation: button.symbolRotation
-                    iconSize: Appearance.font.pixelSize.larger
-                    fill: button.toggled ? 1 : 0
-                    color: button.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurfaceVariant
-                }
-            }
-            StyledText {
-                visible: nav.expanded
-                anchors { left: squircle.right; leftMargin: 12; right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                text: button.text
-                elide: Text.ElideRight
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: button.toggled ? Font.DemiBold : Font.Medium
-                color: button.toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
-            }
-        }
     }
 }
