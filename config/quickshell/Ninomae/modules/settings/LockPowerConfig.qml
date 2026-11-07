@@ -20,11 +20,13 @@ ContentPage {
             Layout.fillWidth: true
             spacing: 10
             // The wallpaper (blurred as set), the chips top right, the time bottom left, the password pill bottom
-            // right. In a card as tall as the settings beside it, centred in it
+            // right. Exactly as tall as the settings beside it: its width comes from their height
             SettingsCard {
+                id: previewCard
                 Layout.fillWidth: false
                 Layout.fillHeight: true
-                Layout.preferredWidth: 340
+                Layout.preferredWidth: Math.round((lookRows.implicitHeight - verticalPadding * 2 - spacing - caption.implicitHeight) * 16 / 9)
+                    + leftPadding + rightPadding
                 spacing: 8
                 ClippingRectangle {
                     id: lockPreview
@@ -108,15 +110,17 @@ ContentPage {
                     }
                 }
                 StyledText {
+                    id: caption
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     text: Translation.tr("Locks by itself after 5 minutes. Super+L locks now")
-                    wrapMode: Text.Wrap
+                    elide: Text.ElideRight // One line: its height sets the card's width
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: Appearance.colors.colSubtext
                 }
             }
             ContentSubsection { // The look: no name, the preview beside says it. Lined up with its top
+                id: lookRows
                 Layout.alignment: Qt.AlignTop
                 Layout.topMargin: 0
                 ConfigSwitch {
@@ -132,7 +136,7 @@ ContentPage {
                 ConfigSpinBox {
                     text: Translation.tr("Blur amount")
                     description: Translation.tr("How soft the wallpaper gets")
-                    visible: page.lock.blur.enable
+                    enabled: page.lock.blur.enable // Greyed out, not hidden: the rows stay as tall as the preview
                     option: "lock.blur.radius"
                     suffix: "px"
                     from: 0
