@@ -10,7 +10,7 @@ import QtQuick.Layouts
  * system; or `title`, `subtitle` and a `badgeIcon` instead), the pages in their groups with a hairline between
  * groups, `extras` and Collapse at the bottom. The open page: its icon on an accent squircle and its name in
  * accent, on a neutral row. Collapse (icons only) is kept for next time in `stateFile`; `narrow` shows icons only
- * too, without changing it.
+ * too, without changing it. `collapsible: false` leaves Collapse out (the welcome window).
  *   pages: [{ name, icon, iconRotation?, group? }]
  */
 Rectangle {
@@ -23,8 +23,9 @@ Rectangle {
     property string title: SystemInfo.username
     property string subtitle: SystemInfo.distroName.replace(/\s*\(.*\)$/, "") // "Fedora Linux 44", not the edition
     property string badgeIcon: "" // Shown in the circle instead of your picture
+    property bool collapsible: true
     default property alias extras: extraColumn.data
-    readonly property bool collapsed: navState.value.navCollapsed ?? false
+    readonly property bool collapsed: collapsible && (navState.value.navCollapsed ?? false)
     readonly property bool expanded: !collapsed && !narrow
     signal pageChosen(int index)
     color: Appearance.m3colors.m3surfaceContainerLow
@@ -106,7 +107,7 @@ Rectangle {
             }
         }
         Item { Layout.fillHeight: true }
-        Hairline {}
+        Hairline { visible: nav.collapsible || extraColumn.visible }
         ColumnLayout {
             id: extraColumn
             Layout.fillWidth: true
@@ -114,6 +115,7 @@ Rectangle {
             spacing: 2
         }
         NavRow {
+            visible: nav.collapsible
             Layout.fillWidth: true
             expanded: nav.expanded
             symbol: nav.expanded ? "left_panel_close" : "left_panel_open"

@@ -4,56 +4,6 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 ContentPage {
-    // A bar shape to pick, drawn on a little screen the way it'd look in the chosen position
-    component ShapeTile: PreviewTile {
-        id: tile
-        required property int shape // bar.cornerStyle: 0 Hug, 1 Float, 2 Rect
-        readonly property var bar: Config.options.bar
-        readonly property real barHeight: Math.max(12, Math.round(width * 0.055)) // Scales with the tile
-        readonly property real curve: Math.round(barHeight * 1.7) // Hug's corner curves, a bit bigger than life so they read
-        chosen: bar.cornerStyle === shape
-        onClicked: Config.set("bar.cornerStyle", shape)
-        Rectangle { // The bar
-            id: miniBar
-            readonly property real inset: tile.shape === 1 ? Math.round(tile.barHeight * 0.45) : 0
-            width: parent.width - inset * 2
-            height: tile.barHeight
-            x: (parent.width - width) / 2
-            y: tile.bar.bottom ? parent.height - height - inset : inset
-            radius: tile.shape === 1 ? height / 2 : 0
-            color: Appearance.colors.colLayer0
-            Row { // Workspaces on the left, status dots on the right
-                readonly property real dot: Math.round(tile.barHeight * 0.4)
-                anchors { left: parent.left; leftMargin: tile.barHeight * 0.6; verticalCenter: parent.verticalCenter }
-                spacing: dot * 0.6
-                Rectangle { width: parent.dot * 3; height: parent.dot; radius: height / 2; color: Appearance.colors.colPrimary }
-                Repeater { model: 3; Rectangle { width: parent.dot; height: parent.dot; radius: height / 2; color: Appearance.colors.colSubtext } }
-            }
-            Row {
-                readonly property real dot: Math.round(tile.barHeight * 0.4)
-                anchors { right: parent.right; rightMargin: tile.barHeight * 0.6; verticalCenter: parent.verticalCenter }
-                spacing: dot * 0.6
-                Repeater { model: 3; Rectangle { width: parent.dot; height: parent.dot; radius: height / 2; color: Appearance.colors.colOnLayer0; opacity: 0.6 } }
-            }
-        }
-        // Hug: the bar's corners curve into the screen
-        RoundCorner {
-            visible: tile.shape === 0
-            implicitSize: tile.curve
-            color: Appearance.colors.colLayer0
-            corner: tile.bar.bottom ? RoundCorner.CornerEnum.BottomLeft : RoundCorner.CornerEnum.TopLeft
-            x: miniBar.x
-            y: tile.bar.bottom ? miniBar.y - implicitSize : miniBar.y + miniBar.height
-        }
-        RoundCorner {
-            visible: tile.shape === 0
-            implicitSize: tile.curve
-            color: Appearance.colors.colLayer0
-            corner: tile.bar.bottom ? RoundCorner.CornerEnum.BottomRight : RoundCorner.CornerEnum.TopRight
-            x: miniBar.x + miniBar.width - implicitSize
-            y: tile.bar.bottom ? miniBar.y - implicitSize : miniBar.y + miniBar.height
-        }
-    }
     ContentSection {
         id: layoutSection
         title: Translation.tr("Shape")
@@ -64,9 +14,9 @@ ContentPage {
                 Layout.fillWidth: true
                 spacing: 20
                 uniformCellSizes: true
-                ShapeTile { shape: 0; name: Translation.tr("Hug") }
-                ShapeTile { shape: 1; name: Translation.tr("Float") }
-                ShapeTile { shape: 2; name: Translation.tr("Square") }
+                BarShapeTile { shape: 0; name: Translation.tr("Hug") }
+                BarShapeTile { shape: 1; name: Translation.tr("Float") }
+                BarShapeTile { shape: 2; name: Translation.tr("Square") }
             }
         }
         ConfigChoiceRow {
@@ -138,47 +88,7 @@ ContentPage {
             option: "bar.tray.showItemId"
         }
     }
-    ContentSection {
-        title: Translation.tr("Weather")
-        spacing: 10
-        ConfigSwitch {
-            text: Translation.tr("Weather in the clock drawer")
-            description: Translation.tr("Today's forecast when you open the clock")
-            option: "bar.weather.enable"
-        }
-        ConfigSwitch {
-            text: Translation.tr("Use my location")
-            description: Translation.tr("Find where you are instead of using a city name")
-            visible: Config.options.bar.weather.enable
-            option: "bar.weather.enableGPS"
-        }
-        SettingRow { // Where to get the weather for, without location
-            visible: Config.options.bar.weather.enable && !Config.options.bar.weather.enableGPS
-            text: Translation.tr("City")
-            description: Translation.tr("Where the forecast is for")
-            StyledTextArea {
-                Layout.preferredWidth: 260 // The row says what it is: no floating label
-                text: WeatherLocation.city
-                onTextChanged: if (text !== WeatherLocation.city) WeatherLocation.setCity(text)
-            }
-        }
-        ConfigSwitch {
-            text: Translation.tr("Fahrenheit")
-            description: Translation.tr("°F and miles per hour instead of °C and km/h")
-            visible: Config.options.bar.weather.enable
-            option: "bar.weather.useUSCS"
-        }
-        ConfigSpinBox {
-            text: Translation.tr("Update every")
-            description: Translation.tr("How often the forecast refreshes")
-            visible: Config.options.bar.weather.enable
-            option: "bar.weather.fetchInterval"
-            suffix: Translation.tr("minutes")
-            from: 5
-            to: 60
-            stepSize: 5
-        }
-    }
+    WeatherSection {}
     ContentSection {
         title: Translation.tr("Dock")
         spacing: 10

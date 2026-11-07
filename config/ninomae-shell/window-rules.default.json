@@ -178,13 +178,15 @@
   },
   {
     "name": "welcome",
-    "note": "",
+    "note": "The first-run window floats in the middle at Settings' size",
     "enabled": true,
     "match": {
       "title": "^.*Welcome$"
     },
     "effects": {
-      "float": true
+      "float": true,
+      "size": "1477 859",
+      "center": true
     },
     "builtin": true
   },
