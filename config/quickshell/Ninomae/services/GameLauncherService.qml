@@ -931,11 +931,12 @@ Singleton {
         _clearedDownloadsStore.commit(keep);
         // Cleared is seen: the games' Updated badges go too, in one write
         const seen = Object.assign({}, root.seenBuilds);
+        let changed = false;
         for (const e of entries) {
             const g = root.gamesById["steam_" + e.appid];
-            if (g?.buildId > 0) seen[g.id] = g.buildId;
+            if (g?.buildId > 0 && seen[g.id] !== g.buildId) { seen[g.id] = g.buildId; changed = true; }
         }
-        _seenBuildsStore.commit(seen);
+        if (changed) _seenBuildsStore.commit(seen);
     }
     Process {
         id: _downloadsProc

@@ -108,6 +108,7 @@ Scope {
     }
     function start(game) {
         _stopAll();
+        _restoreSteam(false); // A launch before this one, still on its shaders
         root.game = game;
         root.launchedAt = Date.now();
         root.elapsed = 0;
@@ -149,7 +150,7 @@ Scope {
         root.progress = s.progress ?? -1;
         root.error = s.error ?? "";
         if (root.failedState) { failTime.restart(); _restoreSteam(false); } // Steam may have more to say
-        if (root.stage === "shaders") _hideSteamWindows();
+        if (root.stage === "shaders" && watcher.running) _hideSteamWindows(); // A real launch, not a preview
     }
 
     // ── Steam's window while shaders process ──
@@ -172,6 +173,8 @@ Scope {
     // The launch is over (or the drawer gone, Skip with it): Steam's window back, or to the tray if it only
     // opened to ask about shaders and the game is up
     function _restoreSteam(launched) {
+        root._openedSteam = ({});
+        if (Object.keys(root._hiddenSteam).length === 0) return;
         const back = Hyprland.focusedWorkspace?.name ?? "";
         for (const [address, workspace] of Object.entries(root._hiddenSteam)) {
             if (workspace === "" && launched)
@@ -180,11 +183,10 @@ Scope {
                 Hyprland.dispatch(`hl.dsp.window.move({ workspace = "${workspace || back}", follow = false, window = "address:${address}" })`);
         }
         root._hiddenSteam = ({});
-        root._openedSteam = ({});
     }
     Connections {
         target: Hyprland
-        enabled: root.shown && !root._fallback
+        enabled: root.shown && watcher.running
         function onRawEvent(event) { // "openwindow": address,workspace,class,title
             if (event.name !== "openwindow") return;
             const [address, , windowClass, title] = event.data.split(",");
