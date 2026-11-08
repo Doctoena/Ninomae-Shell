@@ -217,7 +217,7 @@
   },
   {
     "name": "steam-launching-dialog",
-    "note": "Steam's \"Starting game\" dialog: the shell's launch splash (modules/gameLauncher/LaunchSplash.qml) already shows the launch and update progress. Moved off-screen, not closed: closing it may cancel the launch",
+    "note": "Steam's \"Starting game\" dialog: the shell's launch drawer (modules/gameLauncher/LaunchSplash.qml) already shows the launch and update progress. Put on a hidden workspace, not closed (closing it may cancel the launch), and not just moved off-screen: Steam moves it back",
     "enabled": true,
     "match": {
       "class": "^steam$",
@@ -227,7 +227,7 @@
       "float": true,
       "no_initial_focus": true,
       "no_anim": true,
-      "move": "999999 999999"
+      "workspace": "special:steamlaunch silent"
     },
     "builtin": true
   },
