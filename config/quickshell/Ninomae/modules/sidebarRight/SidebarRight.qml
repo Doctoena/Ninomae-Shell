@@ -21,7 +21,11 @@ Scope {
         readonly property real bottomRadius: Appearance.rounding.screenRounding
         readonly property real barBottom: GlobalStates.drawerTopOn(screen) // Below the bar, or near the top without one
         readonly property real panelWidth: sidebarWidth - Appearance.sizes.hyprlandGapsOut - Appearance.sizes.elevationMargin
-        readonly property real fullHeight: height - Appearance.sizes.hyprlandGapsOut * 2
+        readonly property real maxHeight: height - Appearance.sizes.hyprlandGapsOut * 2
+        // Only as tall as what's in it, up to the screen's height: notifications coming in, edit mode or the
+        // system panel opening grow it. No animation of its own: the parts inside already animate their
+        // heights, and following them frame by frame keeps the drawer's edge on them (a second animation lags)
+        readonly property real fullHeight: Math.min(maxHeight, sidebarContentLoader.item?.implicitHeight ?? maxHeight)
 
         readonly property bool drawerReady: readiness.ready // Slide only once the window is on screen
 
@@ -119,9 +123,7 @@ Scope {
                         sidebarRoot.hide();
                     }
                 }
-                sourceComponent: SidebarRightContent {
-                    drawnByDrawer: true // The blob drawer draws the background
-                }
+                sourceComponent: SidebarRightContent {}
                 transform: [
                     BarSideFlip { size: sidebarRoot.fullHeight }, // Upright in a flipped stage
                     Matrix4x4 { matrix: background.deformMatrix } // Wobble with the blob

@@ -47,7 +47,14 @@ ColumnLayout {
     Item {
         Layout.fillWidth: true
         Layout.fillHeight: true
+        // As tall as the cards (or the "All caught up" line) want: the sidebar fits itself to this, and scrolls
+        // the list once it's as tall as the screen allows
+        Layout.preferredHeight: Notifications.list.length === 0 ? 80 : listView.contentHeight + listView.topMargin + listView.bottomMargin
+        Behavior on Layout.preferredHeight { // A card coming or going: the sidebar glides to its new height
+            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+        }
         NotificationListView { // Scrollable window
+            id: listView
             anchors.fill: parent
             clip: true // No rounding layer: an offscreen layer that size is what hung the Intel GPU in the drawers
             popup: false

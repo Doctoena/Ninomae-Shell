@@ -6,96 +6,77 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.modules.sidebarRight.quickToggles
-import qs.modules.sidebarRight.quickToggles.classicStyle
 import qs.modules.sidebarRight.resourceMonitor
 import qs.modules.sidebarRight.notifications
+// The sidebar's contents. The drawer it sits in (SidebarRight.qml) draws the background and fits its height to
+// implicitHeight, up to the screen's
 Item {
     id: root
-    property int sidebarWidth: Appearance.sizes.sidebarWidth
-    // When the blob drawer in SidebarRight.qml draws the background, skip our own card
-    property bool drawnByDrawer: false
     property string openSettingsScript: Quickshell.shellPath("scripts/open-settings.sh")
     property bool editMode: false
-    implicitHeight: sidebarRightBackground.implicitHeight
-    implicitWidth: sidebarRightBackground.implicitWidth
-    StyledRectangularShadow {
-        visible: !root.drawnByDrawer
-        target: sidebarRightBackground
-    }
-    Rectangle {
-        id: sidebarRightBackground
+    implicitHeight: mainColumn.implicitHeight + mainColumn.anchors.margins * 2
+    implicitWidth: Appearance.sizes.sidebarWidth - Appearance.sizes.hyprlandGapsOut * 2
+    // The sidebar in four blocks, as Settings joins its rows: quick toggles, sliders and what's playing,
+    // notifications, system. No boxes around them, and only the notifications carry a name
+    ColumnLayout {
+        id: mainColumn
         anchors.fill: parent
-        implicitHeight: parent.height - Appearance.sizes.hyprlandGapsOut * 2
-        implicitWidth: sidebarWidth - Appearance.sizes.hyprlandGapsOut * 2
-        color: root.drawnByDrawer ? "transparent" : Appearance.colors.colLayer0
-        opacity: root.drawnByDrawer ? 1 : 0.92
-        border.width: root.drawnByDrawer ? 0 : 1
-        border.color: Appearance.colors.colLayer0Border
-        radius: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
-        // The sidebar in four blocks, as Settings joins its rows: quick toggles, sliders and what's playing,
-        // notifications, system. No boxes around them, and only the notifications carry a name
-        ColumnLayout {
-            id: mainColumn
-            anchors.fill: parent
-            anchors.margins: 14
-            spacing: 12
-            SystemButtonRow {
+        anchors.margins: 14
+        spacing: 12
+        SystemButtonRow {
+            Layout.fillWidth: true
+        }
+        LoaderedQuickPanelImplementation {
+            styleName: "classic"
+            sourceComponent: ClassicQuickPanel {}
+        }
+        LoaderedQuickPanelImplementation {
+            styleName: "android"
+            sourceComponent: AndroidQuickPanel {
+                editMode: root.editMode
+            }
+        }
+        ColumnLayout { // Sliders over the player, joined
+            id: soundBlock
+            readonly property real outer: Appearance.rounding.normal
+            readonly property real inner: Appearance.rounding.joined
+            readonly property var sliderOptions: Config.options.sidebar.quickSliders
+            readonly property bool slidersShown: sliderOptions.showVolume || sliderOptions.showBrightness || sliderOptions.showMic
+            readonly property bool mediaShown: Config.options.sidebar.showMedia && MprisController.activePlayer !== null
+            visible: slidersShown || mediaShown
+            Layout.fillWidth: true
+            spacing: 4
+            Loader {
                 Layout.fillWidth: true
-                Layout.leftMargin: 2
-                Layout.rightMargin: 2
-            }
-            LoaderedQuickPanelImplementation {
-                styleName: "classic"
-                sourceComponent: ClassicQuickPanel {}
-            }
-            LoaderedQuickPanelImplementation {
-                styleName: "android"
-                sourceComponent: AndroidQuickPanel {
-                    editMode: root.editMode
+                visible: active
+                active: soundBlock.slidersShown
+                sourceComponent: QuickSliders {
+                    topLeftRadius: soundBlock.outer
+                    topRightRadius: soundBlock.outer
+                    bottomLeftRadius: soundBlock.mediaShown ? soundBlock.inner : soundBlock.outer
+                    bottomRightRadius: bottomLeftRadius
                 }
             }
-            ColumnLayout { // Sliders over the player, joined
-                id: soundBlock
-                readonly property real outer: Appearance.rounding.normal
-                readonly property real inner: Appearance.rounding.joined
-                readonly property var sliderOptions: Config.options.sidebar.quickSliders
-                readonly property bool slidersShown: sliderOptions.showVolume || sliderOptions.showBrightness || sliderOptions.showMic
-                readonly property bool mediaShown: Config.options.sidebar.showMedia && MprisController.activePlayer !== null
-                visible: slidersShown || mediaShown
+            Loader {
                 Layout.fillWidth: true
-                spacing: 4
-                Loader {
-                    Layout.fillWidth: true
-                    visible: active
-                    active: soundBlock.slidersShown
-                    sourceComponent: QuickSliders {
-                        topLeftRadius: soundBlock.outer
-                        topRightRadius: soundBlock.outer
-                        bottomLeftRadius: soundBlock.mediaShown ? soundBlock.inner : soundBlock.outer
-                        bottomRightRadius: bottomLeftRadius
-                    }
-                }
-                Loader {
-                    Layout.fillWidth: true
-                    visible: active
-                    active: soundBlock.mediaShown
-                    sourceComponent: SidebarMedia {
-                        topLeftRadius: soundBlock.slidersShown ? soundBlock.inner : soundBlock.outer
-                        topRightRadius: topLeftRadius
-                        bottomLeftRadius: soundBlock.outer
-                        bottomRightRadius: soundBlock.outer
-                    }
+                visible: active
+                active: soundBlock.mediaShown
+                sourceComponent: SidebarMedia {
+                    topLeftRadius: soundBlock.slidersShown ? soundBlock.inner : soundBlock.outer
+                    topRightRadius: topLeftRadius
+                    bottomLeftRadius: soundBlock.outer
+                    bottomRightRadius: soundBlock.outer
                 }
             }
-            NotificationList { // "Notifications · 3", Do not disturb and Clear all, then the cards
-                Layout.fillHeight: true
-                Layout.fillWidth: true
-            }
-            ResourceMonitorWidget {
-                visible: Config.options.sidebar.resourceMonitor.enable
-                Layout.fillWidth: true
-                Layout.preferredHeight: implicitHeight
-            }
+        }
+        NotificationList { // "Notifications · 3", Do not disturb and Clear all, then the cards
+            Layout.fillHeight: true
+            Layout.fillWidth: true
+        }
+        ResourceMonitorWidget {
+            visible: Config.options.sidebar.resourceMonitor.enable
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
         }
     }
     component LoaderedQuickPanelImplementation: Loader {
