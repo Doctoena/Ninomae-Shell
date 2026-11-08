@@ -7,7 +7,9 @@
 
 QS_CONFIG="Ninomae"
 VENV="$HOME/.local/state/quickshell/.venv"
-STEAM_PLUGIN="${XDG_DATA_HOME:-$HOME/.local/share}/millennium/plugins/me.tysmith.steam-native-notifications.star"
+STEAM_PLUGIN_ID="me.tysmith.steam-native-notifications"
+STEAM_PLUGIN="${XDG_DATA_HOME:-$HOME/.local/share}/millennium/plugins/$STEAM_PLUGIN_ID.star"
+STEAM_THEME="$HOME/.local/share/Steam/millennium/themes/Material-Theme"
 NINOMAE_PLUGIN="${XDG_DATA_HOME:-$HOME/.local/share}/millennium/plugins/ninomae"
 STEAM_CONTROL="$DOTFILES/config/quickshell/Ninomae/scripts/game-launcher/steam_control.py"
 
@@ -15,8 +17,9 @@ PACKAGES=(
     # Hyprland and its tools (COPR lionheartp/Hyprland, hypridle from Terra)
     hyprland hyprland-uwsm uwsm hyprland-guiutils hypridle hyprpicker hyprsunset
     xdg-desktop-portal-hyprland xdg-desktop-portal-gtk xdg-desktop-portal-gnome # gnome: Nautilus as the file picker
-    # Quickshell (upstream 0.3+, COPR lionheartp/Hyprland) and its Qt runtime modules
-    quickshell qt6-qtsvg qt6-qtpositioning qt6-qtwayland
+    # Quickshell (upstream 0.3+, COPR lionheartp/Hyprland) and its Qt runtime modules (qtimageformats: WebP
+    # wallpapers, which the wallpaper picker accepts; without it they show blank)
+    quickshell qt6-qtsvg qt6-qtpositioning qt6-qtwayland qt6-qtimageformats
     # Theming: wallpaper colours, GTK/Qt themes
     matugen adw-gtk3-theme qt6ct kvantum
     # Terminal, launcher, shell, and what the app keybinds open (Super+P files, Ctrl+Shift+Esc btop)
@@ -31,8 +34,9 @@ PACKAGES=(
     # Clipboard, screenshots, input
     wl-clipboard cliphist grim slurp swappy tesseract wtype
     # Audio, media, hardware (mpvpaper: video wallpapers, it brings mpv's library; nm-connection-editor and
-    # blueman: the Wi-Fi and Bluetooth menus' Settings buttons)
-    wireplumber pavucontrol playerctl cava mpvpaper ffmpeg-free brightnessctl
+    # blueman: the Wi-Fi and Bluetooth menus' Settings buttons; pipewire-utils: pw-play, the lightest player for
+    # the shell's sounds, services/Audio.qml)
+    wireplumber pipewire-utils pavucontrol playerctl cava mpvpaper ffmpeg-free brightnessctl
     NetworkManager nm-connection-editor bluez blueman upower power-profiles-daemon
     # Compressed swap in RAM, Fedora's default (removing the KDE group took it out once)
     zram-generator-defaults
@@ -100,7 +104,7 @@ COMPONENTS=(
     "Configs — linked into ~/.config · fonts · icons · wallpapers|configs|on"
     "Shell extras — Python helpers · gooey drawer plugin · wallpaper colours|shell|on"
     "App themes — VS Code · Zen · Discord (the ones installed)|apps|on"
-    "Steam — Material theme · notifications in the shell|steam|on"
+    "Steam — Material theme · notifications · the launcher's download controls|steam|on"
     "Login screen — SDDM theme (needs sudo)|sddm|on"
     "Boot splash — Plymouth theme · rebuilds the boot image (needs sudo)|boot|off"
     "fish as your login shell (needs sudo)|fish|on"
@@ -491,6 +495,10 @@ comp_apps() {
 }
 
 # ── Steam ───────────────────────────────────────────────────────────────────
+millennium_enabled() { # millennium_enabled ID: on in Millennium's Settings → Plugins
+    python3 -I -c 'import json, sys; c = json.load(open(sys.argv[1])); sys.exit(sys.argv[2] not in c.get("plugins", {}).get("enabledPlugins", []))' \
+        "$HOME/.config/millennium/config.json" "$1" 2>/dev/null
+}
 comp_steam() {
     step "Steam"
     ensure_colours
@@ -712,15 +720,27 @@ check_plugin() {
     elif [[ "$("$plugin/ensure-built.sh" --stamp 2>/dev/null)" != "$(cat "$built")" ]]; then result todo "Out of date, run ninomae update"
     else result done "Up to date"; fi
 }
-check_steam_plugin() {
-    step "Ninomae Steam plugin"
-    if [[ ! -d /usr/lib/millennium ]]; then result skip "No Millennium (the Steam theme step puts it in)"; return; fi
+check_steam() { # Millennium's theme, the notifications plugin and the Ninomae plugin
+    step "Steam"
+    if ! command -v steam >/dev/null; then result skip "Steam isn't installed"; return; fi
+    if [[ ! -d /usr/lib/millennium ]]; then
+        info "Without Millennium the launcher can't pause or resume Steam's downloads, or save launch options"
+        result skip "Not themed, run themes/steam/install-theme.sh"; return
+    fi
+    local missing=()
+    if [[ -f $STEAM_THEME/skin.json ]]; then ok "Material theme"; else warn "Material theme missing"; missing+=(theme); fi
+    if [[ -f $STEAM_PLUGIN ]] && millennium_enabled "$STEAM_PLUGIN_ID"; then ok "Notifications plugin"
+    else warn "Notifications plugin missing or off (Steam keeps its own pop-ups)"; missing+=(notifications); fi
     case $(python3 -I "$STEAM_CONTROL" status) in
-        on) result done "Working" ;;
-        installed) result done "Installed, works while Steam runs" ;;
-        outdated) result todo "Restart Steam to load the update" ;;
-        *) result todo "Not on, close Steam and run ninomae update" ;;
+        on) ok "Ninomae plugin, working" ;;
+        installed) ok "Ninomae plugin, works while Steam runs" ;;
+        outdated) warn "Ninomae plugin updated, restart Steam to load it"; missing+=(restart) ;;
+        *) warn "Ninomae plugin isn't on"; missing+=(ninomae) ;;
     esac
+    if (( ! ${#missing[@]} )); then result done "Theme, notifications and Ninomae plugins"
+    elif [[ ${missing[*]} == restart ]]; then result todo "Restart Steam to load the Ninomae plugin"
+    elif [[ ${missing[*]} == ninomae ]]; then result todo "Close Steam and run ninomae update"
+    else result todo "Close Steam and run themes/steam/install-theme.sh"; fi
 }
 check_colours() {
     step "Wallpaper colours"
@@ -789,7 +809,7 @@ uninstall_steam_plugin() {
         run rm -f "$NINOMAE_PLUGIN" && drop+=(ninomae) && ok "Ninomae plugin removed"
     fi
     if [[ -f $STEAM_PLUGIN ]] && confirm "Remove the Steam notifications plugin? (Steam goes back to its own pop-ups)"; then
-        run rm -f "$STEAM_PLUGIN" && drop+=(me.tysmith.steam-native-notifications) && ok "Notifications plugin removed"
+        run rm -f "$STEAM_PLUGIN" && drop+=("$STEAM_PLUGIN_ID") && ok "Notifications plugin removed"
     fi
     if (( ! ${#drop[@]} )); then result skip "Nothing removed"; return; fi
     local cfg="$HOME/.config/millennium/config.json"

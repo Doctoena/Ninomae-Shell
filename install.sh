@@ -227,7 +227,7 @@ update)
     ;;
 
 check)
-    steps=(check_links check_settings check_packages check_plugin check_steam_plugin check_login_screen check_colours check_python check_running)
+    steps=(check_links check_settings check_packages check_plugin check_steam check_login_screen check_colours check_python check_running)
     STEP_TOTAL=${#steps[@]}
     for s in "${steps[@]}"; do "$s"; done
     report "Fix what's flagged with ${c_bold}ninomae update${c_off}"

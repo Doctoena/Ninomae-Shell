@@ -40,7 +40,7 @@ steam_offer() {
     local action
     action="$(timeout 10m notify-send -a "Ninomae" -i steam --wait \
         --action=theme="Theme Steam" --action=never="Don't ask again" \
-        "Theme Steam to match?" "Installs Millennium and the Material theme, coloured from your wallpaper. It asks for your password in a terminal." \
+        "Theme Steam to match?" "Installs Millennium and the Material theme, coloured from your wallpaper, and the plugin the launcher pauses and resumes downloads with. It asks for your password in a terminal." \
         2>/dev/null || true)"
     case $action in
         theme) kitty -T "Theme Steam" bash -c '"$1"; echo; read -rsn1 -p "Done. Press any key to close."' \
