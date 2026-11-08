@@ -28,12 +28,59 @@ Item {
     readonly property real maxMediaWidth: 420
     readonly property bool hovered: mouseArea.containsMouse || playMouse.containsMouse || prevButton.pointed || nextButton.pointed
 
-    // ── Album art (downloaded once, shared with the media panel: services/CoverArt.qml) ──
+    // ── Album art (fetched by services/CoverArt.qml, shared with the media panel and the sidebar) ──
     readonly property string artUrl: activePlayer?.trackArtUrl ?? ""
-    readonly property string displayedArtFilePath: CoverArt.localUrl(artUrl)
-    readonly property bool hasArt: displayedArtFilePath !== ""
-    onArtUrlChanged: CoverArt.request(artUrl)
-    Component.onCompleted: CoverArt.request(artUrl)
+    readonly property string displayedArtFilePath: CoverArt.coverFor(activePlayer)
+    // The cover shown: the last one stays while the next downloads (its path is empty until then), so a track
+    // change doesn't flash the note badge in between
+    property string shownArt: ""
+    onDisplayedArtFilePathChanged: if (displayedArtFilePath !== "" || artUrl === "") shownArt = displayedArtFilePath
+    readonly property bool hasArt: shownArt !== ""
+    Component.onCompleted: {
+        shownArt = displayedArtFilePath;
+        settle();
+    }
+
+    // ── Track change: the old title slides out fading, the card resizes while the text is away, the new one
+    // slides in. The cover crossfades as the new one loads ──
+    property string settledTitle: ""
+    property string settledArtist: ""
+    property bool changing: false // The old title and artist are held while they fade out
+    readonly property string titleShown: changing ? settledTitle : cleanedTitle
+    readonly property string artistShown: changing ? settledArtist : artistText
+    function settle() {
+        settledTitle = cleanedTitle;
+        settledArtist = artistText;
+    }
+    onCleanedTitleChanged: {
+        if (settledTitle === "") settle(); // The first track: nothing to change from
+        else if (!changing && cleanedTitle !== settledTitle) {
+            changing = true;
+            trackSwap.restart();
+        }
+    }
+    // The artist alone changing (a player filling it in late) just updates. Checked a moment later: a new track's
+    // title and artist arrive together, and the title's change has to start the swap first
+    onArtistTextChanged: Qt.callLater(() => { if (!changing && cleanedTitle === settledTitle) settledArtist = artistText; })
+    SequentialAnimation {
+        id: trackSwap
+        ParallelAnimation {
+            NumberAnimation { target: textColumn; property: "opacity"; to: 0; duration: 140; easing.type: Easing.InCubic }
+            NumberAnimation { target: textShift; property: "x"; to: -6; duration: 140; easing.type: Easing.InCubic }
+        }
+        ScriptAction { // The new text in place (still unseen): the card's width glides to fit it
+            script: {
+                root.settle();
+                root.changing = false;
+                textShift.x = 6;
+            }
+        }
+        PauseAnimation { duration: 90 }
+        ParallelAnimation {
+            NumberAnimation { target: textColumn; property: "opacity"; to: 1; duration: 240; easing.type: Easing.OutCubic }
+            NumberAnimation { target: textShift; property: "x"; to: 0; duration: 240; easing.type: Easing.OutCubic }
+        }
+    }
 
     implicitWidth: pill.width
     implicitHeight: pill.height
@@ -109,28 +156,46 @@ Item {
                     visible: root.hasArt
                     opacity: root.isPlaying ? 1 : 0.55
                     Behavior on opacity { NumberAnimation { duration: 250 } }
-                    StyledImage {
+                    // Two covers crossfading: the new one fades in over the old, which then lets go of its picture
+                    // Cached: covers are stored by their URL's hash, so a file never changes under its name, and the
+                    // old cover comes back from memory at once rather than being read again mid-swap
+                    Image {
+                        id: oldCover
                         anchors.fill: parent
-                        source: root.displayedArtFilePath
                         fillMode: Image.PreserveAspectCrop
-                        cache: false
                         sourceSize: Qt.size(52, 52)
+                    }
+                    StyledImage {
+                        id: cover
+                        anchors.fill: parent
+                        source: root.shownArt
+                        fillMode: Image.PreserveAspectCrop
+                        retainWhileLoading: false // Empty until the new one's ready, so it can fade in over the old
+                        sourceSize: Qt.size(52, 52)
+                        property string lastSource: ""
+                        onSourceChanged: {
+                            oldCover.source = lastSource;
+                            lastSource = source;
+                        }
+                        onStatusChanged: if (status === Image.Ready) oldCoverRelease.restart()
+                        Timer { id: oldCoverRelease; interval: 600; onTriggered: oldCover.source = "" }
                     }
                 }
             }
 
-            // ── Title, artist and time (crossfade on track change) ──
+            // ── Title, artist and time (they slide across on a track change, see trackSwap) ──
             ColumnLayout {
                 id: textColumn
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
                 spacing: -3
+                transform: Translate { id: textShift }
                 StyledText {
                     Layout.fillWidth: true
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: Appearance.colors.colOnLayer0
                     elide: Text.ElideRight
-                    text: root.cleanedTitle
+                    text: root.titleShown
                 }
                 StyledText {
                     id: subtitle
@@ -141,21 +206,12 @@ Item {
                     font.pixelSize: Appearance.font.pixelSize.smallest
                     color: Appearance.colors.colSubtext
                     elide: Text.ElideRight
-                    text: [root.artistText, root.timeText].filter(t => t).join(" · ")
+                    text: [root.artistShown, root.timeText].filter(t => t).join(" · ")
                     TextMetrics {
                         id: subtitleMetrics
                         font: subtitle.font
                         text: subtitle.text.replace(/[0-9]/g, "0")
                     }
-                }
-                Connections {
-                    target: root
-                    function onCleanedTitleChanged() { swap.restart(); }
-                }
-                SequentialAnimation {
-                    id: swap
-                    NumberAnimation { target: textColumn; property: "opacity"; to: 0; duration: 120; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: textColumn; property: "opacity"; to: 1; duration: 220; easing.type: Easing.OutCubic }
                 }
             }
 

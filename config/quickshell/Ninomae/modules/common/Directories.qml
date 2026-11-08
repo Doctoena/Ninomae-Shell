@@ -35,7 +35,9 @@ Singleton {
         Quickshell.execDetached(["mkdir", "-p", `${favicons}`])
         // Paths are passed as arguments, not pasted into the scripts
         const emptyDir = 'case "$1" in /?*/*) rm -rf -- "$1" ;; esac; mkdir -p -- "$1"' // Never an empty or top-level path
-        Quickshell.execDetached(["bash", "-c", emptyDir, "reset-dir", coverArt])
+        // Cover art: only covers from more than two days ago go. Emptying the folder raced the first downloads
+        // (one finishing before the wipe was then missing, though marked as downloaded)
+        Quickshell.execDetached(["bash", "-c", 'mkdir -p -- "$1" && find "$1" -type f -mtime +2 -delete', "prune-covers", coverArt])
         Quickshell.execDetached(["bash", "-c", emptyDir, "reset-dir", cliphistDecode])
         // Symlink generated dir from scripts' state path to QS state path
         const scriptsGenDir = FileUtils.trimFileProtocol(home) + "/.local/state/quickshell/user/generated"

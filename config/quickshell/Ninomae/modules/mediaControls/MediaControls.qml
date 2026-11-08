@@ -13,7 +13,6 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 Scope {
     id: root
-    property bool visible: false
     // Window kept from opening until the drawer has slid back into the bar (a flag set on close
     // raced the window being removed, so it could vanish instead; see sessionScreen/SessionScreen.qml)
     property bool keepWindow: false
@@ -31,7 +30,6 @@ Scope {
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property var realPlayers: Mpris.players.values.filter(player => isRealPlayer(player))
     readonly property var meaningfulPlayers: filterDuplicatePlayers(realPlayers)
-    readonly property real osdWidth: Appearance.sizes.osdWidth
     readonly property real widgetWidth: Appearance.sizes.mediaControlsWidth
     property real popupRounding: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
     property bool hasPlasmaIntegration: false
@@ -63,10 +61,13 @@ Scope {
                 continue;
             let p1 = players[i];
             let group = [i];
-            // Find duplicates by trackTitle prefix
+            // Duplicates: one title contains the other, or the same track length at the same point (within 2 s
+            // both ways; without the absolute values any player further along than another looked like its copy)
             for (let j = i + 1; j < players.length; ++j) {
                 let p2 = players[j];
-                if (p1.trackTitle && p2.trackTitle && (p1.trackTitle.includes(p2.trackTitle) || p2.trackTitle.includes(p1.trackTitle)) || (p1.position - p2.position <= 2 && p1.length - p2.length <= 2)) {
+                const sameTitle = p1.trackTitle && p2.trackTitle && (p1.trackTitle.includes(p2.trackTitle) || p2.trackTitle.includes(p1.trackTitle));
+                const sameTiming = p1.length > 0 && Math.abs(p1.position - p2.position) <= 2 && Math.abs(p1.length - p2.length) <= 2;
+                if (sameTitle || sameTiming) {
                     group.push(j);
                 }
             }

@@ -23,11 +23,8 @@ Rectangle {
     TrackTiming { id: timing; player: root.player }
     readonly property real progress: timing.hasLength ? Math.max(0, Math.min(1, timing.position / timing.length)) : 0
 
-    readonly property string artUrl: player?.trackArtUrl ?? ""
-    readonly property string artPath: CoverArt.localUrl(artUrl)
+    readonly property string artPath: CoverArt.coverFor(player) // Fetched by services/CoverArt.qml
     readonly property bool hasArt: artPath !== ""
-    onArtUrlChanged: CoverArt.request(artUrl)
-    Component.onCompleted: CoverArt.request(artUrl)
 
     color: Appearance.colors.colLayer3
     radius: Appearance.rounding.normal

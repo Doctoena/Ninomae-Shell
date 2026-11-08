@@ -28,11 +28,8 @@ Item {
     readonly property bool canShuffle: (player?.shuffleSupported ?? false) && (player?.canControl ?? false)
     readonly property bool canLoop: (player?.loopSupported ?? false) && (player?.canControl ?? false)
 
-    // ── Cover art (downloaded once, shared with the bar: services/CoverArt.qml) ──
-    readonly property string artUrl: player?.trackArtUrl ?? ""
-    readonly property string displayedArtFilePath: CoverArt.localUrl(artUrl)
-    onArtUrlChanged: CoverArt.request(artUrl)
-    Component.onCompleted: CoverArt.request(artUrl)
+    // ── Cover art (fetched by services/CoverArt.qml, shared with the bar and the sidebar) ──
+    readonly property string displayedArtFilePath: CoverArt.coverFor(player)
 
     implicitHeight: row.implicitHeight
 
