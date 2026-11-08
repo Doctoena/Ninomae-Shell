@@ -3,7 +3,8 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
-// A power menu action: a big tile (icon badge + label) or, with `compact`, a pill.
+// A power menu action: a big tile (icon badge + label) or, with `compact`, a wide button; both pieces of one joined
+// group (the menu sets each corner: round at the group's outer corners, slight between).
 // Hover or keyboard focus, as the rest of the shell shows "active": the tile stays neutral (a step lighter),
 // its icon gets a solid accent squircle and its name turns accent (error red for the ones that end the session).
 // While `countdown` > 0 the action is about to run: the number takes the icon's place and a bar runs out
@@ -22,13 +23,20 @@ RippleButton {
     readonly property bool active: button.focus || button.hovered || button.down || button.keyboardDown || button.pending
 
     implicitWidth: compact ? compactRow.implicitWidth + 32 : 128
-    implicitHeight: compact ? 44 : 128
-    // Tiles round out a little when active (Material 3 shape morph); a press squeezes the button
-    buttonRadius: compact ? 12 : (active ? Appearance.rounding.verylarge : Appearance.rounding.large)
-    Behavior on buttonRadius {
-        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-    }
-    scale: (button.down || button.keyboardDown) ? 0.94 : 1
+    implicitHeight: compact ? 44 : 120
+    // Its corners in the group: outer ones round, the rest slight (set from the menu). A press squeezes it
+    property bool outerTopLeft: false
+    property bool outerTopRight: false
+    property bool outerBottomLeft: false
+    property bool outerBottomRight: false
+    readonly property real _outer: Appearance.rounding.normal
+    readonly property real _inner: Appearance.rounding.joined
+    buttonRadius: _outer // The ripple's clip
+    buttonRadiusTopLeft: outerTopLeft ? _outer : _inner
+    buttonRadiusTopRight: outerTopRight ? _outer : _inner
+    buttonRadiusBottomLeft: outerBottomLeft ? _outer : _inner
+    buttonRadiusBottomRight: outerBottomRight ? _outer : _inner
+    scale: (button.down || button.keyboardDown) ? 0.97 : 1 // A small press: it sits in a joined group
     Behavior on scale {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
     }
@@ -111,7 +119,7 @@ RippleButton {
                 }
             }
         }
-        // Pill: icon (or the countdown) + label in a row
+        // Wide button: icon (or the countdown) + label in a row
         RowLayout {
             id: compactRow
             visible: button.compact

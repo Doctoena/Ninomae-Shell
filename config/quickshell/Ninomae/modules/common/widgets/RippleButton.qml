@@ -21,6 +21,11 @@ Button {
     readonly property real _radiusRight: buttonRadiusRight >= 0 ? buttonRadiusRight : buttonEffectiveRadius
     property real buttonRadiusTop: -1 // Top and bottom corners apart (a settings row in its group); -1: as the sides
     property real buttonRadiusBottom: -1
+    // Each corner apart (a piece at a corner of a joined group, as the session menu's); -1: as above
+    property real buttonRadiusTopLeft: -1
+    property real buttonRadiusTopRight: -1
+    property real buttonRadiusBottomLeft: -1
+    property real buttonRadiusBottomRight: -1
     property int rippleDuration: 1200
     property bool rippleEnabled: true
     property var downAction // When left clicking (down)
@@ -128,10 +133,12 @@ Button {
     background: Rectangle {
         id: buttonBackground
         radius: root.buttonEffectiveRadius
-        topLeftRadius: root.buttonRadiusTop >= 0 ? root.buttonRadiusTop : root._radiusLeft
-        bottomLeftRadius: root.buttonRadiusBottom >= 0 ? root.buttonRadiusBottom : root._radiusLeft
-        topRightRadius: root.buttonRadiusTop >= 0 ? root.buttonRadiusTop : root._radiusRight
-        bottomRightRadius: root.buttonRadiusBottom >= 0 ? root.buttonRadiusBottom : root._radiusRight
+        // The first one set (>= 0) wins: the corner's own, then its top/bottom, then its side
+        function corner(own, edge, side) { return own >= 0 ? own : edge >= 0 ? edge : side; }
+        topLeftRadius: corner(root.buttonRadiusTopLeft, root.buttonRadiusTop, root._radiusLeft)
+        bottomLeftRadius: corner(root.buttonRadiusBottomLeft, root.buttonRadiusBottom, root._radiusLeft)
+        topRightRadius: corner(root.buttonRadiusTopRight, root.buttonRadiusTop, root._radiusRight)
+        bottomRightRadius: corner(root.buttonRadiusBottomRight, root.buttonRadiusBottom, root._radiusRight)
         implicitHeight: 30
         color: root.buttonColor
         Behavior on color {
