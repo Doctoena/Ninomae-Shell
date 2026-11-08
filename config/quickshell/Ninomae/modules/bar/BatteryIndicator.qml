@@ -2,28 +2,33 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
 import QtQuick
-// Bar battery: the battery icon and the percentage, no background of their own (like Wi-Fi and
-// Bluetooth next to it). Lavender while charging, red when low. Hover shows the battery drawer.
+// Bar battery: the battery icon and the percentage on a card of its own, one of the joined pieces on the right
+// of the bar (its corners are set from there). Lavender while charging, red when low. Hover shows the battery drawer.
 MouseArea {
     id: root
+    property real radiusLeft: Appearance.rounding.container
+    property real radiusRight: Appearance.rounding.container
     property color statusColor: Battery.isLowAndUnplugged ? Appearance.colors.colError
         : Battery.isCharging ? Appearance.colors.colPrimary
         : Appearance.colors.colOnLayer0
     Behavior on statusColor { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
-    implicitWidth: row.implicitWidth + 2 + 3 // Pads sized so the gaps to the tray arrow and the status icons match
-    implicitHeight: 30
+    implicitWidth: row.implicitWidth + 22
+    implicitHeight: 36 // As every card on the bar
     hoverEnabled: true
 
-    Rectangle { // Segment of the shared right-side pill
+    Rectangle {
         anchors.fill: parent
-        radius: Appearance.rounding.segment
-        color: root.containsMouse ? Appearance.m3colors.m3surfaceContainerHighest : "transparent"
+        topLeftRadius: root.radiusLeft
+        bottomLeftRadius: root.radiusLeft
+        topRightRadius: root.radiusRight
+        bottomRightRadius: root.radiusRight
+        color: root.containsMouse ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
         Behavior on color { ColorAnimation { duration: 150 } }
     }
 
     Row {
         id: row
-        anchors { left: parent.left; leftMargin: 2; verticalCenter: parent.verticalCenter }
+        anchors.centerIn: parent
         spacing: 5
         MaterialSymbol {
             // The upright glyph is ~9px of ink in a square advance; a narrow centred box hugs the ink

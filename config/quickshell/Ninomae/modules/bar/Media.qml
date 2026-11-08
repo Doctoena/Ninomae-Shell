@@ -9,9 +9,10 @@ import Quickshell.Widgets
 import Quickshell.Services.Mpris
 
 /**
- * Bar music card, shown while something plays: the cover art, title and artist, a play/pause button, and the
- * track's progress along the bottom edge. Left click opens the media panel, middle click plays/pauses, right click
- * (or mouse forward) skips, mouse back goes to the previous track.
+ * Bar player, in the middle of the bar while something plays: the cover
+ * faded across the left of the card, title and artist with the time, previous / play-pause / next, and the
+ * track's progress along the bottom edge. As the sidebar's player. Left click opens the media panel, middle click
+ * plays/pauses, right click (or mouse forward) skips, mouse back goes to the previous track.
  */
 Item {
     id: root
@@ -19,11 +20,14 @@ Item {
     readonly property bool isPlaying: activePlayer?.isPlaying ?? false
     readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle)
     readonly property string artistText: (activePlayer?.trackArtist ?? "") || (activePlayer?.identity ?? "")
-    // Kept through the gaps where a browser drops the length (TrackTiming.qml); none at all: no progress line
+    // Kept through the gaps where a browser drops the length (TrackTiming.qml); none at all: no progress or times
     TrackTiming { id: timing; player: root.activePlayer }
     readonly property real trackProgress: timing.hasLength ? Math.max(0, Math.min(1, timing.position / timing.length)) : 0
-    readonly property real maxMediaWidth: 300
-    readonly property bool hovered: mouseArea.containsMouse || playMouse.containsMouse
+    readonly property string timeText: timing.hasLength
+        ? `${StringUtils.friendlyTimeForSeconds(timing.position)} / ${StringUtils.friendlyTimeForSeconds(timing.length)}` : ""
+    readonly property real minMediaWidth: 300
+    readonly property real maxMediaWidth: 420
+    readonly property bool hovered: mouseArea.containsMouse || playMouse.containsMouse || prevButton.pointed || nextButton.pointed
 
     // ── Album art (downloaded once, shared with the media panel: services/CoverArt.qml) ──
     readonly property string artUrl: activePlayer?.trackArtUrl ?? ""
@@ -32,8 +36,6 @@ Item {
     onArtUrlChanged: CoverArt.request(artUrl)
     Component.onCompleted: CoverArt.request(artUrl)
 
-    Layout.fillHeight: false
-    Layout.maximumWidth: maxMediaWidth
     implicitWidth: pill.width
     implicitHeight: pill.height
 
@@ -41,12 +43,38 @@ Item {
         id: pill
         anchors.verticalCenter: parent.verticalCenter
         height: 36 // As every card on the bar
-        width: Math.min(root.maxMediaWidth, contentRow.implicitWidth + contentRow.anchors.leftMargin + contentRow.anchors.rightMargin)
+        width: Math.max(root.minMediaWidth, Math.min(root.maxMediaWidth,
+            contentRow.implicitWidth + contentRow.anchors.leftMargin + contentRow.anchors.rightMargin))
         radius: Appearance.rounding.container
         color: root.hovered ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-        clip: true
+
+        // The cover across the left of the card, fading into it. Decoded small (it's soft and faint anyway)
+        ClippingRectangle {
+            anchors.fill: parent
+            radius: pill.radius
+            color: "transparent"
+            visible: root.hasArt
+            StyledImage {
+                width: parent.width * 0.55
+                height: parent.height
+                source: root.displayedArtFilePath
+                fillMode: Image.PreserveAspectCrop
+                cache: false
+                sourceSize: Qt.size(120, 120)
+                opacity: root.isPlaying ? 0.85 : 0.5
+                Behavior on opacity { NumberAnimation { duration: 250 } }
+            }
+            Rectangle {
+                anchors.fill: parent
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: ColorUtils.transparentize(pill.color, 0.55) }
+                    GradientStop { position: 0.6; color: pill.color }
+                }
+            }
+        }
 
         MouseArea {
             id: mouseArea
@@ -63,29 +91,33 @@ Item {
             }
         }
 
-        Rectangle { // Track progress, along the bottom edge
-            anchors { left: parent.left; bottom: parent.bottom; leftMargin: 8; bottomMargin: 2 }
-            width: (parent.width - 16) * root.trackProgress
+        Rectangle { // Track progress along the bottom edge, on a faint track
+            visible: timing.hasLength
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 10; rightMargin: 10; bottomMargin: 2 }
             height: 2
             radius: 1
-            color: Appearance.colors.colPrimary
-            // Steps once a second (~1-2 px) rather than gliding: a glide never ends while playing,
-            // so the bar redrew at the full refresh rate (240 Hz) the whole time music played
+            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.85)
+            Rectangle {
+                width: parent.width * root.trackProgress
+                height: parent.height
+                radius: 1
+                color: Appearance.colors.colPrimary
+                // Steps once a second (~1-2 px) rather than gliding: a glide never ends while playing,
+                // so the bar redrew at the full refresh rate (240 Hz) the whole time music played
+            }
         }
         RowLayout {
             id: contentRow
-            // The art and the play button as far from the card's sides as from its top and bottom
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 6; rightMargin: 7 }
+            // The art and the buttons as far from the card's sides as from its top and bottom
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 5; rightMargin: 5 }
             spacing: 8
 
             // ── Cover art in a squircle ──
             Item {
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 24
-                implicitHeight: 24
-
-                // Badge when there's no art
-                Rectangle {
+                implicitWidth: 26
+                implicitHeight: 26
+                Rectangle { // Badge when there's no art
                     anchors.fill: parent
                     radius: Appearance.rounding.chip
                     color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
@@ -98,9 +130,7 @@ Item {
                         color: Appearance.colors.colPrimary
                     }
                 }
-
-                // The cover, dimmed while paused
-                ClippingRectangle {
+                ClippingRectangle { // The cover, dimmed while paused
                     anchors.fill: parent
                     radius: Appearance.rounding.chip
                     color: "transparent"
@@ -112,17 +142,16 @@ Item {
                         source: root.displayedArtFilePath
                         fillMode: Image.PreserveAspectCrop
                         cache: false
-                        sourceSize: Qt.size(48, 48)
+                        sourceSize: Qt.size(52, 52)
                     }
                 }
             }
 
-            // ── Title + artist (crossfade on track change) ──
+            // ── Title, artist and time (crossfade on track change) ──
             ColumnLayout {
                 id: textColumn
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
-                Layout.maximumWidth: root.maxMediaWidth - 24 - 22 - contentRow.spacing * 2 - 13
                 spacing: -3
                 StyledText {
                     Layout.fillWidth: true
@@ -132,14 +161,21 @@ Item {
                     text: root.cleanedTitle
                 }
                 StyledText {
+                    id: subtitle
                     Layout.fillWidth: true
-                    visible: root.artistText.length > 0
+                    // Measured with every digit a 0: the time ticking doesn't nudge the card's width each second
+                    Layout.preferredWidth: subtitleMetrics.advanceWidth
+                    visible: text.length > 0
                     font.pixelSize: Appearance.font.pixelSize.smallest
                     color: Appearance.colors.colSubtext
                     elide: Text.ElideRight
-                    text: root.artistText
+                    text: [root.artistText, root.timeText].filter(t => t).join(" · ")
+                    TextMetrics {
+                        id: subtitleMetrics
+                        font: subtitle.font
+                        text: subtitle.text.replace(/[0-9]/g, "0")
+                    }
                 }
-                // Fade out and back in when the track changes
                 Connections {
                     target: root
                     function onCleanedTitleChanged() { swap.restart(); }
@@ -151,22 +187,27 @@ Item {
                 }
             }
 
-            // ── Play / pause ──
+            // ── Previous / play-pause / next ──
+            SkipButton {
+                id: prevButton
+                symbol: "skip_previous"
+                enabled: root.activePlayer?.canGoPrevious ?? false
+                onClicked: root.activePlayer?.previous()
+            }
             Rectangle {
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 22
-                implicitHeight: 22
+                implicitWidth: 26
+                implicitHeight: 26
                 radius: playMouse.pressed ? 6 : 8
-                color: playMouse.containsMouse ? Appearance.colors.colPrimary
-                    : ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
+                color: playMouse.containsMouse ? Qt.lighter(Appearance.colors.colPrimary, 1.08) : Appearance.colors.colPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on radius { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: root.isPlaying ? "pause" : "play_arrow"
                     fill: 1
-                    iconSize: 15
-                    color: playMouse.containsMouse ? Appearance.colors.colOnPrimary : Appearance.colors.colPrimary
+                    iconSize: 16
+                    color: Appearance.colors.colOnPrimary
                 }
                 MouseArea {
                     id: playMouse
@@ -176,6 +217,41 @@ Item {
                     onClicked: root.activePlayer?.togglePlaying()
                 }
             }
+            SkipButton {
+                id: nextButton
+                symbol: "skip_next"
+                enabled: root.activePlayer?.canGoNext ?? false
+                onClicked: root.activePlayer?.next()
+            }
+        }
+    }
+
+    // A small previous / next button: just the glyph, a soft squircle behind it while pointed at
+    component SkipButton: Rectangle {
+        id: skip
+        property string symbol
+        signal clicked()
+        readonly property bool pointed: skipMouse.containsMouse
+        Layout.alignment: Qt.AlignVCenter
+        implicitWidth: 22
+        implicitHeight: 26
+        radius: Appearance.rounding.chip
+        opacity: enabled ? 1 : 0.4
+        color: pointed ? ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9) : "transparent"
+        Behavior on color { ColorAnimation { duration: 150 } }
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: skip.symbol
+            fill: 1
+            iconSize: 16
+            color: skip.pointed ? Appearance.colors.colOnLayer0 : Appearance.colors.colSubtext
+        }
+        MouseArea {
+            id: skipMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: skip.clicked()
         }
     }
 }

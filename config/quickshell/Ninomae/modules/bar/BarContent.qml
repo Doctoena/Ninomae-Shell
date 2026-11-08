@@ -11,6 +11,12 @@ Item { // Bar content region
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
     readonly property int useShortenedForm: (Appearance.sizes.barHellaShortenScreenWidthThreshold >= screen?.width) ? 2 : (Appearance.sizes.barShortenScreenWidthThreshold >= screen?.width) ? 1 : 0
+    // Something playing: the player shows in the middle of the bar (empty otherwise; the clock stays on the right)
+    readonly property bool mediaShown: useShortenedForm < 2 && MprisController.activePlayer !== null
+    // The right side's joined pieces, left to right as shown: round at the group's ends, slight between
+    readonly property var rightPieces: [trayPill, batteryWidget, rightSidebarButton, rightClock].filter(i => i.visible)
+    function pieceLeftRadius(item) { return rightPieces[0] === item ? Appearance.rounding.container : Appearance.rounding.joined; }
+    function pieceRightRadius(item) { return rightPieces[rightPieces.length - 1] === item ? Appearance.rounding.container : Appearance.rounding.joined; }
     // Background shadow
     Loader {
         active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 && Config.options.bar.floatStyleShadow
@@ -88,15 +94,19 @@ Item { // Bar content region
             }
         }
     }
-    MouseArea { // Middle: the clock, truly centred on the bar
+    Item { // Middle: what's playing, truly centred on the bar. It fades in growing into place, and out shrinking
         id: middleSection
         anchors.centerIn: parent
-        implicitWidth: clockWidget.implicitWidth
-        implicitHeight: clockWidget.implicitHeight
-        onPressed: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
-        ClockWidget {
-            id: clockWidget
+        implicitWidth: root.mediaShown ? mediaWidget.implicitWidth : 0
+        implicitHeight: 36
+        Media {
+            id: mediaWidget
             anchors.centerIn: parent
+            opacity: root.mediaShown ? 1 : 0
+            scale: root.mediaShown ? 1 : 0.9
+            visible: opacity > 0
+            Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+            Behavior on scale { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
         }
     }
     FocusedScrollMouseArea { // Right side | scroll to change volume
@@ -117,42 +127,32 @@ Item { // Bar content region
                 GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
             }
         }
-        // One card behind the status cluster (tray, battery, status), as every card on the bar. Its widgets
-        // are transparent segments with hover highlights; it spans from the leftmost visible one to the status
-        // segment. The media is a card of its own beside it
-        Rectangle {
-            id: rightGroupBackground
-            readonly property real pad: 3
-            readonly property real leftEdge: {
-                const items = [trayPill, batteryWidget, rightSidebarButton].filter(i => i.visible);
-                return items.length ? Math.min(...items.map(i => i.x)) : rightSidebarButton.x;
-            }
-            x: leftEdge - pad
-            width: rightSidebarButton.x + rightSidebarButton.width - leftEdge + pad * 2
-            height: 36
-            anchors.verticalCenter: parent.verticalCenter
-            radius: Appearance.rounding.container // Its segments are 10, their chips 8
-            color: Appearance.m3colors.m3surfaceContainerHigh
-            Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-            Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-        }
-        // Visual content
+        // The tray, battery, status (opens the sidebar) and the clock: cards of their own joined into one group,
+        // as the sidebar's blocks
         RowLayout {
             id: rightSectionRowLayout
             anchors.fill: parent
-            spacing: 0
+            anchors.rightMargin: Appearance.rounding.screenRounding
+            spacing: 4
             layoutDirection: Qt.RightToLeft
-            // === Status indicators pill (rightmost) ===
+            // === The clock (rightmost) ===
+            ClockWidget {
+                id: rightClock
+                Layout.alignment: Qt.AlignVCenter
+                radiusLeft: root.pieceLeftRadius(rightClock)
+                radiusRight: root.pieceRightRadius(rightClock)
+            }
+            // === Status indicators ===
             RippleButton {
                 id: rightSidebarButton
                 Layout.alignment: Qt.AlignVCenter
-                Layout.rightMargin: Appearance.rounding.screenRounding + rightGroupBackground.pad
                 Layout.fillWidth: false
-                implicitWidth: indicatorsRowLayout.implicitWidth + 9 * 2
-                implicitHeight: 30
-                buttonRadius: Appearance.rounding.segment
-                // A segment of the shared right-side pill; lavender while the sidebar is open
-                colBackground: "transparent"
+                implicitWidth: indicatorsRowLayout.implicitWidth + 11 * 2
+                implicitHeight: 36 // As every card on the bar
+                buttonRadiusLeft: root.pieceLeftRadius(rightSidebarButton)
+                buttonRadiusRight: root.pieceRightRadius(rightSidebarButton)
+                // Lavender while the sidebar is open
+                colBackground: Appearance.m3colors.m3surfaceContainerHigh
                 colBackgroundHover: Appearance.m3colors.m3surfaceContainerHighest
                 colRipple: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.7)
                 colBackgroundToggled: Appearance.colors.colPrimary
@@ -237,22 +237,27 @@ Item { // Bar content region
                 id: batteryWidget
                 visible: Battery.available && Config.options.bar.indicators.battery.show
                 Layout.alignment: Qt.AlignVCenter
+                radiusLeft: root.pieceLeftRadius(batteryWidget)
+                radiusRight: root.pieceRightRadius(batteryWidget)
             }
             // === Systray: arrow + revealed icons ===
             Rectangle {
                 id: trayPill
                 visible: root.useShortenedForm === 0
                 Layout.alignment: Qt.AlignVCenter
-                implicitHeight: 30
-                implicitWidth: trayRow.implicitWidth + 4
-                radius: Appearance.rounding.segment
-                color: sysTrayToggleMa.containsMouse ? Appearance.m3colors.m3surfaceContainerHighest : "transparent"
+                implicitHeight: 36 // As every card on the bar
+                implicitWidth: trayRow.implicitWidth + 8
+                topLeftRadius: root.pieceLeftRadius(trayPill)
+                bottomLeftRadius: topLeftRadius
+                topRightRadius: root.pieceRightRadius(trayPill)
+                bottomRightRadius: topRightRadius
+                color: sysTrayToggleMa.containsMouse ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on implicitWidth { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                 clip: true
                 Row {
                     id: trayRow
-                    anchors { left: parent.left; leftMargin: 2; verticalCenter: parent.verticalCenter }
+                    anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
                     spacing: 0
                     Revealer {
                         reveal: GlobalStates.sysTrayOpen
@@ -277,14 +282,6 @@ Item { // Bar content region
                         }
                     }
                 }
-            }
-            // === Media info ===
-            Media {
-                id: mediaWidget
-                visible: root.useShortenedForm < 2 && MprisController.activePlayer !== null
-                Layout.fillWidth: false
-                Layout.alignment: Qt.AlignVCenter
-                Layout.rightMargin: 6 + rightGroupBackground.pad // The gap between it and the status card
             }
             // === Spacer: keeps the right-side pills against the right edge ===
             Item {
