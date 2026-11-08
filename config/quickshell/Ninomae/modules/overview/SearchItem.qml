@@ -16,16 +16,6 @@ RippleButton {
     property string itemType: entry?.type ?? Translation.tr("App")
     property string itemName: entry?.name ?? ""
     property string itemIcon: entry?.icon ?? ""
-    function actionSymbol(name) { // A symbol for a desktop action, from its name
-        const n = (name ?? "").toLowerCase();
-        if (n.includes("private") || n.includes("incognito")) return "visibility_off";
-        if (n.includes("window")) return "open_in_new";
-        if (n.includes("new")) return "add";
-        if (n.includes("setting") || n.includes("preference")) return "settings";
-        if (n.includes("quit") || n.includes("exit")) return "close";
-        if (n.includes("play") || n.includes("pause")) return "play_pause";
-        return "bolt";
-    }
     property string fontType: entry?.fontType ?? "main"
     property string itemClickActionName: entry?.clickActionName ?? "Open"
     property string bigText: entry?.bigText ?? ""
@@ -94,7 +84,15 @@ RippleButton {
         if (root.entry?.type === Translation.tr("App")) AppSearch.recordLaunch(root.entry); // Most used come first
         root.entry?.execute?.() // Call on entry so C++ methods (DesktopEntry.execute) keep their `this`
     }
+    // Its actions (an app's "New Window"…, a clipboard entry's Copy and Delete) are in the preview: Tab goes there
+    readonly property var itemActions: entry?.actions ?? []
+    signal actionsRequested()
     Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Tab && root.itemActions.length > 0) {
+            root.actionsRequested();
+            event.accepted = true;
+            return;
+        }
         if (event.key === Qt.Key_Delete && event.modifiers === Qt.ShiftModifier) {
             const deleteAction = root.entry?.actions?.find(action => action.name == "Delete");
             if (deleteAction) {
@@ -296,55 +294,6 @@ RippleButton {
                     entry: root.cliphistRawString
                     maxWidth: contentColumn.width
                     maxHeight: 140
-                }
-            }
-        }
-        RowLayout {
-            Layout.alignment: Qt.AlignTop
-            Layout.topMargin: root.buttonVerticalPadding
-            Layout.bottomMargin: -root.buttonVerticalPadding // Why is this necessary? Good question.
-            spacing: 4
-            Repeater {
-                model: (root.entry?.actions ?? []).slice(0, 4)
-                delegate: RippleButton {
-                    id: actionButton
-                    required property var modelData
-                    // An app's own desktop actions often reuse its logo, which reads as a stray second logo with
-                    // no hint of what it does: those get a symbol for the action instead (name in the tooltip)
-                    readonly property bool reusesAppIcon: (modelData.icon ?? "") !== "" && modelData.icon === root.itemIcon
-                    readonly property string iconName: reusesAppIcon ? "" : (modelData.icon ?? "")
-                    readonly property string materialIconName: modelData.materialIcon ?? (reusesAppIcon ? root.actionSymbol(modelData.name) : "")
-                    // A symbol when there is one, or no image to show; otherwise the action's own image
-                    readonly property bool useSymbol: materialIconName !== "" || iconName === ""
-                    implicitHeight: 34
-                    implicitWidth: 34
-                    colBackgroundHover: Appearance.colors.colSecondaryContainerHover
-                    colRipple: Appearance.colors.colSecondaryContainerActive
-                    contentItem: Item {
-                        id: actionContentItem
-                        anchors.centerIn: parent
-                        Loader {
-                            anchors.centerIn: parent
-                            active: actionButton.useSymbol
-                            sourceComponent: MaterialSymbol {
-                                text: actionButton.materialIconName || "video_settings"
-                                iconSize: 20 // Same size as the image icons
-                                color: Appearance.colors.colSubtext
-                            }
-                        }
-                        Loader {
-                            anchors.centerIn: parent
-                            active: !actionButton.useSymbol
-                            sourceComponent: IconImage {
-                                source: Quickshell.iconPath(actionButton.iconName)
-                                implicitSize: 20
-                            }
-                        }
-                    }
-                    onClicked: modelData.execute()
-                    StyledToolTip {
-                        text: modelData.name
-                    }
                 }
             }
         }

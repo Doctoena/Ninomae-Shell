@@ -88,6 +88,10 @@ Item { // Wrapper
         searchBar.searchInput.text = "";
         root.searchingText = "";
         searchBar.animateWidth = true;
+        // And on the first result: the text may have been empty already, so nothing else resets it, and the
+        // preview kept showing the last app chosen, scrolled out of sight
+        appResults.currentIndex = 0;
+        appResults.positionViewAtBeginning();
     }
     function setSearchingText(text) {
         searchBar.searchInput.text = text;
@@ -360,7 +364,7 @@ Item { // Wrapper
                             y: appResults.currentItem?.y ?? 0
                             width: appResults.width
                             height: appResults.currentItem?.height ?? 0
-                            radius: 14
+                            radius: 16 // As the rows' own hover shape (SearchItem), so the two line up
                             color: Appearance.colors.colPrimary
                             opacity: 0.14
                             Behavior on y {
@@ -593,6 +597,7 @@ Item { // Wrapper
                         delegate: SearchItem {
                             // The selectable item for each search result
                             required property var modelData
+                            onActionsRequested: preview.focusActions()
                             anchors.left: parent?.left
                             anchors.right: parent?.right
                             minHeight: root.itemHeight
@@ -610,6 +615,7 @@ Item { // Wrapper
                     }
 
                     PreviewPane {
+                        id: preview
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         item: appResults.currentItem
