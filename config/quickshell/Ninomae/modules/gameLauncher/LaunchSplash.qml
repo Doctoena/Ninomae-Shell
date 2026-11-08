@@ -18,7 +18,7 @@ import Quickshell.Widgets
  * processing shaders…, with real progress along the bottom edge where there is a number) and how long
  * it's been. scripts/game-launcher/launch_watch.py follows the launch. Once one of the game's own
  * windows opens (Steam's dialogs and other apps don't count) it slides back at once, ticking
- * "Launched" on the way. It slides back at once when the pointer touches it. If the game quits before showing a
+ * "Launched" on the way. It stays up until then, pointer or not. If the game quits before showing a
  * window, or Steam can't start it, it says so with Retry. Stays on the screen it opened on, and never
  * takes keyboard focus.
  * While Steam processes Vulkan shaders it brings its main window up to ask about them: that waits on a hidden
@@ -40,7 +40,6 @@ Scope {
     property string error: ""
     readonly property bool failedState: isFailure(stage)
     readonly property bool canSkip: stage === "shaders" && (game?.id ?? "").startsWith("steam_")
-    readonly property bool hasButtons: failedState || canSkip // Then the pointer doesn't send the drawer away
     function isFailure(stage) { return stage === "exited" || stage === "failed"; }
     // Steps already done this launch, oldest first ({ stage }): filled in by the drawer as it shows each one
     property ListModel doneSteps: ListModel {}
@@ -243,7 +242,7 @@ Scope {
     Timer { // A failure stays up long enough to read and retry, and while the pointer is on it
         id: failTime
         interval: 12000
-        onTriggered: hoverArea.containsMouse ? restart() : root.dismiss()
+        onTriggered: hoverArea.hovered ? restart() : root.dismiss()
     }
     Timer {
         interval: 1000
@@ -381,18 +380,7 @@ Scope {
             x: drawer.sideMargin
             width: drawer.panelWidth
             height: drawer.visibleHeight
-            // Get out of the way when the pointer moves onto it (not with buttons on it). Only
-            // when it moves: the drawer opening under a pointer that's just resting there doesn't count
-            MouseArea {
-                id: hoverArea
-                property point enteredAt
-                anchors.fill: parent
-                hoverEnabled: true
-                onEntered: enteredAt = Qt.point(mouseX, mouseY)
-                onPositionChanged: {
-                    if (!root.hasButtons && Math.hypot(mouseX - enteredAt.x, mouseY - enteredAt.y) > 4) root.dismiss();
-                }
-            }
+            HoverHandler { id: hoverArea } // A failure stays while the pointer is on it
         }
 
         Item {
