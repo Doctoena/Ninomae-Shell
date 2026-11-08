@@ -121,6 +121,10 @@ add_game() {
     if [[ -z "$name" ]] || [[ "$_lname" =~ soundtrack|playtest|[^a-z]demo([^a-z]|$)|[^a-z]beta([^a-z]|$)|test.server|dedicated.server|[^a-z]sdk([^a-z]|$)|\(obsolete\) ]]; then
         return
     fi
+    # Steam's own tools, installed as apps: Proton, its anti-cheat runtimes, the Linux runtimes, redistributables
+    if [[ "$source" == "Steam" && "$_lname" =~ ^proton([^a-z]|$)|^steam\ linux\ runtime|^steamworks\ common\ redistributables ]]; then
+        return
+    fi
 
     # Deduplicate by id
     [[ -n "${SEEN_GAME_IDS[$id]:-}" ]] && return

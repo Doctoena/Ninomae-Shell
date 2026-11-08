@@ -809,19 +809,21 @@ Singleton {
     // holds a snapshot). 4 = fully installed, 2 = update required, 2048 = uninstalling; the rest of
     // the "busy" bits mean a download, update or validation is running
     readonly property int _busyFlags: 256 | 1024 | 131072 | 262144 | 524288 | 1048576 | 2097152 | 4194304
-    // What a download is waiting on, from the downloads feed: "held" (paused, the whole queue paused, a game
-    // running, stopped by an error, or Steam not running: Steam's own pause bit only covers one paused by
-    // hand) or "queued" (in line, or scheduled for later). appid → that, while the launcher is open (the
-    // feed runs then, and so do the labels that use it). Replaced only when it changes: the feed sends a new
-    // speed every second while something downloads, and every game tile's state reads this
-    property var _waitingDownloads: ({})
+    // Where each download stands, from the downloads feed: "running" (downloading now: Steam doesn't always
+    // set the manifest's busy bits for one), "held" (paused, the whole queue paused, a game running, stopped
+    // by an error, or Steam not running: Steam's own pause bit only covers one paused by hand) or "queued" (in
+    // line, or scheduled for later). appid → that, while the launcher is open (the feed runs then, and so do
+    // the labels that use it). Replaced only when it changes: the feed sends a new speed every second while
+    // something downloads, and every game tile's state reads this
+    property var _downloadStates: ({})
     onDownloadItemsChanged: {
-        const waiting = {};
+        const states = {};
         for (const i of downloadItems) {
-            if (["paused", "suspended", "error", "stopped"].includes(i.state)) waiting[i.appid] = "held";
-            else if (["queued", "scheduled"].includes(i.state)) waiting[i.appid] = "queued";
+            if (i.state === "downloading") states[i.appid] = "running";
+            else if (["paused", "suspended", "error", "stopped"].includes(i.state)) states[i.appid] = "held";
+            else if (["queued", "scheduled"].includes(i.state)) states[i.appid] = "queued";
         }
-        if (JSON.stringify(waiting) !== JSON.stringify(_waitingDownloads)) _waitingDownloads = waiting;
+        if (JSON.stringify(states) !== JSON.stringify(_downloadStates)) _downloadStates = states;
     }
     function installState(gameOrId) {
         const id = typeof gameOrId === "string" ? gameOrId : gameOrId?.id;
@@ -833,11 +835,11 @@ Singleton {
         if (!g || flags === 0) return "notInstalled";
         if (!g.id.startsWith("steam_")) return "installed"; // Lutris: present means installed
         if (flags & 2048) return "uninstalling";
-        const waiting = (flags & 512) ? "held" : root._waitingDownloads[id.substring(6)]; // 512: Steam's "UpdatePaused" bit
-        if (!(flags & 4)) return waiting === "held" ? "installPaused" : waiting === "queued" ? "installQueued" : "installing";
-        if (waiting === "held") return "updatePaused";
-        if (waiting === "queued") return "updateQueued";
-        if (flags & root._busyFlags) return "updating";
+        const download = (flags & 512) ? "held" : root._downloadStates[id.substring(6)]; // 512: Steam's "UpdatePaused" bit
+        if (!(flags & 4)) return download === "held" ? "installPaused" : download === "queued" ? "installQueued" : "installing";
+        if (download === "held") return "updatePaused";
+        if (download === "queued") return "updateQueued";
+        if (download === "running" || (flags & root._busyFlags)) return "updating";
         if (flags & 2) return "updateRequired";
         return "installed";
     }

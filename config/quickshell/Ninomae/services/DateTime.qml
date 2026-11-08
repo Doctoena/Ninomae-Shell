@@ -23,11 +23,11 @@ Singleton {
     readonly property bool is12Hour: /a/i.test(timeFormat)
     // The clock has no date for a moment at startup, and the config can be half there during a reload: ""
     // then, not undefined (which QML warns about)
-    property string time: {
-        if (!clock.date) return "";
-        const formatted = Qt.locale().toString(clock.date, timeFormat) ?? "";
-        return (Config.options?.time?.showAmPm ?? true) ? formatted : formatted.replace(/\s*[AaPp][Mm]\b/g, "");
-    }
+    property string time: (Config.options?.time?.showAmPm ?? true) ? _formatted : timeNoAmPm
+    // The time without its AM/PM, for places that show amPm on its own. Locales write it as "PM", "pm",
+    // "p.m." or "P.M." (en_CA), so the dots are optional
+    readonly property string timeNoAmPm: _formatted.replace(/\s*[AaPp]\.?\s?[Mm]\.?(?=\s|$)/g, "").trim()
+    readonly property string _formatted: clock.date ? (Qt.locale().toString(clock.date, timeFormat) ?? "") : ""
     property string amPm: is12Hour && clock.date ? Qt.locale().toString(clock.date, "AP") : ""
     property string date: clock.date ? (Qt.locale().toString(clock.date, Config.options?.time?.dateFormat ?? "dddd, dd/MM") ?? "") : ""
     property string uptime: "0h 0m"

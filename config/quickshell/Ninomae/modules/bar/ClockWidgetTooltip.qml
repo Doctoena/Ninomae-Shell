@@ -68,7 +68,7 @@ BarDrawerPopup {
                 Layout.rightMargin: 4
                 spacing: 6
                 StyledText {
-                    text: DateTime.time
+                    text: DateTime.timeNoAmPm // AM/PM goes beside it, small
                     font.family: Appearance.font.family.expressive
                     font.pixelSize: 46
                     font.weight: Font.DemiBold
@@ -82,11 +82,13 @@ BarDrawerPopup {
                     font.pixelSize: Appearance.font.pixelSize.small
                     color: Appearance.colors.colSubtext
                 }
-                Item { Layout.fillWidth: true }
-                ColumnLayout {
+                ColumnLayout { // Takes what's left and cuts off, so a long date can't widen the drawer
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     spacing: 0
                     RowLayout {
                         Layout.alignment: Qt.AlignRight
+                        Layout.maximumWidth: parent.width
                         spacing: 4
                         MaterialSymbol {
                             text: root.currentHour < 6 || root.currentHour >= 18 ? "dark_mode" : "light_mode"
@@ -95,6 +97,8 @@ BarDrawerPopup {
                             color: Appearance.colors.colPrimary
                         }
                         StyledText {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
                             text: root.greeting
                             font.pixelSize: Appearance.font.pixelSize.smaller
                             font.weight: Font.Medium
@@ -102,7 +106,9 @@ BarDrawerPopup {
                         }
                     }
                     StyledText {
-                        Layout.alignment: Qt.AlignRight
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignRight
+                        elide: Text.ElideRight
                         text: Qt.locale().toString(root.now, "dddd d MMMM")
                         font.pixelSize: Appearance.font.pixelSize.small
                         color: Appearance.colors.colOnLayer0
