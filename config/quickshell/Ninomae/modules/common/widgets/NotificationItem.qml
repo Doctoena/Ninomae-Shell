@@ -18,6 +18,7 @@ Item {
     property bool onlyNotification: false
     property bool compact: false // Sidebar: smaller picture, tighter padding, shorter collapsed body
     property bool showTime: !onlyNotification // A single notification's time is already in the group header
+    property string appLabel: "" // Sidebar, a lone notification: "App · 1m" where the time goes (no header line)
     property real dragConfirmThreshold: 70
     property real dismissOvershoot: 20
     property var qmlParent: root?.parent?.parent
@@ -138,9 +139,9 @@ Item {
             // ── Picture: the notification's image (avatar, game art…), or the app's icon in a tinted badge ──
             NotificationAppIcon {
                 Layout.alignment: Qt.AlignTop
-                implicitSize: root.compact ? 28 : 36
-                radius: root.compact ? 9 : 12 // Squircle, like the quick toggles' icons
-                imageRadius: root.compact ? 9 : 12
+                implicitSize: root.compact ? 32 : 36
+                radius: root.compact ? 10 : 12 // Squircle, like the quick toggles' icons
+                imageRadius: root.compact ? 10 : 12
                 image: root.notificationObject?.image ?? ""
                 appIcon: root.notificationObject?.appIcon ?? ""
                 appName: root.notificationObject?.appName ?? ""
@@ -177,10 +178,11 @@ Item {
                         StyledText {
                             id: timeText
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                            visible: root.showTime
+                            readonly property string time: NotificationUtils.getFriendlyNotifTimeString(root.notificationObject?.time)
+                            visible: root.showTime || root.appLabel !== ""
                             opacity: rowHover.hovered ? 0 : 1
                             Behavior on opacity { NumberAnimation { duration: 120 } }
-                            text: NotificationUtils.getFriendlyNotifTimeString(root.notificationObject?.time)
+                            text: root.appLabel !== "" ? root.appLabel + (time ? " · " + time : "") : time
                             font.pixelSize: Appearance.font.pixelSize.smallest
                             font.family: Appearance.font.family.numbers
                             font.variableAxes: ({}) // Not Roboto Flex's tuning (its light wght would win over font.weight)

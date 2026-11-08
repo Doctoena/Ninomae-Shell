@@ -2,8 +2,7 @@ import QtQuick
 import qs.modules.common
 Rectangle {
     id: root
-    radius: Appearance.rounding.large
-    color: "transparent" // Tiles sit straight on the drawer (each tile is its own pill)
+    color: "transparent" // The tiles draw themselves, straight on the sidebar
     signal openAudioOutputPage()
     signal openAudioInputPage()
     signal openBluetoothPage()

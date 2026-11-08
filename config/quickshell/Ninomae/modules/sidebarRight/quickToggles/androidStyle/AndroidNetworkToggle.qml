@@ -13,6 +13,6 @@ AndroidQuickToggleButton {
         root.openMenu()
     }
     StyledToolTip {
-        text: Translation.tr("%1 | Right-click to configure").arg(Network.networkName)
+        text: Network.networkName || Translation.tr("Internet")
     }
 }

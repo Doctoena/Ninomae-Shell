@@ -5,25 +5,28 @@ import qs.services
 import QtQuick
 import QtQuick.Layouts
 
-// The sidebar's notifications, as a Settings group: "Notifications" and the count small above, Do not disturb and
-// Clear all beside it, the list under, straight on the sidebar
+// The sidebar's notifications, as a Settings group: "Notifications · 3" small above, Do not disturb and Clear all
+// beside it, the cards under joined into one list
 ColumnLayout {
     id: root
-    spacing: 8
+    spacing: 6
     RowLayout {
         Layout.fillWidth: true
         Layout.leftMargin: 4
         spacing: 6
         StyledText {
             Layout.fillWidth: true
-            text: Notifications.list.length > 0 ? Translation.tr("Notifications (%1)").arg(Notifications.list.length)
+            text: Notifications.list.length > 0 ? Translation.tr("Notifications · %1").arg(Notifications.list.length)
                 : Translation.tr("Notifications")
             font.pixelSize: Appearance.font.pixelSize.small
             font.weight: Font.Medium
             color: Appearance.colors.colSubtext
         }
         IconButton {
-            size: 30
+            size: 28
+            colBackground: Appearance.colors.colLayer3
+            colBackgroundHover: Appearance.colors.colLayer3Hover
+            colRipple: Appearance.colors.colLayer3Active
             symbol: Notifications.silent ? "notifications_paused" : "notifications"
             toggled: Notifications.silent
             tip: Notifications.silent ? Translation.tr("Do not disturb is on. Pop-ups are held back")
@@ -31,7 +34,10 @@ ColumnLayout {
             onClicked: Notifications.silent = !Notifications.silent
         }
         IconButton {
-            size: 30
+            size: 28
+            colBackground: Appearance.colors.colLayer3
+            colBackgroundHover: Appearance.colors.colLayer3Hover
+            colRipple: Appearance.colors.colLayer3Active
             enabled: Notifications.list.length > 0
             symbol: "clear_all"
             tip: Translation.tr("Clear all")

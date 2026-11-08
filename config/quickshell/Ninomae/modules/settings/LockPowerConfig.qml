@@ -192,7 +192,7 @@ ContentPage {
                     x: 0; y: batteryStrip.barY
                     width: Math.max(0, batteryStrip.at(page.battery.critical) - 1)
                     height: 10
-                    topLeftRadius: 5; bottomLeftRadius: 5
+                    topLeftRadius: Appearance.rounding.joined; bottomLeftRadius: Appearance.rounding.joined
                     color: Appearance.colors.colError
                 }
                 Rectangle { // Critical to low
@@ -205,7 +205,7 @@ ContentPage {
                     x: batteryStrip.at(page.battery.low) + 1; y: batteryStrip.barY
                     width: Math.max(0, batteryStrip.track - x)
                     height: 10
-                    topRightRadius: 5; bottomRightRadius: 5
+                    topRightRadius: Appearance.rounding.joined; bottomRightRadius: Appearance.rounding.joined
                     color: Appearance.colors.colPrimary
                     opacity: 0.55
                 }

@@ -9,15 +9,15 @@ import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
-// Three tiles styled like the quick toggles, usage as a ring around each icon. Clicking one selects it
-// and opens a panel underneath with just that component: name and temperature, a usage graph of the
+// Three chips joined into one strip (as the quick toggles' block), usage as a ring around each icon. Clicking
+// one selects it and opens a panel underneath, joined to the strip with just that component: name and temperature, a usage graph of the
 // last couple of minutes, a few stats, and (CPU and RAM) the apps using the most of it, each with End.
 // Clicking it again (or the panel) closes it
 Item {
     id: root
     property string selected: "" // "", "ram", "cpu" or "gpu"
     readonly property bool open: selected !== ""
-    implicitHeight: tileRow.implicitHeight + (open ? 6 + detail.implicitHeight : 0)
+    implicitHeight: tileRow.implicitHeight + (open ? 4 + detail.implicitHeight : 0)
     clip: true
     Behavior on implicitHeight {
         animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
@@ -203,18 +203,20 @@ Item {
     // ── Tiles ──
     RowLayout {
         id: tileRow
-        // Inset and gaps as in the quick toggle panel, so the tiles line up with the toggles
-        anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 6; rightMargin: 6 }
-        spacing: 6
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        spacing: 4
         ResourceTile {
+            first: true
             key: "ram"; icon: "memory"; label: "RAM"
             usage: ResourceUsage.memoryUsedPercentage; warning: root.ramWarning
         }
         ResourceTile {
+            last: !ResourceUsage.gpuDetected
             key: "cpu"; icon: "planner_review"; label: "CPU"
             usage: ResourceUsage.cpuUsage; warning: root.cpuWarning
         }
         ResourceTile {
+            last: true
             key: "gpu"; icon: "stadia_controller"; label: "GPU"
             usage: ResourceUsage.gpuUsage; warning: root.gpuWarning
             asleep: ResourceUsage.gpuAsleep
@@ -225,10 +227,12 @@ Item {
     // ── Detail panel for the selected tile ──
     Rectangle {
         id: detail
-        anchors { left: tileRow.left; right: tileRow.right; top: tileRow.bottom; topMargin: 6 }
+        anchors { left: tileRow.left; right: tileRow.right; top: tileRow.bottom; topMargin: 4 }
         implicitHeight: detailColumn.implicitHeight + 24
         radius: Appearance.rounding.normal
-        color: Appearance.colors.colLayer2
+        topLeftRadius: Appearance.rounding.joined // Joined to the strip above
+        topRightRadius: Appearance.rounding.joined
+        color: Appearance.colors.colLayer3
         clip: true // The switch slide stays inside the panel
         opacity: root.open ? 1 : 0
         visible: opacity > 0
@@ -258,7 +262,7 @@ Item {
                         text: root.shown.title
                         font.pixelSize: Appearance.font.pixelSize.small
                         font.weight: Font.DemiBold
-                        color: Appearance.colors.colOnLayer2
+                        color: Appearance.colors.colOnLayer3
                     }
                     StyledText {
                         width: parent.width
@@ -271,7 +275,7 @@ Item {
                 Rectangle {
                     id: tempChip
                     readonly property bool hot: root.shown.temp >= root.shown.hot
-                    readonly property color tint: hot ? Appearance.colors.colError : Appearance.colors.colOnLayer2
+                    readonly property color tint: hot ? Appearance.colors.colError : Appearance.colors.colOnLayer3
                     visible: root.shown.temp > 0
                     implicitWidth: tempRow.implicitWidth + 16
                     implicitHeight: 24
@@ -342,7 +346,7 @@ Item {
                             font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.DemiBold
                             font.family: Appearance.font.family.numbers
-                            color: Appearance.colors.colOnLayer2
+                            color: Appearance.colors.colOnLayer3
                         }
                         StyledText {
                             width: parent.width - 6
@@ -388,7 +392,7 @@ Item {
                             text: DesktopEntries.heuristicLookup(appRow.key)?.name ?? appRow.modelData.name
                             elide: Text.ElideRight
                             font.pixelSize: Appearance.font.pixelSize.small
-                            color: Appearance.colors.colOnLayer2
+                            color: Appearance.colors.colOnLayer3
                         }
                         StyledText {
                             text: root.shownKey === "ram" ? root.formatBytes(appRow.modelData.mem)
@@ -401,10 +405,10 @@ Item {
                             implicitHeight: 26
                             padding: 10
                             buttonText: appRow.forceable ? Translation.tr("Force quit") : Translation.tr("End")
-                            colBackground: appRow.forceable ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer3
-                            colBackgroundHover: Appearance.colors.colLayer3Hover
-                            colRipple: Appearance.colors.colLayer3Active
-                            colText: appRow.forceable ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnLayer2
+                            colBackground: appRow.forceable ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer4
+                            colBackgroundHover: Appearance.colors.colLayer4Hover
+                            colRipple: Appearance.colors.colLayer4Active
+                            colText: appRow.forceable ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnLayer3
                             onClicked: root.endApp(appRow.modelData.pid)
                         }
                     }
@@ -413,8 +417,8 @@ Item {
         }
     }
 
-    // A quick-toggle-sized tile: usage ring around the icon, then value and name. Selected shows in
-    // the accent, like a toggle that's on
+    // A chip in the strip: usage ring around the icon, then the value and name in one line. Selected shows in the
+    // accent, like a toggle that's on. Round at the strip's ends, slight between (and under, while the panel's open)
     component ResourceTile: Rectangle {
         id: tile
         required property string key
@@ -422,15 +426,26 @@ Item {
         required property string label
         required property real usage
         required property bool warning
+        property bool first: false
+        property bool last: false
         property bool asleep: false // Powered-down GPU: "Asleep" and a moon instead of a 0 % reading
         readonly property bool selected: root.selected === key
         readonly property color accent: warning ? Appearance.colors.colError : Appearance.colors.colPrimary
+        readonly property real outer: tileMouse.containsPress ? height / 2 : Appearance.rounding.normal
+        readonly property real inner: tileMouse.containsPress ? height / 2 : Appearance.rounding.joined
         Layout.fillWidth: true
-        implicitHeight: 56
-        radius: tileMouse.containsPress ? height / 2 : Appearance.rounding.normal // Morphs toward a pill while held, like the toggles
-        Behavior on radius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-        color: tileMouse.containsPress ? Appearance.colors.colLayer2Active
-            : tileMouse.containsMouse ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2
+        Layout.preferredWidth: 1
+        implicitHeight: 40
+        topLeftRadius: first ? outer : inner
+        bottomLeftRadius: first && !root.open ? outer : inner
+        topRightRadius: last ? outer : inner
+        bottomRightRadius: last && !root.open ? outer : inner
+        Behavior on topLeftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on bottomLeftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on topRightRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on bottomRightRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        color: tileMouse.containsPress ? Appearance.colors.colLayer3Active
+            : tileMouse.containsMouse ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
         Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
         MouseArea {
             id: tileMouse
@@ -440,17 +455,17 @@ Item {
             onClicked: root.selected = tile.selected ? "" : tile.key
         }
         RowLayout {
-            anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
-            spacing: 10
-            Item { // Usage ring, where the toggles have their icon squircle
+            anchors.centerIn: parent
+            spacing: 8
+            Item { // Usage ring around the icon
                 id: ring
-                implicitWidth: 34
-                implicitHeight: 34
+                implicitWidth: 26
+                implicitHeight: 26
                 property real shownFraction: Math.min(1, Math.max(0, tile.usage))
                 Behavior on shownFraction { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                 Rectangle { // Filled behind the icon when selected, like an "on" toggle's squircle
                     anchors.centerIn: parent
-                    width: 24; height: 24; radius: 12
+                    width: 18; height: 18; radius: 9
                     color: tile.accent
                     opacity: tile.selected ? 1 : 0
                     Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
@@ -460,17 +475,17 @@ Item {
                     preferredRendererType: Shape.CurveRenderer // Smooth edges without multisampling or a layer
                     ShapePath { // Track
                         fillColor: "transparent"
-                        strokeColor: Appearance.colors.colLayer3
-                        strokeWidth: 3
-                        PathAngleArc { centerX: 17; centerY: 17; radiusX: 15.5; radiusY: 15.5; startAngle: 0; sweepAngle: 360 }
+                        strokeColor: Appearance.colors.colLayer4
+                        strokeWidth: 2.5
+                        PathAngleArc { centerX: 13; centerY: 13; radiusX: 11.75; radiusY: 11.75; startAngle: 0; sweepAngle: 360 }
                     }
                     ShapePath {
                         fillColor: "transparent"
                         strokeColor: tile.accent
-                        strokeWidth: 3
+                        strokeWidth: 2.5
                         capStyle: ShapePath.RoundCap
                         PathAngleArc {
-                            centerX: 17; centerY: 17; radiusX: 15.5; radiusY: 15.5
+                            centerX: 13; centerY: 13; radiusX: 11.75; radiusY: 11.75
                             startAngle: -90
                             sweepAngle: 360 * ring.shownFraction
                         }
@@ -479,26 +494,22 @@ Item {
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: tile.asleep ? "bedtime" : tile.icon
-                    iconSize: tile.selected ? 15 : 17
+                    iconSize: tile.selected ? 12 : 14
                     fill: tile.selected || tile.warning ? 1 : 0
                     color: tile.selected ? (tile.warning ? Appearance.colors.colOnError : Appearance.colors.colOnPrimary)
-                        : tile.warning ? Appearance.colors.colError : Appearance.colors.colOnLayer2
+                        : tile.warning ? Appearance.colors.colError : Appearance.colors.colOnLayer3
                 }
             }
-            Column {
-                Layout.fillWidth: true
-                spacing: 1
-                StyledText {
-                    text: tile.asleep ? Translation.tr("Asleep") : root.percent(tile.usage)
-                    font.pixelSize: Appearance.font.pixelSize.smallie
-                    font.weight: Font.DemiBold
-                    color: tile.selected || tile.warning ? tile.accent : Appearance.colors.colOnLayer2
-                }
-                StyledText {
-                    text: tile.label
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colSubtext
-                }
+            StyledText {
+                text: tile.asleep ? Translation.tr("Asleep") : root.percent(tile.usage)
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.DemiBold
+                color: tile.selected || tile.warning ? tile.accent : Appearance.colors.colOnLayer3
+            }
+            StyledText {
+                text: tile.label
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colSubtext
             }
         }
     }

@@ -19,6 +19,6 @@ AndroidQuickToggleButton {
         Hyprsunset.fetchState()
     }
     StyledToolTip {
-        text: Translation.tr("Night Light | Right-click to configure")
+        text: Translation.tr("Night Light")
     }
 }

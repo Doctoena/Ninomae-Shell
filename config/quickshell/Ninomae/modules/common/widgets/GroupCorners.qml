@@ -12,7 +12,7 @@ QtObject {
     id: root
     required property Item item
     property real outer: Appearance.rounding.normal
-    property real inner: 5
+    property real inner: Appearance.rounding.joined
     // Not by size: the layout sets sizes, and reading them here loops. A Repeater is an invisible helper
     function counts(x) { return x.visible && !String(x).startsWith("QQuickRepeater"); }
     // Rows added or taken away next to it (a Repeater's model changing) don't re-run the bindings below by

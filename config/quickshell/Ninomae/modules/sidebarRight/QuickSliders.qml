@@ -1,115 +1,87 @@
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
+import qs.services
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
+
+/**
+ * The sidebar's sliders in one card: an icon, a slim slider and the figure per row (volume, brightness, mic,
+ * as Settings → Sidebar picks). Clicking the volume or mic icon mutes it, the icon goes accent while muted.
+ * The corners are set from outside, so the card joins the player under it into one group.
+ */
 Rectangle {
     id: root
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
-    implicitWidth: contentItem.implicitWidth + root.horizontalPadding * 2
-    implicitHeight: contentItem.implicitHeight + root.verticalPadding * 2
-    radius: Appearance.rounding.large
-    color: Appearance.colors.colLayer1 // Soft borderless card, like the bar popups
-    property real verticalPadding: 4
-    property real horizontalPadding: 12
-    // Decorative accent dots — left side
-    Row {
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.leftMargin: 8
-        anchors.topMargin: 6
+    readonly property var options: Config.options.sidebar.quickSliders
+    color: Appearance.colors.colLayer3
+    radius: Appearance.rounding.normal
+    implicitHeight: rows.implicitHeight + 16
+
+    ColumnLayout {
+        id: rows
+        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 10; rightMargin: 14 }
         spacing: 4
-        z: 1
-        Repeater {
-            model: 3
-            Rectangle {
-                width: 4; height: 4; radius: 2
-                color: index === 0
-                    ? Appearance.colors.colPrimary
-                    : ColorUtils.transparentize(Appearance.colors.colPrimary, 0.65 + index * 0.12)
-            }
+        SliderLine {
+            visible: root.options.showVolume
+            node: Audio.sink
+            symbol: muted ? "volume_off" : "volume_up"
+            tip: muted ? Translation.tr("Unmute") : Translation.tr("Mute")
         }
-    }
-    Column {
-        id: contentItem
-        anchors {
-            fill: parent
-            leftMargin: root.horizontalPadding
-            rightMargin: root.horizontalPadding
-            topMargin: root.verticalPadding
-            bottomMargin: root.verticalPadding
-        }
-        Loader {
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
-            visible: active
+        SliderLine {
             // Only once there's a monitor to control (none yet while Brightness is still finding them)
-            active: Config.options.sidebar.quickSliders.showBrightness && !!root.brightnessMonitor
-            sourceComponent: QuickSlider {
-                materialSymbol: "brightness_6"
-                value: root.brightnessMonitor.brightness
-                onMoved: {
-                    root.brightnessMonitor.setBrightness(value)
-                }
-            }
+            visible: root.options.showBrightness && !!root.brightnessMonitor
+            symbol: "light_mode"
+            level: root.brightnessMonitor?.brightness ?? 0
+            apply: value => root.brightnessMonitor?.setBrightness(value)
         }
-        Loader {
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
-            visible: active
-            active: Config.options.sidebar.quickSliders.showVolume
-            sourceComponent: QuickSlider {
-                materialSymbol: "volume_up"
-                value: Audio.sink?.audio?.volume ?? 0
-                onMoved: {
-                    if (Audio.sink?.audio) Audio.sink.audio.volume = value
-                }
-            }
-        }
-        Loader {
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
-            visible: active
-            active: Config.options.sidebar.quickSliders.showMic
-            sourceComponent: QuickSlider {
-                materialSymbol: "mic"
-                value: Audio.source?.audio?.volume ?? 0
-                onMoved: {
-                    if (Audio.source?.audio) Audio.source.audio.volume = value
-                }
-            }
+        SliderLine {
+            visible: root.options.showMic
+            node: Audio.source
+            symbol: muted ? "mic_off" : "mic"
+            tip: muted ? Translation.tr("Unmute the mic") : Translation.tr("Mute the mic")
         }
     }
-    component QuickSlider: StyledSlider {
-        id: quickSlider
-        required property string materialSymbol
-        configuration: StyledSlider.Configuration.M
-        stopIndicatorValues: []
-        MaterialSymbol {
-            id: icon
-            property bool nearFull: quickSlider.value >= 0.9
-            anchors {
-                verticalCenter: parent.verticalCenter
-                right: nearFull ? quickSlider.handle.right : parent.right
-                rightMargin: quickSlider.nearFull ? 14 : 8
-            }
-            iconSize: 20
-            color: nearFull ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
-            text: quickSlider.materialSymbol
-            Behavior on color {
-                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-            }
-            Behavior on anchors.rightMargin {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
+
+    // A row: the icon (a mute button when it's a sound device), the slider, the figure
+    component SliderLine: RowLayout {
+        id: line
+        property var node: null // A PipeWire device: volume and mute come from it
+        property string symbol
+        property string tip: ""
+        property real level: node?.audio?.volume ?? 0
+        readonly property bool muted: node?.audio?.muted ?? false
+        // What a drag sets: the device's volume, unless a row says otherwise (brightness)
+        property var apply: value => { if (line.node?.audio) line.node.audio.volume = value; }
+        Layout.fillWidth: true
+        spacing: 10
+        IconButton {
+            size: 30
+            symbol: line.symbol
+            tip: line.tip
+            enabled: line.node !== null
+            toggled: line.muted
+            colBackground: Appearance.colors.colLayer4
+            colBackgroundHover: Appearance.colors.colLayer4Hover
+            colRipple: Appearance.colors.colLayer4Active
+            onClicked: if (line.node?.audio) line.node.audio.muted = !line.node.audio.muted
+        }
+        SlimSlider {
+            Layout.fillWidth: true
+            ringColor: root.color
+            level: line.level
+            opacity: line.muted ? 0.5 : 1
+            onMoved: line.apply(value)
+        }
+        StyledText {
+            Layout.preferredWidth: 38
+            horizontalAlignment: Text.AlignRight
+            text: `${Math.round(line.level * 100)}%`
+            font.pixelSize: Appearance.font.pixelSize.small
+            font.family: Appearance.font.family.numbers
+            font.variableAxes: ({})
+            color: line.muted ? Appearance.colors.colOutline : Appearance.colors.colSubtext
         }
     }
 }

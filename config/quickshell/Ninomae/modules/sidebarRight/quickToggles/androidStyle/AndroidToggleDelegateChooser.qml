@@ -2,18 +2,23 @@ pragma ComponentBehavior: Bound
 import QtQuick
 DelegateChooser {
     id: root
+    property var panel: null // The AndroidQuickPanel: dragging in edit mode
     property bool editMode: false
-    required property real baseCellWidth
-    required property real baseCellHeight
-    required property real spacing
-    required property int startingIndex
+    property bool unused: false // In edit mode's list of toggles not in use
+    // Where the row sits in its block and how wide its tiles are (AndroidQuickPanel): the tiles round off the
+    // block's outer corners from these
+    required property int rowIndex
+    required property int rowCount
+    required property int rowLength
+    required property real cellWidth
+    required property real cellHeight
     signal openAudioOutputPage()
     signal openAudioInputPage()
     signal openBluetoothPage()
     signal openNightLightPage()
     signal openWifiPage()
     role: "type"
-    // Each tile reads its cell size, edit mode and position from this chooser (AndroidQuickToggleButton)
+    // Each tile reads its size, place and edit mode from this chooser (AndroidQuickToggleButton)
     DelegateChoice { roleValue: "network"; AndroidNetworkToggle { chooser: root; onOpenMenu: root.openWifiPage() } }
     DelegateChoice { roleValue: "bluetooth"; AndroidBluetoothToggle { chooser: root; onOpenMenu: root.openBluetoothPage() } }
     DelegateChoice { roleValue: "idleInhibitor"; AndroidIdleInhibitorToggle { chooser: root } }

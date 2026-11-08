@@ -4,117 +4,147 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
+/**
+ * A quick toggle tile, one piece of the joined block (AndroidQuickPanel). Wide: the icon on a squircle, the
+ * name and state, and a › that opens its page in the control centre. Small: the squircle alone, with the name
+ * beside it when the row leaves room. Being on shows in the accent: a solid squircle, the name in accent.
+ * Clicking toggles; a right click also opens the page (GroupButton's altAction), the › is the visible way.
+ * In edit mode: click turns it on or off, right-click changes its size, drag moves it (AndroidQuickPanel).
+ */
 GroupButton {
     id: root
     // The Repeater fills index and modelData; chooser is the AndroidToggleDelegateChooser that made this tile
     required property int index
     required property var modelData
     required property var chooser
-    readonly property int buttonIndex: chooser.startingIndex + index
     readonly property var buttonData: modelData
-    readonly property int cellSize: modelData.size
-    readonly property bool expandedSize: cellSize > 1
+    readonly property bool expandedSize: modelData.size > 1
     required property string buttonIcon
     required property string name
     required property var mainAction
-    property string statusText: toggled ? Translation.tr("Active") : Translation.tr("Inactive")
-    readonly property real baseCellWidth: chooser.baseCellWidth
-    readonly property real baseCellHeight: chooser.baseCellHeight
-    readonly property real cellSpacing: chooser.spacing
-    baseWidth: root.baseCellWidth * cellSize + cellSpacing * (cellSize - 1)
-    baseHeight: root.baseCellHeight
+    property string statusText: toggled ? Translation.tr("On") : Translation.tr("Off")
     readonly property bool editMode: chooser.editMode
-    enableImplicitWidthAnimation: !editMode && root.mouseArea.containsMouse
-    enableImplicitHeightAnimation: !editMode && root.mouseArea.containsMouse
-    Behavior on baseWidth {
-        animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+    readonly property var panel: chooser.panel
+
+    // Dragged in edit mode: it follows the pointer, a little larger, over everything else; where it would land
+    // shows as an accent line beside the tile there. Over the unused toggles it fades: let go to take it out
+    readonly property bool dragging: editModeInteraction.dragging
+    property real dragX: 0
+    property real dragY: 0
+    transform: Translate { x: root.dragX; y: root.dragY }
+    scale: dragging ? 1.05 : 1
+    Behavior on scale { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+    z: dragging ? 10 : 0
+    readonly property bool isDropTarget: !!panel && panel.dragType !== "" && panel.dragType !== buttonData.type
+        && panel.dropType === buttonData.type
+    readonly property bool leaving: dragging && !!panel && panel.dropUnused && !chooser.unused
+    signal openMenu()
+
+    // Its corners: round where it's a corner of the block, slight elsewhere. Held, every corner rounds off
+    readonly property real outerRadius: Appearance.rounding.normal
+    readonly property real innerRadius: Appearance.rounding.joined
+    readonly property bool firstRow: chooser.rowIndex === 0
+    readonly property bool lastRow: chooser.rowIndex === chooser.rowCount - 1
+    readonly property bool firstInRow: index === 0
+    readonly property bool lastInRow: index === chooser.rowLength - 1
+    function corner(isOuter) { return root.down || isOuter ? root.outerRadius : root.innerRadius; }
+
+    bounce: false
+    baseWidth: chooser.cellWidth
+    baseHeight: chooser.cellHeight
+    implicitWidth: baseWidth
+    implicitHeight: baseHeight
+    padding: 0
+    colBackground: Appearance.colors.colLayer3
+    colBackgroundHover: Appearance.colors.colLayer3Hover
+    colBackgroundActive: Appearance.colors.colLayer3Active
+    colBackgroundToggled: Appearance.colors.colLayer3
+    colBackgroundToggledHover: Appearance.colors.colLayer3Hover
+    colBackgroundToggledActive: Appearance.colors.colLayer3Active
+    property color colText: toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+    readonly property bool hasMenu: expandedSize && !!altAction
+    // A small tile shows its name too when the whole name fits beside the icon (margins, icon, gap, a little air)
+    readonly property bool showName: !expandedSize && nameMetrics.advanceWidth + 9 * 2 + 30 + 9 + 8 <= width
+    TextMetrics {
+        id: nameMetrics
+        font.family: Appearance.font.family.main
+        font.pixelSize: Appearance.font.pixelSize.small
+        font.weight: Font.DemiBold
+        text: root.name
     }
-    Behavior on baseHeight {
-        animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-    }
-    opacity: 0
-    Component.onCompleted: {
-        opacity = 1
-    }
+
+    opacity: appeared ? (leaving ? 0.45 : 1) : 0
+    property bool appeared: false
+    Component.onCompleted: appeared = true
     Behavior on opacity {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
     }
-    signal openMenu()
-    // Material 3 Expressive tiles: rounded rectangles that round off a little more while pressed. The
-    // tile itself stays the neutral surface; being on shows in the accent (a solid squircle behind the
-    // icon, the name in accent). Clicking the tile
-    // toggles; tiles with a menu (Wi-Fi, Bluetooth, audio…) open it from the › on the right, or a
-    // right click (GroupButton's altAction)
-    padding: 8
-    horizontalPadding: padding
-    verticalPadding: padding
-    colBackground: Appearance.colors.colLayer2
-    colBackgroundHover: Appearance.colors.colLayer2Hover
-    colBackgroundActive: Appearance.colors.colLayer2Active
-    colBackgroundToggled: Appearance.colors.colLayer2
-    colBackgroundToggledHover: Appearance.colors.colLayer2Hover
-    colBackgroundToggledActive: Appearance.colors.colLayer2Active
-    buttonRadius: Appearance.rounding.normal
-    buttonRadiusPressed: height / 2 // Morphs toward a pill while held
-    property color colText: toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
-    property color colSubText: Appearance.colors.colSubtext
-    readonly property bool hasMenu: expandedSize && !!altAction
     onClicked: root.mainAction()
+
+    background: Rectangle {
+        topLeftRadius: root.corner(root.firstRow && root.firstInRow)
+        topRightRadius: root.corner(root.firstRow && root.lastInRow)
+        bottomLeftRadius: root.corner(root.lastRow && root.firstInRow)
+        bottomRightRadius: root.corner(root.lastRow && root.lastInRow)
+        color: root.color
+        Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+        Behavior on topLeftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on topRightRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on bottomLeftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on bottomRightRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+    }
+
     contentItem: RowLayout {
         id: contentItem
-        spacing: 10
+        spacing: 9
         anchors {
-            centerIn: root.expandedSize ? undefined : parent
-            fill: root.expandedSize ? parent : undefined
-            leftMargin: root.horizontalPadding
-            rightMargin: root.hasMenu ? 2 : root.horizontalPadding
+            fill: parent
+            leftMargin: 9
+            rightMargin: root.hasMenu ? 2 : 9
         }
-        // Icon: in a squircle on wide tiles (solid accent when on); just the glyph on small ones
+        Item { visible: !root.expandedSize; Layout.fillWidth: true } // A small tile: icon and name centred together
+        // The icon on a squircle: solid accent when on, a neutral circle when off
         Rectangle {
-            id: iconBackground
-            Layout.alignment: root.expandedSize ? Qt.AlignVCenter : Qt.AlignCenter // Alone on small tiles: centred
-            implicitWidth: 34
-            implicitHeight: 34
-            radius: root.toggled ? 11 : 17 // Squircle when on, circle when off
-            color: !root.expandedSize ? "transparent"
-                : root.toggled ? Appearance.colors.colPrimary : Appearance.colors.colLayer3
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: root.expandedSize ? 32 : 30
+            implicitHeight: implicitWidth
+            radius: root.toggled ? implicitWidth * 0.32 : implicitWidth / 2
+            color: root.toggled ? Appearance.colors.colPrimary : Appearance.colors.colLayer4
             Behavior on radius { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
             Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
             MaterialSymbol {
                 anchors.centerIn: parent
                 fill: root.toggled ? 1 : 0
-                iconSize: root.expandedSize ? 20 : 24
-                color: root.expandedSize && root.toggled ? Appearance.colors.colOnPrimary : root.colText
+                iconSize: 18
+                color: root.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer4
                 text: root.buttonIcon
             }
         }
-        // Name and state, on wide tiles
-        Loader {
+        // Name and state on wide tiles, the name alone on a roomy small one
+        ColumnLayout {
             Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: true
-            visible: root.expandedSize
-            active: visible
-            sourceComponent: Column {
-                spacing: 1
-                StyledText {
-                    anchors { left: parent.left; right: parent.right }
-                    font.pixelSize: Appearance.font.pixelSize.smallie
-                    font.weight: Font.DemiBold
-                    color: root.colText
-                    elide: Text.ElideRight
-                    text: root.name
-                }
-                StyledText {
-                    visible: root.statusText
-                    anchors { left: parent.left; right: parent.right }
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: root.colSubText
-                    elide: Text.ElideRight
-                    text: root.statusText
-                }
+            Layout.fillWidth: root.expandedSize
+            visible: root.expandedSize || root.showName
+            spacing: 0
+            StyledText {
+                Layout.fillWidth: root.expandedSize
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.DemiBold
+                color: root.colText
+                elide: Text.ElideRight
+                text: root.name
+            }
+            StyledText {
+                visible: root.expandedSize && root.statusText !== ""
+                Layout.fillWidth: true
+                font.pixelSize: Appearance.font.pixelSize.smallest
+                color: Appearance.colors.colSubtext
+                elide: Text.ElideRight
+                text: root.statusText
             }
         }
-        // Opens the tile's menu
+        Item { visible: !root.expandedSize; Layout.fillWidth: true }
+        // Opens the tile's page
         Loader {
             Layout.alignment: Qt.AlignVCenter
             Layout.fillHeight: true
@@ -128,7 +158,7 @@ GroupButton {
                 onClicked: root.altAction()
                 Rectangle { // Hover highlight behind the ›
                     anchors.centerIn: parent
-                    width: 24; height: 32
+                    width: 24; height: 30
                     radius: 8
                     color: ColorUtils.transparentize(root.colText, menuArea.containsPress ? 0.85 : menuArea.containsMouse ? 0.92 : 1)
                     Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
@@ -136,66 +166,74 @@ GroupButton {
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: "chevron_right"
-                    iconSize: 18
-                    color: root.colSubText
+                    iconSize: 16
+                    color: Appearance.colors.colSubtext
                 }
             }
         }
     }
-    MouseArea { // Blocking MouseArea for edit interactions
+
+    Rectangle { // Where a dragged tile would land: before or after this one
+        visible: root.isDropTarget
+        width: 3
+        height: parent.height - 12
+        radius: 2
+        anchors.verticalCenter: parent.verticalCenter
+        x: root.panel?.dropBefore ? -3.5 : parent.width + 0.5
+        color: Appearance.colors.colPrimary
+    }
+
+    MouseArea { // Edit mode: click turns a toggle on or off, right-click changes its size, drag or scroll moves it
         id: editModeInteraction
         visible: root.editMode
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         hoverEnabled: true
         acceptedButtons: Qt.AllButtons
-        function toggleEnabled() {
-            const index = root.buttonIndex;
-            const toggleList = Config.options.sidebar.quickToggles.android.toggles;
-            const buttonType = root.buttonData.type;
-            if (!toggleList.find(toggle => toggle.type === buttonType)) {
-                toggleList.push({ type: buttonType, size: 1 });
-            } else {
-                toggleList.splice(index, 1);
-            }
-        }
-        function toggleSize() {
-            const index = root.buttonIndex;
-            const toggleList = Config.options.sidebar.quickToggles.android.toggles;
-            const buttonType = root.buttonData.type;
-            if (!toggleList.find(toggle => toggle.type === buttonType)) return;
-            toggleList[index].size = 3 - toggleList[index].size; // Alternate between 1 and 2
-        }
-        function movePositionBy(offset) {
-            const index = root.buttonIndex;
-            const toggleList = Config.options.sidebar.quickToggles.android.toggles;
-            const buttonType = root.buttonData.type;
-            const targetIndex = index + offset;
-            if (!toggleList.find(toggle => toggle.type === buttonType)) return;
-            if (targetIndex < 0 || targetIndex >= toggleList.length) return;
-            const temp = toggleList[index];
-            toggleList[index] = toggleList[targetIndex];
-            toggleList[targetIndex] = temp;
-        }
-        onReleased: (event) => {
-            if (event.button === Qt.LeftButton)
-                toggleEnabled();
+        // A press that moves past a few pixels is a drag; one that doesn't is a click
+        property bool dragging: false
+        property point pressPoint
+        preventStealing: true
+        function raise(on) { // Over the rows and blocks after it, up to the panel
+            for (let p = root.parent; p && !p.isQuickPanel; p = p.parent) p.z = on ? 10 : 0;
         }
         onPressed: (event) => {
-            if (event.button === Qt.RightButton) toggleSize();
+            if (event.button === Qt.RightButton) { root.panel?.toggleSize(root.buttonData.type); return; }
+            pressPoint = mapToItem(root.panel, event.x, event.y);
         }
-        onPressAndHold: (event) => { // Also toggle size
-            toggleSize();
+        onPositionChanged: (event) => {
+            if (!(event.buttons & Qt.LeftButton) || !root.panel) return;
+            const p = mapToItem(root.panel, event.x, event.y);
+            if (!dragging && Math.hypot(p.x - pressPoint.x, p.y - pressPoint.y) > 6) {
+                dragging = true;
+                raise(true);
+            }
+            if (!dragging) return;
+            root.dragX = p.x - pressPoint.x;
+            root.dragY = p.y - pressPoint.y;
+            root.panel.updateDrag(root.buttonData.type, this, event.x, event.y);
+        }
+        onReleased: (event) => {
+            if (event.button !== Qt.LeftButton) return;
+            if (!dragging) { root.panel?.toggleEnabled(root.buttonData.type); return; }
+            const type = root.buttonData.type;
+            const at = mapToItem(root.panel, event.x, event.y);
+            dragging = false;
+            raise(false);
+            root.dragX = 0;
+            root.dragY = 0;
+            root.panel.endDrag(type, root.panel, at.x, at.y);
+        }
+        onCanceled: {
+            if (!dragging) return;
+            dragging = false;
+            raise(false);
+            root.dragX = 0;
+            root.dragY = 0;
+            root.panel.endDrag("", root.panel, -1e6, -1e6);
         }
         onWheel: (event) => {
-            const index = root.buttonIndex;
-            const toggleList = Config.options.sidebar.quickToggles.android.toggles;
-            const buttonType = root.buttonData.type;
-            if (event.angleDelta.y < 0) { // Move to right
-                movePositionBy(1);
-            } else if (event.angleDelta.y > 0) { // Move to left
-                movePositionBy(-1);
-            }
+            if (event.angleDelta.y !== 0) root.panel?.moveBy(root.buttonData.type, event.angleDelta.y < 0 ? 1 : -1);
             event.accepted = true;
         }
     }

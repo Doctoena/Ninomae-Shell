@@ -216,6 +216,7 @@ Singleton {
         property int chip: 8 // 24 px chips
         property int segment: 10 // 30 px segments and icon buttons
         property int container: 12 // 36 px containers
+        property int joined: 5 // Inside a group of joined cards (Settings' rows, the sidebar's blocks)
         property int screenRounding: large
         property int windowRounding: 18
     }

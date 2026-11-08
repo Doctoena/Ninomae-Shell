@@ -14,7 +14,6 @@ Item {
     property int sidebarWidth: Appearance.sizes.sidebarWidth
     // When the blob drawer in SidebarRight.qml draws the background, skip our own card
     property bool drawnByDrawer: false
-    property int sidebarPadding: 10
     property string openSettingsScript: Quickshell.shellPath("scripts/open-settings.sh")
     property bool editMode: false
     implicitHeight: sidebarRightBackground.implicitHeight
@@ -33,84 +32,71 @@ Item {
         border.width: root.drawnByDrawer ? 0 : 1
         border.color: Appearance.colors.colLayer0Border
         radius: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
+        // The sidebar in four blocks, as Settings joins its rows: quick toggles, sliders and what's playing,
+        // notifications, system. No boxes around them, and only the notifications carry a name
         ColumnLayout {
             id: mainColumn
             anchors.fill: parent
-            anchors.margins: sidebarPadding
-            spacing: sidebarPadding
+            anchors.margins: 14
+            spacing: 12
             SystemButtonRow {
                 Layout.fillWidth: true
-                Layout.topMargin: 6
-                Layout.leftMargin: 6
-                Layout.rightMargin: 6
-                Layout.bottomMargin: 4
+                Layout.leftMargin: 2
+                Layout.rightMargin: 2
             }
-            GroupBox { // Quick settings
-                GroupLabel { text: Translation.tr("Quick settings") }
+            LoaderedQuickPanelImplementation {
+                styleName: "classic"
+                sourceComponent: ClassicQuickPanel {}
+            }
+            LoaderedQuickPanelImplementation {
+                styleName: "android"
+                sourceComponent: AndroidQuickPanel {
+                    editMode: root.editMode
+                }
+            }
+            ColumnLayout { // Sliders over the player, joined
+                id: soundBlock
+                readonly property real outer: Appearance.rounding.normal
+                readonly property real inner: Appearance.rounding.joined
+                readonly property var sliderOptions: Config.options.sidebar.quickSliders
+                readonly property bool slidersShown: sliderOptions.showVolume || sliderOptions.showBrightness || sliderOptions.showMic
+                readonly property bool mediaShown: Config.options.sidebar.showMedia && MprisController.activePlayer !== null
+                visible: slidersShown || mediaShown
+                Layout.fillWidth: true
+                spacing: 4
                 Loader {
-                    id: slidersLoader
                     Layout.fillWidth: true
                     visible: active
-                    active: {
-                        const configQuickSliders = Config.options.sidebar.quickSliders
-                        if (!configQuickSliders.enable) return false
-                        if (!configQuickSliders.showMic && !configQuickSliders.showVolume && !configQuickSliders.showBrightness) return false;
-                        return true;
+                    active: soundBlock.slidersShown
+                    sourceComponent: QuickSliders {
+                        topLeftRadius: soundBlock.outer
+                        topRightRadius: soundBlock.outer
+                        bottomLeftRadius: soundBlock.mediaShown ? soundBlock.inner : soundBlock.outer
+                        bottomRightRadius: bottomLeftRadius
                     }
-                    sourceComponent: QuickSliders {}
                 }
-                LoaderedQuickPanelImplementation {
-                    styleName: "classic"
-                    sourceComponent: ClassicQuickPanel {}
-                }
-                LoaderedQuickPanelImplementation {
-                    styleName: "android"
-                    sourceComponent: AndroidQuickPanel {
-                        editMode: root.editMode
+                Loader {
+                    Layout.fillWidth: true
+                    visible: active
+                    active: soundBlock.mediaShown
+                    sourceComponent: SidebarMedia {
+                        topLeftRadius: soundBlock.slidersShown ? soundBlock.inner : soundBlock.outer
+                        topRightRadius: topLeftRadius
+                        bottomLeftRadius: soundBlock.outer
+                        bottomRightRadius: soundBlock.outer
                     }
                 }
             }
-            GroupBox { // Notifications: its label row carries the count, Do not disturb and Clear all
+            NotificationList { // "Notifications · 3", Do not disturb and Clear all, then the cards
                 Layout.fillHeight: true
-                NotificationList {
-                    Layout.fillHeight: true
-                    Layout.fillWidth: true
-                    // Same edges as the quick toggles and resource tiles (their panel's 6 px inset)
-                    Layout.leftMargin: 6
-                    Layout.rightMargin: 6
-                }
+                Layout.fillWidth: true
             }
-            GroupBox { // System
+            ResourceMonitorWidget {
                 visible: Config.options.sidebar.resourceMonitor.enable
-                GroupLabel { text: Translation.tr("System") }
-                ResourceMonitorWidget {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: implicitHeight
-                }
+                Layout.fillWidth: true
+                Layout.preferredHeight: implicitHeight
             }
         }
-    }
-    // A group in a soft box, as the page list in Settings and the control centre: its name, then what's in it
-    component GroupBox: Rectangle {
-        default property alias content: boxColumn.data
-        Layout.fillWidth: true
-        implicitHeight: boxColumn.implicitHeight + 16
-        color: Appearance.m3colors.m3surfaceContainerLow
-        radius: Appearance.rounding.large
-        ColumnLayout {
-            id: boxColumn
-            anchors { fill: parent; topMargin: 10; bottomMargin: 6 }
-            spacing: 4
-        }
-    }
-    // A group's name, small and grey, in line with what's under it, as Settings' (ContentSection)
-    component GroupLabel: StyledText {
-        Layout.fillWidth: true
-        Layout.leftMargin: 10
-        font.pixelSize: Appearance.font.pixelSize.small
-        font.weight: Font.Medium
-        color: Appearance.colors.colSubtext
     }
     component LoaderedQuickPanelImplementation: Loader {
         id: quickPanelImplLoader
@@ -129,42 +115,45 @@ Item {
             function onOpenWifiPage() { GlobalStates.openControlCenter("wifi"); }
         }
     }
-    // You (as Settings' page list shows you) and how long the system's been up, then round buttons as Settings'
-    // Close: edit the quick toggles, reload, Settings, the session screen
+    // You (as Settings' page list shows you), the date and how long the system's been up, then the system buttons:
+    // edit the quick toggles, reload, Settings, the session screen
     component SystemButtonRow: RowLayout {
-        spacing: 12
-        Avatar {}
+        spacing: 10
+        Avatar {
+            implicitWidth: 38
+            implicitHeight: 38
+        }
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 0
+            spacing: -2
             StyledText {
                 Layout.fillWidth: true
                 text: SystemInfo.username
                 font.family: Appearance.font.family.expressive
-                font.pixelSize: Appearance.font.pixelSize.large
+                font.pixelSize: Appearance.font.pixelSize.normal
                 font.weight: Font.Bold
                 color: Appearance.colors.colOnLayer1
                 elide: Text.ElideRight
             }
             StyledText {
                 Layout.fillWidth: true
-                text: Translation.tr("Up %1").arg(DateTime.uptime)
+                text: Translation.tr("%1 · up %2").arg(Qt.locale().toString(DateTime.clock.date, "dddd d MMMM")).arg(DateTime.uptime)
                 textFormat: Text.PlainText
-                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.pixelSize: Appearance.font.pixelSize.smallest
                 color: Appearance.colors.colSubtext
                 elide: Text.ElideRight
             }
         }
         RowLayout { // The buttons, closer together than the name: a set
-            spacing: 6
-            IconButton {
+            spacing: 4
+            SideButton {
                 visible: Config.options.sidebar.quickToggles.style === "android"
                 symbol: "edit"
                 toggled: root.editMode
-                tip: Translation.tr("Edit quick toggles") + (root.editMode ? Translation.tr("\nClick to turn on or off\nRight-click to change the size\nScroll to move it") : "")
+                tip: Translation.tr("Edit quick toggles") + (root.editMode ? Translation.tr("\nClick to turn on or off\nDrag to move, or below the line to take out\nRight-click to change the size") : "")
                 onClicked: root.editMode = !root.editMode
             }
-            IconButton {
+            SideButton {
                 symbol: "restart_alt"
                 tip: Translation.tr("Reload Hyprland and the shell")
                 onClicked: {
@@ -172,7 +161,7 @@ Item {
                     Quickshell.reload(true);
                 }
             }
-            IconButton {
+            SideButton {
                 symbol: "settings"
                 tip: Translation.tr("Settings")
                 onClicked: {
@@ -180,11 +169,18 @@ Item {
                     Quickshell.execDetached([root.openSettingsScript]);
                 }
             }
-            IconButton {
+            SideButton {
                 symbol: "power_settings_new"
                 tip: Translation.tr("Session")
                 onClicked: GlobalStates.sessionOpen = true
             }
         }
+    }
+    // A system button on the cards' surface
+    component SideButton: IconButton {
+        size: 32
+        colBackground: Appearance.colors.colLayer3
+        colBackgroundHover: Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
     }
 }

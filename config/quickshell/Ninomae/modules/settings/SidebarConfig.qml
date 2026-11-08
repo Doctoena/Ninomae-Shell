@@ -132,7 +132,7 @@ ContentPage {
         }
         ConfigSpinBox {
             text: Translation.tr("Columns")
-            description: Translation.tr("How many quick toggles fit in a row")
+            description: Translation.tr("How many small toggles fit in a row, under the wide ones")
             visible: page.toggles.style === "android"
             option: "sidebar.quickToggles.android.columns"
             from: 2
@@ -159,28 +159,24 @@ ContentPage {
             stepSize: 500
         }
         ConfigSwitch {
-            text: Translation.tr("Quick sliders")
-            description: Translation.tr("Volume, brightness and mic sliders at the top of the sidebar")
-            option: "sidebar.quickSliders.enable"
+            text: Translation.tr("Media player")
+            description: Translation.tr("What's playing, with its cover, under the quick toggles")
+            option: "sidebar.showMedia"
         }
-        ContentSubsection {
-            title: Translation.tr("Sliders")
-            visible: Config.options.sidebar.quickSliders.enable
-            ConfigSwitch {
-                text: Translation.tr("Volume")
-                description: Translation.tr("A slider for the speakers or headphones in use")
-                option: "sidebar.quickSliders.showVolume"
-            }
-            ConfigSwitch {
-                text: Translation.tr("Brightness")
-                description: Translation.tr("A slider for the screen's brightness")
-                option: "sidebar.quickSliders.showBrightness"
-            }
-            ConfigSwitch {
-                text: Translation.tr("Microphone")
-                description: Translation.tr("A slider for the mic in use")
-                option: "sidebar.quickSliders.showMic"
-            }
+        ConfigSwitch {
+            text: Translation.tr("Volume slider")
+            description: Translation.tr("The speakers or headphones in use, under the quick toggles")
+            option: "sidebar.quickSliders.showVolume"
+        }
+        ConfigSwitch {
+            text: Translation.tr("Brightness slider")
+            description: Translation.tr("The screen's brightness, under the quick toggles")
+            option: "sidebar.quickSliders.showBrightness"
+        }
+        ConfigSwitch {
+            text: Translation.tr("Microphone slider")
+            description: Translation.tr("The mic in use, under the quick toggles")
+            option: "sidebar.quickSliders.showMic"
         }
         ConfigSwitch {
             text: Translation.tr("Keep the sidebar loaded")

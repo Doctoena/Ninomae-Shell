@@ -378,8 +378,8 @@ Singleton {
                         ]
                     }
                 }
-                property JsonObject quickSliders: JsonObject {
-                    property bool enable: false
+                property bool showMedia: true // The player under the sliders, while something plays
+                property JsonObject quickSliders: JsonObject { // Each shows on its own (Settings → Sidebar)
                     property bool showMic: false
                     property bool showVolume: true
                     property bool showBrightness: true
