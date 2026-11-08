@@ -435,7 +435,7 @@ Item {
         readonly property real inner: tileMouse.containsPress ? height / 2 : Appearance.rounding.joined
         Layout.fillWidth: true
         Layout.preferredWidth: 1
-        implicitHeight: 40
+        implicitHeight: 44 // As the small quick toggles
         topLeftRadius: first ? outer : inner
         bottomLeftRadius: first && !root.open ? outer : inner
         topRightRadius: last ? outer : inner

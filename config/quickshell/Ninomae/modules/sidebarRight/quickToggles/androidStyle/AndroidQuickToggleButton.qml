@@ -44,7 +44,8 @@ GroupButton {
     readonly property real outerRadius: Appearance.rounding.normal
     readonly property real innerRadius: Appearance.rounding.joined
     readonly property bool firstRow: chooser.rowIndex === 0
-    readonly property bool lastRow: chooser.rowIndex === chooser.rowCount - 1
+    // The block's last row, unless the sliders join under it (then its bottom corners stay slight too)
+    readonly property bool lastRow: chooser.rowIndex === chooser.rowCount - 1 && !(panel?.joinedBelow && !chooser.unused)
     readonly property bool firstInRow: index === 0
     readonly property bool lastInRow: index === chooser.rowLength - 1
     function corner(isOuter) { return root.down || isOuter ? root.outerRadius : root.innerRadius; }

@@ -29,7 +29,7 @@ Rectangle {
         width: 40; height: 40
         radius: root.active ? 11 : height / 2 // Squircle when on, circle when off
         Behavior on radius { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
-        color: root.active ? Appearance.colors.colPrimary : Appearance.colors.colLayer3
+        color: root.active ? Appearance.colors.colPrimary : Appearance.colors.colLayer4
         Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
         MaterialSymbol {
             anchors.centerIn: parent

@@ -7,13 +7,14 @@ import qs.modules.sidebarRight.quickToggles.androidStyle
 /**
  * The quick toggles as one block, as Settings joins its rows: the wide tiles two to a row, then the small ones
  * (Settings → Sidebar → Columns to a row), 4 px apart, round at the block's outer corners and only slightly
- * between. A row with fewer tiles stretches them to fill it. Edit mode lists the unused toggles under a line
+ * between (`joinedBelow`: the sidebar's sliders join under it). A row with fewer tiles stretches them to fill it. Edit mode lists the unused toggles under a line
  * as a second block, and tiles can be dragged: onto another tile to move next to it (taking that tile's size),
  * below the line to take it out, from below the line into the block to add it.
  */
 AbstractQuickPanel {
     id: root
     property bool editMode: false
+    property bool joinedBelow: false // Another card joins under the block: its bottom corners stay slight
     Layout.fillWidth: true
     implicitHeight: (editMode ? contentItem.implicitHeight : usedRows.implicitHeight)
     Behavior on implicitHeight {

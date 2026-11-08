@@ -54,7 +54,7 @@ OverlayPanel {
                 visible: root.recording
                 implicitWidth: Math.max(20, keyText.implicitWidth + 10); implicitHeight: 20
                 radius: Appearance.rounding.chip - 2
-                color: Appearance.colors.colLayer3
+                color: Appearance.colors.colLayer4
                 StyledText {
                     id: keyText
                     anchors.centerIn: parent

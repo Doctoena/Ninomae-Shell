@@ -164,11 +164,11 @@ Singleton {
         property color colLayer1Active: ColorUtils.mix(colLayer1, colOnLayer1, 0.85);
         property color colLayer2Hover: ColorUtils.mix(colLayer2, colOnLayer2, 0.90)
         property color colLayer2Active: ColorUtils.mix(colLayer2, colOnLayer2, 0.80);
-        property color colLayer3: m3colors.m3surfaceContainerHigh
+        property color colLayer3: m3colors.m3surfaceContainer // Cards: one step up from the background
         property color colOnLayer3: m3colors.m3onSurface;
         property color colLayer3Hover: ColorUtils.mix(colLayer3, colOnLayer3, 0.90)
         property color colLayer3Active: ColorUtils.mix(colLayer3, colOnLayer3, 0.80);
-        property color colLayer4: m3colors.m3surfaceContainerHighest
+        property color colLayer4: m3colors.m3surfaceContainerHigh // Inside a card
         property color colOnLayer4: m3colors.m3onSurface;
         property color colLayer4Hover: ColorUtils.mix(colLayer4, colOnLayer4, 0.90)
         property color colLayer4Active: ColorUtils.mix(colLayer4, colOnLayer4, 0.80);

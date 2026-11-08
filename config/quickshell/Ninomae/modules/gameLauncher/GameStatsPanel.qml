@@ -478,9 +478,9 @@ Item {
                     implicitHeight: 36
                     visible: !root._showLeftovers && root._leftovers.length > 0
                     buttonRadius: Appearance.rounding.container
-                    colBackground: Appearance.colors.colLayer3
-                    colBackgroundHover: Appearance.colors.colLayer3Hover
-                    colRipple: Appearance.colors.colLayer3Active
+                    colBackground: Appearance.colors.colLayer4
+                    colBackgroundHover: Appearance.colors.colLayer4Hover
+                    colRipple: Appearance.colors.colLayer4Active
                     onClicked: root._showLeftovers = true
                     contentItem: RowLayout {
                         anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
@@ -666,7 +666,7 @@ Item {
                 anchors { left: parent.left; right: parent.right; top: parent.top }
                 height: parent.height - 40
                 radius: Appearance.rounding.normal
-                color: Appearance.colors.colLayer3
+                color: Appearance.colors.colLayer4
                 Image {
                     anchors.fill: parent
                     source: poster.art
@@ -722,7 +722,7 @@ Item {
         readonly property var game: capture?.kind ? root._captureGame(capture) : null
         readonly property bool lit: thumbHover.hovered && !!thumb.game
         radius: large ? Appearance.rounding.normal : Appearance.rounding.small
-        color: Appearance.colors.colLayer3
+        color: Appearance.colors.colLayer4
         Image {
             anchors.fill: parent
             readonly property string file: (thumb.large ? thumb.capture?.full : thumb.capture?.image) ?? ""
@@ -864,7 +864,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: Appearance.rounding.chip
-                    color: Appearance.colors.colLayer3
+                    color: Appearance.colors.colLayer4
                     visible: thumb.status !== Image.Ready
                     MaterialSymbol { anchors.centerIn: parent; text: "sports_esports"; iconSize: 14; color: Appearance.colors.colSubtext }
                 }
@@ -907,7 +907,7 @@ Item {
                     Layout.fillWidth: true
                     implicitHeight: 4
                     radius: 2
-                    color: Appearance.colors.colLayer3
+                    color: Appearance.colors.colLayer4
                     Rectangle {
                         width: parent.width * Math.max(0.03, Math.min(1, row.fraction)) * (root.animationReady ? 1 : 0)
                         height: parent.height

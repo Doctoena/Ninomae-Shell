@@ -125,7 +125,7 @@ BarDrawerPopup { // Slides out of the bar like the launcher (was StyledPopup)
                         visible: root.upcoming.length > 0
                         Layout.fillWidth: true
                         implicitHeight: 1
-                        color: Appearance.colors.colLayer3
+                        color: Appearance.colors.colLayer4
                     }
                     RowLayout { // Next hours: time, icon, temperature, and rain chance when any hour has some
                         visible: root.upcoming.length > 0

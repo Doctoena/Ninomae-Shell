@@ -262,7 +262,7 @@ ContentPage {
                         id: tileFrame
                         anchors.fill: parent
                         radius: Appearance.rounding.small
-                        color: Appearance.colors.colLayer3
+                        color: Appearance.colors.colLayer4
                         border.width: tile.chosen ? 2 : 0
                         border.color: Appearance.colors.colPrimary
                         scale: tileMouse.pressed ? 0.98 : 1

@@ -16,8 +16,9 @@ Item {
     property bool editMode: false
     implicitHeight: mainColumn.implicitHeight + mainColumn.anchors.margins * 2
     implicitWidth: Appearance.sizes.sidebarWidth - Appearance.sizes.hyprlandGapsOut * 2
-    // The sidebar in four blocks, as Settings joins its rows: quick toggles, sliders and what's playing,
-    // notifications, system. No boxes around them, and only the notifications carry a name
+    // The sidebar in blocks, as Settings joins its rows: you and the system buttons; the controls (quick toggles,
+    // then the sliders and what's playing, joined into one block); RAM, CPU and GPU; the notifications last, so
+    // the one list that grows has the room under it. No boxes around them, and only the notifications carry a name
     ColumnLayout {
         id: mainColumn
         anchors.fill: parent
@@ -26,57 +27,62 @@ Item {
         SystemButtonRow {
             Layout.fillWidth: true
         }
-        LoaderedQuickPanelImplementation {
-            styleName: "classic"
-            sourceComponent: ClassicQuickPanel {}
-        }
-        LoaderedQuickPanelImplementation {
-            styleName: "android"
-            sourceComponent: AndroidQuickPanel {
-                editMode: root.editMode
-            }
-        }
-        ColumnLayout { // Sliders over the player, joined
-            id: soundBlock
+        ColumnLayout { // The controls
+            id: controls
             readonly property real outer: Appearance.rounding.normal
             readonly property real inner: Appearance.rounding.joined
             readonly property var sliderOptions: Config.options.sidebar.quickSliders
             readonly property bool slidersShown: sliderOptions.showVolume || sliderOptions.showBrightness || sliderOptions.showMic
             readonly property bool mediaShown: Config.options.sidebar.showMedia && MprisController.activePlayer !== null
-            visible: slidersShown || mediaShown
+            // The tiles join what's under them (not the classic style's buttons, nor while editing them)
+            readonly property bool joined: Config.options.sidebar.quickToggles.style === "android" && !root.editMode
+                && (slidersShown || mediaShown)
             Layout.fillWidth: true
             spacing: 4
+            LoaderedQuickPanelImplementation {
+                styleName: "classic"
+                sourceComponent: ClassicQuickPanel {}
+            }
+            LoaderedQuickPanelImplementation {
+                styleName: "android"
+                sourceComponent: AndroidQuickPanel {
+                    editMode: root.editMode
+                    joinedBelow: controls.joined
+                }
+            }
             Loader {
                 Layout.fillWidth: true
                 visible: active
-                active: soundBlock.slidersShown
+                active: controls.slidersShown
+                Layout.topMargin: controls.joined ? 0 : 8 // Apart from the tiles: the blocks' 12 px gap
                 sourceComponent: QuickSliders {
-                    topLeftRadius: soundBlock.outer
-                    topRightRadius: soundBlock.outer
-                    bottomLeftRadius: soundBlock.mediaShown ? soundBlock.inner : soundBlock.outer
+                    topLeftRadius: controls.joined ? controls.inner : controls.outer
+                    topRightRadius: topLeftRadius
+                    bottomLeftRadius: controls.mediaShown ? controls.inner : controls.outer
                     bottomRightRadius: bottomLeftRadius
                 }
             }
             Loader {
                 Layout.fillWidth: true
+                Layout.topMargin: controls.joined || controls.slidersShown ? 0 : 8 // As the sliders' gap, when it's first
                 visible: active
-                active: soundBlock.mediaShown
+                active: controls.mediaShown
                 sourceComponent: SidebarMedia {
-                    topLeftRadius: soundBlock.slidersShown ? soundBlock.inner : soundBlock.outer
+                    topLeftRadius: controls.joined || controls.slidersShown ? controls.inner : controls.outer
                     topRightRadius: topLeftRadius
-                    bottomLeftRadius: soundBlock.outer
-                    bottomRightRadius: soundBlock.outer
+                    bottomLeftRadius: controls.outer
+                    bottomRightRadius: controls.outer
                 }
             }
-        }
-        NotificationList { // "Notifications · 3", Do not disturb and Clear all, then the cards
-            Layout.fillHeight: true
-            Layout.fillWidth: true
         }
         ResourceMonitorWidget {
             visible: Config.options.sidebar.resourceMonitor.enable
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
+        }
+        NotificationList { // "Notifications · 3", Do not disturb and Clear all, then the cards
+            Layout.fillHeight: true
+            Layout.fillWidth: true
         }
     }
     component LoaderedQuickPanelImplementation: Loader {

@@ -22,22 +22,14 @@ ColumnLayout {
             font.weight: Font.Medium
             color: Appearance.colors.colSubtext
         }
-        IconButton {
-            size: 28
-            colBackground: Appearance.colors.colLayer3
-            colBackgroundHover: Appearance.colors.colLayer3Hover
-            colRipple: Appearance.colors.colLayer3Active
+        HeaderButton {
             symbol: Notifications.silent ? "notifications_paused" : "notifications"
             toggled: Notifications.silent
             tip: Notifications.silent ? Translation.tr("Do not disturb is on. Pop-ups are held back")
                 : Translation.tr("Do not disturb")
             onClicked: Notifications.silent = !Notifications.silent
         }
-        IconButton {
-            size: 28
-            colBackground: Appearance.colors.colLayer3
-            colBackgroundHover: Appearance.colors.colLayer3Hover
-            colRipple: Appearance.colors.colLayer3Active
+        HeaderButton {
             enabled: Notifications.list.length > 0
             symbol: "clear_all"
             tip: Translation.tr("Clear all")
@@ -88,5 +80,12 @@ ColumnLayout {
                 }
             }
         }
+    }
+    // A button by the title, the size and surface of the ones by your name at the top
+    component HeaderButton: IconButton {
+        size: 32
+        colBackground: Appearance.colors.colLayer3
+        colBackgroundHover: Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
     }
 }

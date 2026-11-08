@@ -86,7 +86,7 @@ ContentPage {
                             width: modelData[2] * androidGrid.cell + (modelData[2] - 1) * androidGrid.spacing
                             height: androidGrid.cell * 0.75
                             radius: Math.max(2, height * 0.3)
-                            color: Appearance.colors.colLayer3
+                            color: Appearance.colors.colLayer4
                             Rectangle { // The icon's squircle: accent on the first ones, as if on
                                 anchors { left: parent.left; leftMargin: height * 0.35; verticalCenter: parent.verticalCenter }
                                 width: parent.height * 0.5

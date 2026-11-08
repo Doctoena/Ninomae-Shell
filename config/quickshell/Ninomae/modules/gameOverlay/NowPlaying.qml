@@ -20,7 +20,7 @@ Rectangle {
         ClippingRectangle { // The cover art, cut to round corners
             Layout.preferredWidth: 48; Layout.preferredHeight: 48
             radius: Appearance.rounding.container
-            color: Appearance.colors.colLayer3
+            color: Appearance.colors.colLayer4
             MaterialSymbol { anchors.centerIn: parent; text: "music_note"; iconSize: 24; color: Appearance.colors.colSubtext }
             Image {
                 anchors.fill: parent
