@@ -9,8 +9,8 @@ import Quickshell.Widgets
 import Quickshell.Services.Mpris
 
 /**
- * Bar player, in the middle of the bar while something plays: the cover
- * faded across the left of the card, title and artist with the time, previous / play-pause / next, and the
+ * Bar player, in the middle of the bar while something plays: the cover,
+ * title and artist with the time, previous / play-pause / next, and the
  * track's progress along the bottom edge. As the sidebar's player. Left click opens the media panel, middle click
  * plays/pauses, right click (or mouse forward) skips, mouse back goes to the previous track.
  */
@@ -25,7 +25,6 @@ Item {
     readonly property real trackProgress: timing.hasLength ? Math.max(0, Math.min(1, timing.position / timing.length)) : 0
     readonly property string timeText: timing.hasLength
         ? `${StringUtils.friendlyTimeForSeconds(timing.position)} / ${StringUtils.friendlyTimeForSeconds(timing.length)}` : ""
-    readonly property real minMediaWidth: 300
     readonly property real maxMediaWidth: 420
     readonly property bool hovered: mouseArea.containsMouse || playMouse.containsMouse || prevButton.pointed || nextButton.pointed
 
@@ -43,38 +42,11 @@ Item {
         id: pill
         anchors.verticalCenter: parent.verticalCenter
         height: 36 // As every card on the bar
-        width: Math.max(root.minMediaWidth, Math.min(root.maxMediaWidth,
-            contentRow.implicitWidth + contentRow.anchors.leftMargin + contentRow.anchors.rightMargin))
+        width: Math.min(root.maxMediaWidth, contentRow.implicitWidth + contentRow.anchors.leftMargin + contentRow.anchors.rightMargin)
         radius: Appearance.rounding.container
         color: root.hovered ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-
-        // The cover across the left of the card, fading into it. Decoded small (it's soft and faint anyway)
-        ClippingRectangle {
-            anchors.fill: parent
-            radius: pill.radius
-            color: "transparent"
-            visible: root.hasArt
-            StyledImage {
-                width: parent.width * 0.55
-                height: parent.height
-                source: root.displayedArtFilePath
-                fillMode: Image.PreserveAspectCrop
-                cache: false
-                sourceSize: Qt.size(120, 120)
-                opacity: root.isPlaying ? 0.85 : 0.5
-                Behavior on opacity { NumberAnimation { duration: 250 } }
-            }
-            Rectangle {
-                anchors.fill: parent
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: ColorUtils.transparentize(pill.color, 0.55) }
-                    GradientStop { position: 0.6; color: pill.color }
-                }
-            }
-        }
 
         MouseArea {
             id: mouseArea

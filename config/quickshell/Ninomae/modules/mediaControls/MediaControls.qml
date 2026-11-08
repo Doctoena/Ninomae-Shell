@@ -34,7 +34,6 @@ Scope {
     readonly property real osdWidth: Appearance.sizes.osdWidth
     readonly property real widgetWidth: Appearance.sizes.mediaControlsWidth
     property real popupRounding: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
-    property var visualizerPoints: []
     property bool hasPlasmaIntegration: false
     Process {
         id: plasmaIntegrationAvailabilityCheckProc
@@ -79,23 +78,6 @@ Scope {
             group.forEach(idx => used.add(idx));
         }
         return filtered;
-    }
-    Process {
-        id: cavaProc
-        running: mediaControlsLoader.active
-        onRunningChanged: {
-            if (!cavaProc.running) {
-                root.visualizerPoints = [];
-            }
-        }
-        command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
-        stdout: SplitParser {
-            onRead: data => {
-                // Parse `;`-separated values into the visualizerPoints array
-                let points = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
-                root.visualizerPoints = points;
-            }
-        }
     }
     Loader {
         id: mediaControlsLoader
@@ -142,17 +124,16 @@ Scope {
             color: "transparent"
             WlrLayershell.namespace: "quickshell:mediaControls"
             WlrLayershell.layer: WlrLayer.Overlay // Above the bar, so the drawer covers its border where they join
+            // Neither side anchored: centred, under the bar's player in the middle
             anchors {
                 top: !GlobalStates.barAtBottom
                 bottom: GlobalStates.barAtBottom
-                left: false
-                right: true
             }
             margins {
                 bottom: GlobalStates.barAtBottom ? mediaControlsRoot.barBottom : 0 // Or right above it, along the bottom
                 top: GlobalStates.barAtBottom ? 0 : mediaControlsRoot.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
-                right: 0
             }
+            readonly property real windowScreenX: ((screen?.width ?? 0) - implicitWidth) / 2
             mask: Region {
                 item: maskArea
             }
@@ -181,7 +162,7 @@ Scope {
                 BarJoin { // Lets the bar skip its bottom border where the drawer joins it
                     name: "mediaControls"
                     active: mediaControlsRoot.visibleHeight > 0
-                    joinX: (mediaControlsRoot.screen?.width ?? 0) - mediaControlsRoot.implicitWidth + mediaControlsRoot.sideMargin
+                    joinX: mediaControlsRoot.windowScreenX + mediaControlsRoot.sideMargin
                     joinWidth: mediaControlsRoot.panelWidth
                 }
                 DrawerBackground { // Shared with the launcher and the other drawers
@@ -189,7 +170,7 @@ Scope {
                     id: background
                     anchors.fill: parent
                     screenWidth: mediaControlsRoot.screen?.width ?? 0
-                    windowScreenX: (mediaControlsRoot.screen?.width ?? 0) - mediaControlsRoot.implicitWidth
+                    windowScreenX: mediaControlsRoot.windowScreenX
                     drawerX: mediaControlsRoot.sideMargin
                     drawerY: mediaControlsRoot.drawerY
                     drawerWidth: mediaControlsRoot.panelWidth
@@ -221,7 +202,6 @@ Scope {
                     delegate: PlayerControl {
                         required property MprisPlayer modelData
                         player: modelData
-                        visualizerPoints: root.visualizerPoints
                         Layout.preferredWidth: root.widgetWidth
                         radius: root.popupRounding
                     }
