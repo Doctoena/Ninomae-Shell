@@ -6,6 +6,7 @@
   steam_control.py remove-and-resume <appid>
                                       → the same for the paused one at the queue's head: the rest go again
   steam_control.py pause-all | resume-all
+  steam_control.py skip-shaders <appid> → a launch waiting on Vulkan shader processing starts now (Steam's Skip)
   steam_control.py status             → on (Steam runs with the plugin), outdated (Steam runs an older copy
                                         than the one on disk: a restart loads it), installed (Steam isn't
                                         running) or missing
@@ -118,6 +119,8 @@ def main():
         value, err = request("resume", appid=int(a[1]))
     elif len(a) == 2 and a[0] in ("remove", "remove-and-resume") and a[1].isdigit():
         value, err = request("remove", appid=int(a[1]), resumeAll=a[0] == "remove-and-resume")
+    elif len(a) == 2 and a[0] == "skip-shaders" and a[1].isdigit():
+        value, err = request("skipShaders", appid=int(a[1]))
     elif a in (["pause-all"], ["resume-all"]):
         value, err = request("enableAll", on=a[0] == "resume-all")
     else:

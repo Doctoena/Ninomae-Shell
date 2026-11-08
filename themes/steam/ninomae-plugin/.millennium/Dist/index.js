@@ -20,6 +20,15 @@ const details = id => new Promise(res => {
     setTimeout(() => { if (!done) { done = true; h?.unregister?.(); res(null); } }, 2000);
 });
 const D = () => SteamClient.Downloads;
+// Launches waiting on Steam's Vulkan shader processing: appid → its game action, which Steam's own Skip
+// button passes on. Steam asks (a "user request") when it starts processing, and the action ends with the launch
+const shaderActions = new Map();
+SteamClient.Apps.RegisterForGameActionUserRequest((action, gameid, name, request) => {
+    if (name === "LaunchApp" && request === "ProcessingShaderCache") shaderActions.set(String(gameid), action);
+});
+SteamClient.Apps.RegisterForGameActionEnd(action => {
+    for (const [gameid, a] of shaderActions) if (a === action) shaderActions.delete(gameid);
+});
 const commands = {
     ping: async () => true,
     // Steam's "Move to top": starts it now, the rest after it (also the retry after an error)
@@ -34,6 +43,13 @@ const commands = {
         apps.SetAppLaunchOptions(id, text(a.options));
         apps.SpecifyCompatTool(id, text(a.proton));
         if ([0, 1, 2].includes(a.autoUpdate)) apps.SetAppAutoUpdateBehavior(id, a.autoUpdate);
+        return true;
+    },
+    // Steam's Skip in its "Processing Vulkan shaders" dialog: the game starts now, building shaders as it goes
+    skipShaders: async a => {
+        const action = shaderActions.get(String(appid(a)));
+        if (action === undefined) throw new Error("not processing shaders");
+        await SteamClient.Apps.ContinueGameAction(action, "SkipShaders");
         return true;
     },
     // Steam's Uninstall after you confirm (the true): no dialog
@@ -79,7 +95,7 @@ check();
     }
 })();
 // Millennium's plugin list shows this page
-const Page = () => window.SP_REACT.createElement(api.Field, { label: "Ninomae launcher", description: "Lets the Ninomae launcher pause, resume and order downloads, and save launch options and Proton without restarting Steam. Turns off Steam's screenshot key: F12 is the shell's. Nothing to set here.", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), bottomSeparator: "none", focusable: false });
+const Page = () => window.SP_REACT.createElement(api.Field, { label: "Ninomae launcher", description: "Lets the Ninomae launcher pause, resume and order downloads, skip shader processing, and save launch options and Proton without restarting Steam. Turns off Steam's screenshot key: F12 is the shell's. Nothing to set here.", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), bottomSeparator: "none", focusable: false });
 exports.default = api.definePlugin(() => ({ title: "Ninomae Shell", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), content: window.SP_REACT.createElement(Page, null) }));
 Object.defineProperty(exports, "__esModule", { value: true });
 return exports;

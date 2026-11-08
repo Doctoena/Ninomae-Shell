@@ -21,6 +21,8 @@ import Quickshell.Widgets
  * "Launched" on the way. It slides back at once when the pointer touches it. If the game quits before showing a
  * window, or Steam can't start it, it says so with Retry. Stays on the screen it opened on, and never
  * takes keyboard focus.
+ * While Steam processes Vulkan shaders it brings its main window up to ask about them: that waits on a hidden
+ * workspace instead, and the drawer has Skip (Steam's, through the shell's plugin in Steam).
  * Off in Settings → Launcher (Config.options.gameLauncher.launchAnimation).
  */
 Scope {
@@ -37,6 +39,8 @@ Scope {
     property real progress: -1 // 0–1, -1 when there's no number
     property string error: ""
     readonly property bool failedState: isFailure(stage)
+    readonly property bool canSkip: stage === "shaders" && (game?.id ?? "").startsWith("steam_")
+    readonly property bool hasButtons: failedState || canSkip // Then the pointer doesn't send the drawer away
     function isFailure(stage) { return stage === "exited" || stage === "failed"; }
     // Steps already done this launch, oldest first ({ stage }): filled in by the drawer as it shows each one
     property ListModel doneSteps: ListModel {}
@@ -101,6 +105,7 @@ Scope {
     function dismiss() {
         root.shown = false;
         _stopAll();
+        _restoreSteam(root.stage === "launched");
     }
     function start(game) {
         _stopAll();
@@ -144,7 +149,63 @@ Scope {
         root.stage = s.stage;
         root.progress = s.progress ?? -1;
         root.error = s.error ?? "";
-        if (root.failedState) failTime.restart();
+        if (root.failedState) { failTime.restart(); _restoreSteam(false); } // Steam may have more to say
+        if (root.stage === "shaders") _hideSteamWindows();
+    }
+
+    // ── Steam's window while shaders process ──
+    // Steam's main window (class steam, title Steam), as hidden: address → the workspace to put it back on, or
+    // "" if it opened during this launch (then it goes back to the tray once the game is up)
+    property var _hiddenSteam: ({})
+    property var _openedSteam: ({}) // Addresses of the ones that opened during this launch
+    readonly property string _hideWorkspace: "special:steamlaunch" // As Steam's "Launching..." dialog's rule
+    function _isSteamMain(w) { return w?.class === "steam" && w?.title === "Steam"; }
+    function _hideSteam(address, workspace) {
+        if (root._hiddenSteam[address] !== undefined) return;
+        root._hiddenSteam = Object.assign({}, root._hiddenSteam, { [address]: workspace });
+        Hyprland.dispatch(`hl.dsp.window.move({ workspace = "${root._hideWorkspace}", follow = false, window = "address:${address}" })`);
+    }
+    function _hideSteamWindows() {
+        for (const w of HyprlandData.windowList ?? [])
+            if (root._isSteamMain(w) && !w.workspace?.name?.startsWith("special:"))
+                root._hideSteam(w.address, root._openedSteam[w.address] ? "" : w.workspace.name);
+    }
+    // The launch is over (or the drawer gone, Skip with it): Steam's window back, or to the tray if it only
+    // opened to ask about shaders and the game is up
+    function _restoreSteam(launched) {
+        const back = Hyprland.focusedWorkspace?.name ?? "";
+        for (const [address, workspace] of Object.entries(root._hiddenSteam)) {
+            if (workspace === "" && launched)
+                Hyprland.dispatch(`hl.dsp.window.close({ window = "address:${address}" })`); // Steam keeps running
+            else
+                Hyprland.dispatch(`hl.dsp.window.move({ workspace = "${workspace || back}", follow = false, window = "address:${address}" })`);
+        }
+        root._hiddenSteam = ({});
+        root._openedSteam = ({});
+    }
+    Connections {
+        target: Hyprland
+        enabled: root.shown && !root._fallback
+        function onRawEvent(event) { // "openwindow": address,workspace,class,title
+            if (event.name !== "openwindow") return;
+            const [address, , windowClass, title] = event.data.split(",");
+            if (!root._isSteamMain({ class: windowClass, title: title })) return;
+            root._openedSteam = Object.assign({}, root._openedSteam, { ["0x" + address]: true });
+            if (root.stage === "shaders") root._hideSteam("0x" + address, "");
+        }
+    }
+    function skipShaders() {
+        if (skipProc.running || !root.game) return;
+        skipProc.command = ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_control.py"), "skip-shaders", root.game.id.substring(6)];
+        skipProc.running = true;
+    }
+    Process {
+        id: skipProc
+        onExited: exitCode => {
+            if (exitCode === 0) return; // The watcher sees the launch move on
+            console.warn("[LaunchSplash] Skip didn't reach Steam: its window comes back, with its own Skip");
+            root._restoreSteam(false);
+        }
     }
 
     Connections {
@@ -320,7 +381,7 @@ Scope {
             x: drawer.sideMargin
             width: drawer.panelWidth
             height: drawer.visibleHeight
-            // Get out of the way when the pointer moves onto it (not on a failure: it has buttons). Only
+            // Get out of the way when the pointer moves onto it (not with buttons on it). Only
             // when it moves: the drawer opening under a pointer that's just resting there doesn't count
             MouseArea {
                 id: hoverArea
@@ -329,7 +390,7 @@ Scope {
                 hoverEnabled: true
                 onEntered: enteredAt = Qt.point(mouseX, mouseY)
                 onPositionChanged: {
-                    if (!root.failedState && Math.hypot(mouseX - enteredAt.x, mouseY - enteredAt.y) > 4) root.dismiss();
+                    if (!root.hasButtons && Math.hypot(mouseX - enteredAt.x, mouseY - enteredAt.y) > 4) root.dismiss();
                 }
             }
         }
@@ -523,7 +584,7 @@ Scope {
                             leftPadding: 2
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.verticalCenterOffset: drawer.swapShift
-                            width: Math.min(implicitWidth, stepsArea.width - x - (drawer.shownFailed ? failButtons.width : elapsedLabel.width) - 12)
+                            width: Math.min(implicitWidth, stepsArea.width - x - (drawer.shownFailed ? failButtons.width : elapsedRow.width) - 12)
                             text: root.stageText(drawer.shownStage)
                             font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.Medium
@@ -533,16 +594,29 @@ Scope {
                         }
                     }
 
-                    StyledText {
-                        id: elapsedLabel
+                    Row { // Skip while shaders process, then the time
+                        id: elapsedRow
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        opacity: drawer.shownFailed || drawer.shownStage === "launched" ? 0 : 0.75
-                        Behavior on opacity { NumberAnimation { duration: 200 } }
-                        text: root.elapsedText
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.family: Appearance.font.family.numbers
-                        font.variableAxes: ({}) // Not Roboto Flex's tuning
-                        color: Appearance.colors.colOnLayer0
+                        spacing: 10
+                        DialogButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: root.canSkip && drawer.shownStage === "shaders"
+                            enabled: !skipProc.running
+                            buttonText: Translation.tr("Skip")
+                            onClicked: root.skipShaders()
+                            StyledToolTip { text: Translation.tr("Start now and build shaders while you play") }
+                        }
+                        StyledText {
+                            id: elapsedLabel
+                            anchors.verticalCenter: parent.verticalCenter
+                            opacity: drawer.shownFailed || drawer.shownStage === "launched" ? 0 : 0.75
+                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                            text: root.elapsedText
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.family: Appearance.font.family.numbers
+                            font.variableAxes: ({}) // Not Roboto Flex's tuning
+                            color: Appearance.colors.colOnLayer0
+                        }
                     }
                     Row {
                         id: failButtons
