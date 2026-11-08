@@ -7,9 +7,9 @@ import Quickshell
 import Quickshell.Services.Notifications
 /**
  * A group of notifications from the same app.
- * A soft card; collapsed it shows the newest two (one in popups), expanded all of them. In the sidebar the cards
- * join into one list as Settings' rows (round at the list's ends, slight between), and a lone notification
- * shows its app and time beside its title instead of a header line.
+ * A card; collapsed it shows the newest two (one in popups), expanded all of them. The cards join into one list
+ * as Settings' rows (round at the list's ends, slight between), in the sidebar and the popups alike, and a lone
+ * notification shows its app and time beside its title instead of a header line.
  */
 MouseArea { // Notification group area
     id: root
@@ -28,7 +28,7 @@ MouseArea { // Notification group area
     readonly property var newestFirst: notifications.slice().reverse()
     // A view transition still moving the cards below won't notice this one grew (see NotificationListView)
     onImplicitHeightChanged: root.ListView.view?.requestRelayout?.()
-    property real padding: compact ? 4 : 8 // Rows carry their own padding (and hover highlight)
+    property real padding: 4 // Rows carry their own padding (and hover highlight)
     implicitHeight: background.implicitHeight
     property real dragConfirmThreshold: 70
     property real dismissOvershoot: 20
@@ -113,10 +113,9 @@ MouseArea { // Notification group area
         id: background
         anchors.left: parent.left
         width: parent.width
-        readonly property real outerRadius: root.popup ? Appearance.rounding.large : Appearance.rounding.normal
-        topLeftRadius: root.popup || root.listIndex === 0 ? outerRadius : Appearance.rounding.joined
+        topLeftRadius: root.listIndex === 0 ? Appearance.rounding.normal : Appearance.rounding.joined
         topRightRadius: topLeftRadius
-        bottomLeftRadius: root.popup || root.listIndex === root.listCount - 1 ? outerRadius : Appearance.rounding.joined
+        bottomLeftRadius: root.listIndex === root.listCount - 1 ? Appearance.rounding.normal : Appearance.rounding.joined
         bottomRightRadius: bottomLeftRadius
         anchors.leftMargin: root.xOffset
         clip: true
@@ -128,7 +127,7 @@ MouseArea { // Notification group area
                 easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
             }
         }
-        color: popup ? Appearance.colors.colLayer1 : Appearance.colors.colLayer3 // Soft card inside the popup drawer / sidebar
+        color: Appearance.colors.colLayer3
         // Sized by its rows (a fixed cap cut rows off once they got thumbnails). Animated both ways, and
         // clipped, so expanding reveals the extra rows as the card grows
         implicitHeight: contentCol.implicitHeight + padding * 2
@@ -146,7 +145,7 @@ MouseArea { // Notification group area
             spacing: 2
             // ── Header: app icon, name and time, plus the count / expand chip for groups ──
             RowLayout {
-                visible: !(root.compact && !root.multipleNotifications) // A lone one in the sidebar: its row says it
+                visible: root.multipleNotifications // A lone one: its row says it
                 Layout.fillWidth: true
                 Layout.leftMargin: 8
                 Layout.rightMargin: 4
@@ -216,7 +215,7 @@ MouseArea { // Notification group area
                     expanded: root.expanded
                     compact: root.compact
                     onlyNotification: (root.notificationCount === 1)
-                    appLabel: root.compact && !root.multipleNotifications ? (notificationGroup?.appName ?? "") : ""
+                    appLabel: !root.multipleNotifications ? (notificationGroup?.appName ?? "") : ""
                     // One row showing: its time is the header's. Several: each has its own
                     showTime: root.notificationCount > 1 && (root.expanded || root.collapsedRows > 1)
                     // The last collapsed row fades when more are hidden below it (not a lone row in popups)

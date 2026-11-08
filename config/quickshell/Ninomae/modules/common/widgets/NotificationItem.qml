@@ -264,7 +264,7 @@ Item {
         NotificationActionButton {
             required property var modelData
             implicitHeight: root.compact ? 24 : 28
-            iconOnly: !root.actionsBelow
+            iconOnly: !root.actionsBelow && root.compact // Popups name their actions ("Reply"), the sidebar keeps icons
             buttonText: modelData.text
             urgency: root.notificationObject?.urgency ?? ""
             onClicked: Notifications.attemptInvokeAction(root.notificationObject?.notificationId, modelData.identifier)

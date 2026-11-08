@@ -13,7 +13,7 @@ StyledListView { // Scrollable window
     // pass (forceLayout() only applies changes the view already knows about), and the nudge is undone
     // straight away, so only the pass runs. Debounced: a burst of resizes costs one pass
     property real spacingNudge: 0
-    spacing: (root.popup ? 8 : 4) + spacingNudge
+    spacing: 4 + spacingNudge
     function requestRelayout() {
         relayoutTimer.restart();
     }
@@ -25,7 +25,7 @@ StyledListView { // Scrollable window
             root.spacingNudge = 0;
         }
     }
-    topMargin: 4
+    topMargin: root.popup ? 0 : 4 // Below the sidebar's header; a popup drawer's own padding is even all round
     model: ScriptModel {
         values: root.popup ? Notifications.popupAppNameList : Notifications.appNameList
     }
