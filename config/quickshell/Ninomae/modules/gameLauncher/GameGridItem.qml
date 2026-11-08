@@ -204,7 +204,7 @@ Item {
                     if (GameLauncherService.workshopDownloading[game?.id])
                         return { icon: "extension", text: Translation.tr("Mods"), tip: Translation.tr("Workshop mods are downloading"), color: Appearance.colors.colSecondary };
                     if (GameLauncherService.updatedSincePlayed(game)) // Patched since you last played: News has the notes
-                        return { icon: "new_releases", text: Translation.tr("Updated"), tip: Translation.tr("Updated since you last played · goes once you play it or read its News"), color: Appearance.colors.colTertiary };
+                        return { icon: "new_releases", text: Translation.tr("Updated"), tip: Translation.tr("Updated since you last played"), color: Appearance.colors.colTertiary };
                 }
                 return null;
             }

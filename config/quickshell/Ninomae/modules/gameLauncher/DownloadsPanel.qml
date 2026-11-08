@@ -16,7 +16,8 @@ import Quickshell.Widgets
  *    each with "Download now" (Steam's "Move to top", which starts it and puts the rest after it).
  *  - The ✕ beside an update takes it off the queue, as Steam's: it updates later, or when it's played.
  *  - Then what finished in the last day, with Play. Its ✕ (or the heading's Clear all) takes it off the panel
- *    (GameLauncherService.clearFinishedDownloads), until it finishes again. A row opens its game's page.
+ *    (GameLauncherService.clearFinishedDownloads), until it finishes again, and its Updated badge goes. A row
+ *    opens its game's page.
  * The buttons go through the shell's Millennium plugin in Steam (GameLauncherService.controlDownload), else
  * they open Steam's Downloads page, and a notice says how to get it. From GameLauncherService.steamDownloads
  * (scripts/game-launcher/steam_downloads.py --watch). Esc closes.

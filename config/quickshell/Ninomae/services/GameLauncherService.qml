@@ -929,6 +929,13 @@ Singleton {
             if (Date.now() / 1000 - at < 172800) keep[appid] = at;
         for (const e of entries) keep[e.appid] = e.at;
         _clearedDownloadsStore.commit(keep);
+        // Cleared is seen: the games' Updated badges go too, in one write
+        const seen = Object.assign({}, root.seenBuilds);
+        for (const e of entries) {
+            const g = root.gamesById["steam_" + e.appid];
+            if (g?.buildId > 0) seen[g.id] = g.buildId;
+        }
+        _seenBuildsStore.commit(seen);
     }
     Process {
         id: _downloadsProc
@@ -1486,7 +1493,7 @@ Singleton {
         if (seen === undefined || !((game?.buildId ?? 0) > 0) || game.buildId === seen) return false;
         return game.lastPlayed > 0 && game.lastUpdated * 1000 > game.lastPlayed + 3600000; // Never played: nothing to have missed
     }
-    function markBuildSeen(game) { // Played it, or opened its News
+    function markBuildSeen(game) { // Played it, or opened its News (clearing its download does this for several)
         if (!game?.id?.startsWith("steam_") || !(game.buildId > 0) || root.seenBuilds[game.id] === game.buildId) return;
         _seenBuildsStore.commit(Object.assign({}, root.seenBuilds, { [game.id]: game.buildId }));
     }
