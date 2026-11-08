@@ -34,7 +34,7 @@ Item {
             width: root.width
             height: 1
             y: Math.round((root.height - 1) * modelData)
-            color: Appearance.colors.colLayer3
+            color: Appearance.colors.colLayer4 // Guide lines, on the card the graph sits in
         }
     }
     Shape {

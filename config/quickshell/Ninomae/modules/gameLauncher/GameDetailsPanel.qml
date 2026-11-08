@@ -1492,7 +1492,7 @@ Item {
                         }
                     }
                 }
-                // Details: icon badge + label + value, like the clock/battery popups
+                // Details: icon badge + label + value
                 MetaRow { iconName: "code"; label: "Developer"; value: root._currentMetadata?.developers?.join(", ") ?? "" }
                 MetaRow { iconName: "storefront"; label: "Publisher"; value: root._currentMetadata?.publishers?.join(", ") ?? "" }
                 MetaRow { iconName: "calendar_month"; label: "Released"; value: root._currentMetadata?.releaseDate ?? "" }
