@@ -12,5 +12,8 @@ OsdValueIndicator {
     rotateIcon: true
     scaleIcon: true
     name: Translation.tr("Brightness")
+    // Which screen, as Settings → Display names them
+    detail: !focusedScreen ? "" : focusedScreen.name.startsWith("eDP") ? Translation.tr("Built-in display")
+        : (focusedScreen.model || focusedScreen.name)
     value: root.brightnessMonitor?.brightness ?? 0.5
 }
