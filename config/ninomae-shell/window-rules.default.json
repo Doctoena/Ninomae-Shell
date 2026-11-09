@@ -4,7 +4,7 @@
     "note": "Slightly transparent, so the wallpaper shows through",
     "enabled": true,
     "match": {
-      "class": "^(com\\.microsoft\\.VSCode|kitty|discord|vesktop|org\\.gnome\\.Nautilus|org\\.gnome\\.Loupe|xdg-desktop-portal-gtk|net\\.lutris\\.Lutris|steam|com\\.github\\.th_ch\\.youtube_music)$"
+      "class": "^(com\\.microsoft\\.VSCode|kitty|discord|vesktop|org\\.gnome\\.Nautilus|org\\.gnome\\.Loupe|xdg-desktop-portal-gtk|net\\.lutris\\.Lutris|steam|com\\.github\\.th[-_]ch\\.youtube[-_]music)$"
     },
     "effects": {
       "opacity": "0.94 override 0.94 override"
