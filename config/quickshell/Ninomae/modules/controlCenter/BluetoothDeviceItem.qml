@@ -2,7 +2,6 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
 import QtQuick
-import QtQuick.Layouts
 import Quickshell.Bluetooth
 
 // A device: its name and state on the left, what you can do with it on the right (Connect, Forget, Pair…)

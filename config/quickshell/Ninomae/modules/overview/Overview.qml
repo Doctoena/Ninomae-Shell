@@ -4,7 +4,6 @@ import qs.modules.common
 import qs.modules.common.widgets
 import Qt.labs.synchronizer
 import QtQuick
-import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
