@@ -3,10 +3,9 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
-// Pill search field in the style of caelestia-dots/shell's launcher
+// The search field: the top piece of the drawer's joined group (search, shell buttons, results)
 Rectangle {
     id: root
-    property bool animateWidth: false // Kept for Overview.qml's API; the drawer is fixed-width
     property alias searchInput: searchInput
     property string searchingText
     function forceFocus() {
@@ -24,15 +23,19 @@ Rectangle {
         return SearchBar.SearchPrefixType.DefaultSearch;
     }
 
-    implicitHeight: 50
-    radius: 14 // Rounded rectangle, like the rest of the shell
-    color: Appearance.colors.colLayer1
+    property int resultCount: 0
+    implicitHeight: 42
+    topLeftRadius: Appearance.rounding.normal
+    topRightRadius: Appearance.rounding.normal
+    bottomLeftRadius: Appearance.rounding.joined
+    bottomRightRadius: Appearance.rounding.joined
+    color: Appearance.colors.colLayer3
 
     MaterialSymbol {
         id: searchIcon
-        anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-        iconSize: Appearance.font.pixelSize.huge
-        color: Appearance.colors.colOnSurfaceVariant
+        anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+        iconSize: Appearance.font.pixelSize.larger
+        color: Appearance.colors.colPrimary
         animateChange: true
         text: switch (root.searchPrefixType) {
             case SearchBar.SearchPrefixType.Action: return "settings_suggest";
@@ -50,7 +53,7 @@ Rectangle {
         id: searchInput
         anchors {
             left: searchIcon.right
-            right: clearButton.left
+            right: trailing.visible ? trailing.left : parent.right
             leftMargin: 8
             rightMargin: 4
             verticalCenter: parent.verticalCenter
@@ -60,7 +63,7 @@ Rectangle {
         colBackground: "transparent"
         focus: GlobalStates.overviewOpen
         font.pixelSize: Appearance.font.pixelSize.small
-        placeholderText: Translation.tr("Type \"%1\" for actions").arg(Config.options.search.prefix.action)
+        placeholderText: Translation.tr("Search apps and settings")
         onTextChanged: root.searchingText = text
         onAccepted: {
             if (appResults.count > 0) {
@@ -68,6 +71,19 @@ Rectangle {
                 if (item && item.clicked) {
                     item.clicked();
                 }
+            }
+        }
+        // Alt+1–9 runs the chosen result's actions, Tab moves into them, Shift+Delete removes a clipboard entry
+        Keys.onPressed: event => {
+            const item = appResults.currentItem;
+            if ((event.modifiers & Qt.AltModifier) && event.key >= Qt.Key_1 && event.key <= Qt.Key_9) {
+                if (item?.runAction(event.key - Qt.Key_1)) event.accepted = true;
+            } else if (event.key === Qt.Key_Delete && (event.modifiers & Qt.ShiftModifier) && item?.isClipboard) {
+                item.entry.actions.find(action => action.name === "Delete")?.execute();
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Tab) {
+                item?.focusActions();
+                event.accepted = true; // Never on to the list's rows
             }
         }
         // Arrows move through the results without leaving the field
@@ -81,20 +97,30 @@ Rectangle {
         }
     }
 
-    MaterialSymbol { // Clear
-        id: clearButton
+    Row { // How many results, and clear: only while there's text
+        id: trailing
         anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-        text: "close"
-        iconSize: Appearance.font.pixelSize.larger
-        color: Appearance.colors.colOnSurfaceVariant
+        spacing: 12
         visible: searchInput.text.length > 0
-        MouseArea {
-            anchors.fill: parent
-            anchors.margins: -6
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                searchInput.text = "";
-                searchInput.forceActiveFocus();
+        StyledText {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.resultCount === 1 ? Translation.tr("1 result") : Translation.tr("%1 results").arg(root.resultCount)
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            color: Appearance.colors.colSubtext
+        }
+        MaterialSymbol { // Clear
+            anchors.verticalCenter: parent.verticalCenter
+            text: "close"
+            iconSize: Appearance.font.pixelSize.larger
+            color: Appearance.colors.colOnSurfaceVariant
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -6
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    searchInput.text = "";
+                    searchInput.forceActiveFocus();
+                }
             }
         }
     }

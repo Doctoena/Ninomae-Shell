@@ -13,8 +13,37 @@ Item { // Wrapper
     id: root
     property string searchingText: ""
     property string mathResult: ""
-    readonly property var shellSettingsTarget: Fuzzy.prepare("Ninomae Settings") // Prepared once, matched every keystroke
-    readonly property var volumeControlTargets: [Fuzzy.prepare("Volume control"), Fuzzy.prepare("Control centre")]
+    // The query without its prefix, for highlighting matched letters: worked out once, not in every row
+    readonly property string matchQuery: {
+        const prefix = Config.options.search.prefix;
+        return StringUtils.cleanOnePrefix(searchingText, [prefix.action, prefix.app, prefix.clipboard, prefix.emojis,
+            prefix.math, prefix.shellCommand, prefix.webSearch]);
+    }
+    // The shell's own windows: not installed apps, so they're added here, above the apps ("settings" opens
+    // these Settings rather than GNOME's). Built once, names prepared once and matched every keystroke
+    function shellEntry(name, shortName, comment, symbol, words, execute) {
+        return {
+            key: "ninomae-" + symbol,
+            name: name,
+            shortName: shortName, // On its button under the search field
+            comment: comment,
+            clickActionName: Translation.tr("Open"),
+            type: Translation.tr("Shell"),
+            shellSymbol: symbol, // ShellAppIcon
+            targets: words.map(w => Fuzzy.prepare(w)),
+            execute: execute
+        };
+    }
+    readonly property var shellEntries: [
+        shellEntry(Translation.tr("Volume control"), Translation.tr("Volume"), Translation.tr("Control centre · Sound"), "volume_up",
+            ["Volume control", "Control centre"], () => GlobalStates.openControlCenter("sound")),
+        shellEntry(Translation.tr("Wi-Fi"), Translation.tr("Wi-Fi"), Translation.tr("Control centre · Wi-Fi"), "wifi",
+            ["Wi-Fi", "Wifi", "Internet", "Network"], () => GlobalStates.openControlCenter("wifi")),
+        shellEntry(Translation.tr("Bluetooth"), Translation.tr("Bluetooth"), Translation.tr("Control centre · Bluetooth"), "bluetooth",
+            ["Bluetooth"], () => GlobalStates.openControlCenter("bluetooth")),
+        shellEntry(Translation.tr("Ninomae Settings"), Translation.tr("Settings"), "", "settings",
+            ["Ninomae Settings"], () => Quickshell.execDetached([Quickshell.shellPath("scripts/open-settings.sh")])),
+    ]
     // pavucontrol's own entry is called "Volume Control" too: it only shows for its program name, so that name
     // opens the control centre and "pavucontrol" opens pavucontrol
     readonly property string pavucontrolId: "org.pulseaudio.pavucontrol"
@@ -81,15 +110,10 @@ Item { // Wrapper
     function focusSearchInput() {
         searchBar.forceFocus();
     }
-    function disableExpandAnimation() {
-        searchBar.animateWidth = false;
-    }
     function cancelSearch() { // Opening starts with an empty search (it used to keep the last query, selected)
         searchBar.searchInput.text = "";
         root.searchingText = "";
-        searchBar.animateWidth = true;
-        // And on the first result: the text may have been empty already, so nothing else resets it, and the
-        // preview kept showing the last app chosen, scrolled out of sight
+        // And on the first result: the text may have been empty already, so nothing else resets it
         appResults.currentIndex = 0;
         appResults.positionViewAtBeginning();
     }
@@ -180,7 +204,7 @@ Item { // Wrapper
         const cmd = (entry?.execString ?? entry?.command?.join(" ") ?? "");
         return cmd.includes("steam://rungameid/") || cmd.includes("lutris:rungame");
     }
-    readonly property real panelWidth: 860
+    readonly property real panelWidth: 540 // One column: the chosen result grows in place
     readonly property real panelPadding: 14
     readonly property real cornerRadius: Appearance.rounding.windowRounding // matches the bar's rounding
     readonly property real sideMargin: 40 // Room for the gooey bulge beside the drawer
@@ -188,7 +212,7 @@ Item { // Wrapper
     // No bar on this screen (a fullscreen game): a free-standing card instead of a drawer joined to nothing
     readonly property bool barAttached: GlobalStates.barShownOn(root.QsWindow.window?.screen ?? null)
     readonly property real bottomRadius: 28
-    readonly property int maxShown: 8
+    readonly property int maxShown: 7 // Plain rows under the chosen one before the list scrolls
     readonly property real itemHeight: 50
     readonly property real fullHeight: content.implicitHeight
     // 0 = fully out, 1 = tucked behind the bar. Overview.qml keeps the window
@@ -202,6 +226,32 @@ Item { // Wrapper
             duration: GlobalStates.overviewOpen ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
             easing.type: Easing.BezierSpline
             easing.bezierCurve: GlobalStates.overviewOpen ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
+        }
+    }
+    IconGlow { // Each result's icon colour, for its card's tint and halo (outside the layout: no gap of its own)
+        id: iconGlow
+    }
+    // Opening: the shell buttons and results cascade in, top to bottom, as the drawer slides out
+    property real openReveal: 1
+    function entrance(index) {
+        return Math.max(0, Math.min(1, root.openReveal * 1.8 - Math.min(index, 10) * 0.09));
+    }
+    NumberAnimation {
+        id: openRevealAnim
+        target: root
+        property: "openReveal"
+        from: 0
+        to: 1
+        duration: 560
+        easing.type: Easing.BezierSpline
+        easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
+    }
+    Connections {
+        target: GlobalStates
+        function onOverviewOpenChanged() {
+            if (GlobalStates.overviewOpen) openRevealAnim.restart(); // Closing leaves it at 1: it slides back whole
+            listHover.armed = false; // Hover waits for the pointer to move again
+            hoverChoose.stop();
         }
     }
     // When hidden, tuck the drawer this far past the bar edge so the blob merge leaves no bump
@@ -331,302 +381,329 @@ Item { // Wrapper
                     right: parent.right
                     margins: root.panelPadding
                 }
-                spacing: 10
+                spacing: 4 // The pieces join, as the sidebar's
 
                 SearchBar {
                     id: searchBar
                     Layout.fillWidth: true
+                    resultCount: appResults.count
                     Synchronizer on searchingText {
                         property alias source: root.searchingText
                     }
                 }
 
-                RowLayout { // Results list | preview of the selected result
-                    id: resultsRow
-                    visible: appResults.count > 0
+                RowLayout { // The shell's own pages, a click away
                     Layout.fillWidth: true
-                    spacing: 12
-
-                    ListView { // Results (all apps when the query is empty)
-                        id: appResults
-                        Layout.preferredWidth: 330
-                        Layout.fillHeight: true
-                        // Keep at least 5 rows tall so the preview has room even with few results
-                        implicitHeight: (root.itemHeight + spacing) * Math.max(5, Math.min(root.maxShown, count)) - spacing
-                        clip: true
-                        spacing: 2
-                        KeyNavigation.up: searchBar
-                        highlightFollowsCurrentItem: false
-                        highlightRangeMode: ListView.ApplyRange
-                        preferredHighlightBegin: 0
-                        preferredHighlightEnd: height
-                        highlight: Rectangle { // Faint highlight that slides between rows
-                            y: appResults.currentItem?.y ?? 0
-                            width: appResults.width
-                            height: appResults.currentItem?.height ?? 0
-                            radius: 16 // As the rows' own hover shape (SearchItem), so the two line up
-                            color: Appearance.colors.colPrimary
-                            opacity: 0.14
-                            Behavior on y {
-                                NumberAnimation {
-                                    duration: 220
-                                    easing.type: Easing.BezierSpline
-                                    easing.bezierCurve: Appearance.animationCurves.expressiveEffects
-                                }
-                            }
-                        }
-                        Behavior on implicitHeight {
-                            enabled: GlobalStates.overviewOpen
-                            NumberAnimation {
-                                duration: 250
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Appearance.animationCurves.expressiveEffects
-                            }
-                        }
-                        onFocusChanged: {
-                            if (focus)
-                                appResults.currentIndex = 1;
-                        }
-                        Connections {
-                            target: root
-                            function onSearchingTextChanged() {
-                                if (appResults.count > 0)
-                                    appResults.currentIndex = 0;
-                            }
-                        }
-                        model: ScriptModel {
-                            id: model
-                            objectProp: "key"
-                            values: {
-                                // Search results are handled here
-                                ////////////////// Skip? //////////////////
-                                if (root.searchingText == "") // Like caelestia: show every app right away, the most used first (then A–Z)
-                                    return AppSearch.list.filter(e => !root.isGameShortcut(e))
-                                        .map(entry => ({ entry: entry, score: AppSearch.usageScore(entry) }))
-                                        .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))
-                                        .map(({ entry }) => {
-                                        entry.clickActionName = Translation.tr("Launch");
-                                        entry.type = Translation.tr("App");
-                                        entry.key = entry.execute;
-                                        return entry;
-                                    });
-                                ///////////// Special cases ///////////////
-                                if (root.searchingText.startsWith(Config.options.search.prefix.clipboard)) {
-                                    // Clipboard
-                                    const searchString = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.clipboard);
-                                    return Cliphist.fuzzyQuery(searchString).map(entry => {
-                                        const type = `#${entry.match(/^\s*(\S+)/)?.[1] || ""}`
-                                        return {
-                                            key: type,
-                                            cliphistRawString: entry,
-                                            name: StringUtils.cleanCliphistEntry(entry),
-                                            clickActionName: "",
-                                            type: type,
-                                            execute: () => {
-                                                Cliphist.copy(entry)
-                                            },
-                                            actions: [
-                                                {
-                                                    name: "Copy",
-                                                    materialIcon: "content_copy",
-                                                    execute: () => {
-                                                        Cliphist.copy(entry);
-                                                    }
-                                                },
-                                                {
-                                                    name: "Delete",
-                                                    materialIcon: "delete",
-                                                    execute: () => {
-                                                        Cliphist.deleteEntry(entry);
-                                                    }
-                                                }
-                                            ]
-                                        };
-                                    }).filter(Boolean);
-                                }
-                                else if (root.searchingText.startsWith(Config.options.search.prefix.emojis)) {
-                                    // Clipboard
-                                    const searchString = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.emojis);
-                                    return Emojis.fuzzyQuery(searchString).map(entry => {
-                                        const emoji = entry.match(/^\s*(\S+)/)?.[1] || ""
-                                        return {
-                                            key: emoji,
-                                            cliphistRawString: entry,
-                                            bigText: emoji,
-                                            name: entry.replace(/^\s*\S+\s+/, ""),
-                                            clickActionName: "",
-                                            type: "Emoji",
-                                            execute: () => {
-                                                Quickshell.clipboardText = entry.match(/^\s*(\S+)/)?.[1];
-                                            }
-                                        };
-                                    }).filter(Boolean);
-                                }
-                                ////////////////// Init ///////////////////
-                                // qalc only when the result is shown (a number or the maths prefix), not on every keystroke
-                                if (/^\d/.test(root.searchingText) || root.searchingText.startsWith(Config.options.search.prefix.math))
-                                    nonAppResultsTimer.restart();
-                                const mathResultObject = {
-                                    key: `Math result: ${root.mathResult}`,
-                                    name: root.mathResult,
-                                    clickActionName: Translation.tr("Copy"),
-                                    type: Translation.tr("Math result"),
-                                    fontType: "monospace",
-                                    materialSymbol: 'calculate',
-                                    execute: () => {
-                                        Quickshell.clipboardText = root.mathResult;
-                                    }
-                                };
-                                const appQuery = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.app);
-                                const appResultObjects = AppSearch.fuzzyQuery(appQuery).filter(e => !root.isGameShortcut(e) && e.id !== root.pavucontrolId).map(entry => {
-                                    entry.clickActionName = Translation.tr("Launch");
-                                    entry.type = Translation.tr("App");
-                                    entry.key = entry.execute
-                                    return entry;
-                                })
-                                // The shell's own Settings window: not an installed app, so it's added here, and goes
-                                // above the apps so "settings" opens it rather than GNOME's Settings
-                                const shellSettingsObjects = Fuzzy.go(appQuery, [root.shellSettingsTarget]).length > 0 ? [{
-                                    key: "ninomae-settings",
-                                    name: Translation.tr("Ninomae Settings"),
-                                    clickActionName: Translation.tr("Open"),
-                                    type: Translation.tr("Shell"),
-                                    settingsIcon: true, // Sliders in the accent colour (SearchItem.qml)
-                                    execute: () => {
-                                        Quickshell.execDetached([Quickshell.shellPath("scripts/open-settings.sh")]);
-                                    }
-                                }] : [];
-                                // The control centre's Sound page, above the apps like Settings
-                                const volumeControlObjects = Fuzzy.go(appQuery, root.volumeControlTargets).length > 0 ? [{
-                                    key: "ninomae-volume-control",
-                                    name: Translation.tr("Volume control"),
-                                    comment: Translation.tr("Control centre · Sound"),
-                                    clickActionName: Translation.tr("Open"),
-                                    type: Translation.tr("Shell"),
-                                    mixerIcon: true, // Faders in the accent colour (SearchItem.qml)
-                                    execute: () => GlobalStates.openControlCenter("sound")
-                                }] : [];
-                                const pavucontrol = DesktopEntries.byId(root.pavucontrolId);
-                                const pavucontrolObjects = pavucontrol && Fuzzy.go(appQuery, [root.pavucontrolTarget]).length > 0 ? [{
-                                    key: "pavucontrol",
-                                    name: "pavucontrol",
-                                    comment: pavucontrol.comment,
-                                    icon: pavucontrol.icon,
-                                    clickActionName: Translation.tr("Launch"),
-                                    type: Translation.tr("App"),
-                                    execute: () => pavucontrol.execute()
-                                }] : [];
-                                const commandResultObject = {
-                                    key: `cmd ${root.searchingText}`,
-                                    name: StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.shellCommand).replace("file://", ""),
-                                    clickActionName: Translation.tr("Run"),
-                                    type: Translation.tr("Run command"),
-                                    fontType: "monospace",
-                                    materialSymbol: 'terminal',
-                                    execute: () => {
-                                        let cleanedCommand = root.searchingText.replace("file://", "");
-                                        cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
-                                        if (cleanedCommand.startsWith(Config.options.search.prefix.shellCommand)) {
-                                            cleanedCommand = cleanedCommand.slice(Config.options.search.prefix.shellCommand.length);
-                                        }
-                                        // sudo needs a terminal for the password; the command goes in as an argument so
-                                        // quotes in it reach fish intact
-                                        if (cleanedCommand.trim().startsWith("sudo"))
-                                            Quickshell.execDetached(["bash", "-c", `${Config.options.apps.terminal} fish -C "$1"`, "run-in-terminal", cleanedCommand]);
-                                        else
-                                            Quickshell.execDetached(["bash", "-c", cleanedCommand]);
-                                    }
-                                };
-                                const webSearchResultObject = {
-                                    key: `website ${root.searchingText}`,
-                                    name: StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.webSearch),
-                                    clickActionName: Translation.tr("Search"),
-                                    type: Translation.tr("Search the web"),
-                                    materialSymbol: 'travel_explore',
-                                    execute: () => {
-                                        let query = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.webSearch);
-                                        for (let site of Config.options.search.excludedSites) {
-                                            query += ` -site:${site}`;
-                                        }
-                                        // Encoded, so "c++", "a & b" or "#tag" reach the search engine as typed
-                                        Qt.openUrlExternally(Config.options.search.engineBaseUrl + encodeURIComponent(query));
-                                    }
-                                }
-                                const launcherActionObjects = root.searchActions.map(action => {
-                                    const actionString = `${Config.options.search.prefix.action}${action.action}`;
-                                    if (actionString.startsWith(root.searchingText) || root.searchingText.startsWith(actionString)) {
-                                        return {
-                                            key: `Action ${actionString}`,
-                                            name: root.searchingText.startsWith(actionString) ? root.searchingText : actionString,
-                                            clickActionName: Translation.tr("Run"),
-                                            type: Translation.tr("Action"),
-                                            materialSymbol: 'settings_suggest',
-                                            execute: () => {
-                                                action.execute(root.searchingText.split(" ").slice(1).join(" "));
-                                            }
-                                        };
-                                    }
-                                    return null;
-                                }).filter(Boolean);
-                                //////// Prioritized by prefix /////////
-                                let result = [];
-                                const startsWithNumber = /^\d/.test(root.searchingText);
-                                const startsWithMathPrefix = root.searchingText.startsWith(Config.options.search.prefix.math);
-                                const startsWithShellCommandPrefix = root.searchingText.startsWith(Config.options.search.prefix.shellCommand);
-                                const startsWithWebSearchPrefix = root.searchingText.startsWith(Config.options.search.prefix.webSearch);
-                                if (startsWithNumber || startsWithMathPrefix) {
-                                    result.push(mathResultObject);
-                                } else if (startsWithShellCommandPrefix) {
-                                    result.push(commandResultObject);
-                                } else if (startsWithWebSearchPrefix) {
-                                    result.push(webSearchResultObject);
-                                }
-                                //////////////// Apps //////////////////
-                                result = result.concat(volumeControlObjects, shellSettingsObjects, pavucontrolObjects, appResultObjects);
-                                ////////// Launcher actions ////////////
-                                result = result.concat(launcherActionObjects);
-                                /// Math result, command, web search ///
-                                if (Config.options.search.prefix.showDefaultActionsWithoutPrefix) {
-                                    if (!startsWithShellCommandPrefix) result.push(commandResultObject);
-                                    if (!startsWithNumber && !startsWithMathPrefix) result.push(mathResultObject);
-                                    if (!startsWithWebSearchPrefix) result.push(webSearchResultObject);
-                                }
-                                return result;
-                            }
-                        }
-                        delegate: SearchItem {
-                            // The selectable item for each search result
+                    spacing: 4
+                    Repeater {
+                        model: root.shellEntries
+                        delegate: RippleButton {
+                            id: shellButton
                             required property var modelData
-                            onActionsRequested: preview.focusActions()
-                            anchors.left: parent?.left
-                            anchors.right: parent?.right
-                            minHeight: root.itemHeight
-                            entry: modelData
-                            query: StringUtils.cleanOnePrefix(root.searchingText, [
-                                Config.options.search.prefix.action,
-                                Config.options.search.prefix.app,
-                                Config.options.search.prefix.clipboard,
-                                Config.options.search.prefix.emojis,
-                                Config.options.search.prefix.math,
-                                Config.options.search.prefix.shellCommand,
-                                Config.options.search.prefix.webSearch
-                            ])
+                            required property int index
+                            readonly property real enter: root.entrance(index * 0.6)
+                            opacity: enter
+                            transform: Translate { y: (1 - shellButton.enter) * 10 }
+                            Layout.fillWidth: true
+                            implicitHeight: 40
+                            buttonRadius: Appearance.rounding.joined
+                            buttonRadiusBottom: appResults.count === 0 ? Appearance.rounding.normal : Appearance.rounding.joined
+                            colBackground: Appearance.colors.colLayer3
+                            colBackgroundHover: Appearance.colors.colLayer3Hover
+                            colRipple: Appearance.colors.colLayer3Active
+                            onClicked: {
+                                GlobalStates.overviewOpen = false;
+                                modelData.execute();
+                            }
+                            contentItem: Item {
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 7
+                                    MaterialSymbol {
+                                        text: shellButton.modelData.shellSymbol
+                                        iconSize: 18
+                                        fill: 1
+                                        color: Appearance.colors.colPrimary
+                                    }
+                                    StyledText {
+                                        text: shellButton.modelData.shortName
+                                        font.pixelSize: Appearance.font.pixelSize.smallie
+                                        color: Appearance.colors.colOnLayer3
+                                    }
+                                }
+                            }
                         }
-                    }
-
-                    PreviewPane {
-                        id: preview
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        item: appResults.currentItem
                     }
                 }
 
-                StyledText { // Empty state
+                ListView { // Results (all apps, most used first, when the query is empty)
+                    id: appResults
+                    visible: count > 0
+                    Layout.fillWidth: true
+                    // The chosen result's card and up to maxShown rows under it
+                    readonly property real maxHeight: 140 + (root.itemHeight + spacing) * root.maxShown
+                    implicitHeight: Math.min(contentHeight, maxHeight)
+                    Behavior on implicitHeight { // The drawer resizes smoothly as results come and go
+                        enabled: GlobalStates.overviewOpen && root.windowReady
+                        NumberAnimation { duration: 300; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animationCurves.emphasizedDecel }
+                    }
+                    clip: true
+                    spacing: 4
+                    // No add/move transitions: they work out where each row goes when they start, and the chosen card
+                    // growing at the same moment left rows stranded on top of each other while typing fast
+                    highlightFollowsCurrentItem: false
+                    onCurrentIndexChanged: positionTimer.restart()
+                    // Hovering chooses a result. Only after the pointer itself moves and settles: the chosen card
+                    // grows, so rows slide under a still pointer, and those slides mustn't choose anything
+                    HoverHandler {
+                        id: listHover
+                        property point lastScenePos: Qt.point(-1, -1)
+                        property bool armed: false // The first event after opening only notes where the pointer is
+                        onPointChanged: {
+                            const p = point.scenePosition;
+                            if (!hovered || (p.x === lastScenePos.x && p.y === lastScenePos.y)) return;
+                            lastScenePos = p;
+                            if (!armed) { armed = true; return; }
+                            hoverChoose.restart();
+                        }
+                    }
+                    Timer {
+                        id: hoverChoose
+                        interval: 80
+                        onTriggered: {
+                            const p = listHover.point.position;
+                            const i = appResults.indexAt(p.x + appResults.contentX, p.y + appResults.contentY);
+                            if (listHover.hovered && i >= 0) appResults.currentIndex = i;
+                        }
+                    }
+                    Timer { // Once the chosen card has grown, so it fits whole
+                        id: positionTimer
+                        interval: 230
+                        onTriggered: { // Glides there rather than jumping
+                            const from = appResults.contentY;
+                            appResults.positionViewAtIndex(appResults.currentIndex, ListView.Contain);
+                            const to = appResults.contentY;
+                            if (from === to) return;
+                            appResults.contentY = from;
+                            scrollAnim.to = to;
+                            scrollAnim.restart();
+                        }
+                    }
+                    NumberAnimation {
+                        id: scrollAnim
+                        target: appResults
+                        property: "contentY"
+                        duration: 260
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
+                    }
+                    model: ScriptModel {
+                        id: model
+                        objectProp: "key"
+                        // New results: the top one is chosen. The list would otherwise follow the chosen row as rows are
+                        // inserted above it, leaving the card on an old result halfway down
+                        onValuesChanged: {
+                            appResults.currentIndex = 0;
+                            hoverChoose.stop();
+                            scrollAnim.stop();
+                            appResults.positionViewAtBeginning();
+                        }
+                        values: {
+                            // Search results are handled here
+                            ////////////////// Skip? //////////////////
+                            if (root.searchingText == "") // Like caelestia: show every app right away, the most used first (then A–Z)
+                                return AppSearch.list.filter(e => !root.isGameShortcut(e))
+                                    .map(entry => ({ entry: entry, score: AppSearch.usageScore(entry) }))
+                                    .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))
+                                    .map(({ entry }) => {
+                                    entry.clickActionName = Translation.tr("Launch");
+                                    entry.type = Translation.tr("App");
+                                    entry.key = entry.execute;
+                                    return entry;
+                                });
+                            ///////////// Special cases ///////////////
+                            if (root.searchingText.startsWith(Config.options.search.prefix.clipboard)) {
+                                // Clipboard
+                                const searchString = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.clipboard);
+                                return Cliphist.fuzzyQuery(searchString).map(entry => {
+                                    const type = `#${entry.match(/^\s*(\S+)/)?.[1] || ""}`
+                                    return {
+                                        key: type,
+                                        cliphistRawString: entry,
+                                        name: StringUtils.cleanCliphistEntry(entry),
+                                        clickActionName: "",
+                                        type: type,
+                                        execute: () => {
+                                            Cliphist.copy(entry)
+                                        },
+                                        actions: [
+                                            {
+                                                name: "Copy",
+                                                materialIcon: "content_copy",
+                                                execute: () => {
+                                                    Cliphist.copy(entry);
+                                                }
+                                            },
+                                            {
+                                                name: "Delete",
+                                                materialIcon: "delete",
+                                                execute: () => {
+                                                    Cliphist.deleteEntry(entry);
+                                                }
+                                            }
+                                        ]
+                                    };
+                                }).filter(Boolean);
+                            }
+                            else if (root.searchingText.startsWith(Config.options.search.prefix.emojis)) {
+                                // Clipboard
+                                const searchString = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.emojis);
+                                return Emojis.fuzzyQuery(searchString).map(entry => {
+                                    const emoji = entry.match(/^\s*(\S+)/)?.[1] || ""
+                                    return {
+                                        key: emoji,
+                                        cliphistRawString: entry,
+                                        bigText: emoji,
+                                        name: entry.replace(/^\s*\S+\s+/, ""),
+                                        clickActionName: "",
+                                        type: "Emoji",
+                                        execute: () => {
+                                            Quickshell.clipboardText = entry.match(/^\s*(\S+)/)?.[1];
+                                        }
+                                    };
+                                }).filter(Boolean);
+                            }
+                            ////////////////// Init ///////////////////
+                            // qalc only when the result is shown (a number or the maths prefix), not on every keystroke
+                            if (/^\d/.test(root.searchingText) || root.searchingText.startsWith(Config.options.search.prefix.math))
+                                nonAppResultsTimer.restart();
+                            const mathResultObject = {
+                                key: `Math result: ${root.mathResult}`,
+                                name: root.mathResult,
+                                clickActionName: Translation.tr("Copy"),
+                                type: Translation.tr("Math result"),
+                                fontType: "monospace",
+                                materialSymbol: 'calculate',
+                                execute: () => {
+                                    Quickshell.clipboardText = root.mathResult;
+                                }
+                            };
+                            const appQuery = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.app);
+                            const appResultObjects = AppSearch.fuzzyQuery(appQuery).filter(e => !root.isGameShortcut(e) && e.id !== root.pavucontrolId).map(entry => {
+                                entry.clickActionName = Translation.tr("Launch");
+                                entry.type = Translation.tr("App");
+                                entry.key = entry.execute
+                                return entry;
+                            })
+                            const shellObjects = root.shellEntries.filter(e => Fuzzy.go(appQuery, e.targets).length > 0);
+                            const pavucontrol = DesktopEntries.byId(root.pavucontrolId);
+                            const pavucontrolObjects = pavucontrol && Fuzzy.go(appQuery, [root.pavucontrolTarget]).length > 0 ? [{
+                                key: "pavucontrol",
+                                name: "pavucontrol",
+                                comment: pavucontrol.comment,
+                                icon: pavucontrol.icon,
+                                clickActionName: Translation.tr("Launch"),
+                                type: Translation.tr("App"),
+                                execute: () => pavucontrol.execute()
+                            }] : [];
+                            const commandResultObject = {
+                                key: `cmd ${root.searchingText}`,
+                                name: StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.shellCommand).replace("file://", ""),
+                                clickActionName: Translation.tr("Run"),
+                                type: Translation.tr("Run command"),
+                                fontType: "monospace",
+                                materialSymbol: 'terminal',
+                                execute: () => {
+                                    let cleanedCommand = root.searchingText.replace("file://", "");
+                                    cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
+                                    if (cleanedCommand.startsWith(Config.options.search.prefix.shellCommand)) {
+                                        cleanedCommand = cleanedCommand.slice(Config.options.search.prefix.shellCommand.length);
+                                    }
+                                    // sudo needs a terminal for the password; the command goes in as an argument so
+                                    // quotes in it reach fish intact
+                                    if (cleanedCommand.trim().startsWith("sudo"))
+                                        Quickshell.execDetached(["bash", "-c", `${Config.options.apps.terminal} fish -C "$1"`, "run-in-terminal", cleanedCommand]);
+                                    else
+                                        Quickshell.execDetached(["bash", "-c", cleanedCommand]);
+                                }
+                            };
+                            const webSearchResultObject = {
+                                key: `website ${root.searchingText}`,
+                                name: StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.webSearch),
+                                clickActionName: Translation.tr("Search"),
+                                type: Translation.tr("Search the web"),
+                                materialSymbol: 'travel_explore',
+                                execute: () => {
+                                    let query = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.webSearch);
+                                    for (let site of Config.options.search.excludedSites) {
+                                        query += ` -site:${site}`;
+                                    }
+                                    // Encoded, so "c++", "a & b" or "#tag" reach the search engine as typed
+                                    Qt.openUrlExternally(Config.options.search.engineBaseUrl + encodeURIComponent(query));
+                                }
+                            }
+                            const launcherActionObjects = root.searchActions.map(action => {
+                                const actionString = `${Config.options.search.prefix.action}${action.action}`;
+                                if (actionString.startsWith(root.searchingText) || root.searchingText.startsWith(actionString)) {
+                                    return {
+                                        key: `Action ${actionString}`,
+                                        name: root.searchingText.startsWith(actionString) ? root.searchingText : actionString,
+                                        clickActionName: Translation.tr("Run"),
+                                        type: Translation.tr("Action"),
+                                        materialSymbol: 'settings_suggest',
+                                        execute: () => {
+                                            action.execute(root.searchingText.split(" ").slice(1).join(" "));
+                                        }
+                                    };
+                                }
+                                return null;
+                            }).filter(Boolean);
+                            //////// Prioritized by prefix /////////
+                            let result = [];
+                            const startsWithNumber = /^\d/.test(root.searchingText);
+                            const startsWithMathPrefix = root.searchingText.startsWith(Config.options.search.prefix.math);
+                            const startsWithShellCommandPrefix = root.searchingText.startsWith(Config.options.search.prefix.shellCommand);
+                            const startsWithWebSearchPrefix = root.searchingText.startsWith(Config.options.search.prefix.webSearch);
+                            if (startsWithNumber || startsWithMathPrefix) {
+                                result.push(mathResultObject);
+                            } else if (startsWithShellCommandPrefix) {
+                                result.push(commandResultObject);
+                            } else if (startsWithWebSearchPrefix) {
+                                result.push(webSearchResultObject);
+                            }
+                            //////////////// Apps //////////////////
+                            result = result.concat(shellObjects, pavucontrolObjects, appResultObjects);
+                            ////////// Launcher actions ////////////
+                            result = result.concat(launcherActionObjects);
+                            /// Math result, command, web search ///
+                            if (Config.options.search.prefix.showDefaultActionsWithoutPrefix) {
+                                if (!startsWithShellCommandPrefix) result.push(commandResultObject);
+                                if (!startsWithNumber && !startsWithMathPrefix) result.push(mathResultObject);
+                                if (!startsWithWebSearchPrefix) result.push(webSearchResultObject);
+                            }
+                            return result;
+                        }
+                    }
+                    delegate: SearchItem {
+                        required property var modelData
+                        required property int index
+                        anchors.left: parent?.left
+                        anchors.right: parent?.right
+                        entry: modelData
+                        grown: ListView.isCurrentItem
+                        enter: root.entrance(index)
+                        lastInGroup: index === appResults.count - 1
+                        glow: iconGlow
+                        onBackRequested: root.focusSearchInput()
+                        query: root.matchQuery
+                    }
+                }
+
+                StyledText { // Nothing found
                     visible: appResults.count === 0
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: 18
-                    Layout.bottomMargin: 18
+                    Layout.topMargin: 14
+                    Layout.bottomMargin: 10
                     text: Translation.tr("No results")
                     color: Appearance.colors.colSubtext
                     font.pixelSize: Appearance.font.pixelSize.small
