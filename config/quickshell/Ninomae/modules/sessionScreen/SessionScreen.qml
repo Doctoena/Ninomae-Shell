@@ -35,30 +35,6 @@ Scope {
             }
         }
     }
-    // Warning pill shown under the actions (unsaved changes, package manager or downloads running)
-    component WarningPill: Rectangle {
-        id: warningPill
-        property string text
-        color: Appearance.colors.colErrorContainer
-        radius: 12
-        implicitHeight: 34
-        implicitWidth: warningRow.implicitWidth + 28
-        RowLayout {
-            id: warningRow
-            anchors.centerIn: parent
-            spacing: 8
-            MaterialSymbol {
-                text: "warning"
-                iconSize: 18
-                color: Appearance.colors.colOnErrorContainer
-            }
-            StyledText {
-                text: warningPill.text
-                font.pixelSize: Appearance.font.pixelSize.smallie
-                color: Appearance.colors.colOnErrorContainer
-            }
-        }
-    }
     function detectRunningStuff() {
         packageManagerRunning = false;
         downloadRunning = false;
@@ -175,14 +151,77 @@ Scope {
                 destructive: sessionRoot.actions[actionName].confirm ?? false
                 countdown: sessionRoot.pending === actionName ? sessionRoot.remaining : 0
                 countdownFrom: sessionRoot.countdownFrom
+                keyHint: sessionRoot.keyLetters[actionName] ?? ""
+                pendingText: sessionRoot.actions[actionName].doing ?? ""
+                dimmed: sessionRoot.pending !== "" && sessionRoot.pending !== actionName
                 onClicked: { forceActiveFocus(); sessionRoot.trigger(actionName); }
             }
-            component ExtraAction: Action { // A wide button in the row under the tiles
+            // A note joined under the actions: a warning, or the countdown's (with the apps that close)
+            component Note: Rectangle {
+                id: note
+                property string symbol
+                property string text
+                property var apps: []
+                property bool warn: true
+                readonly property bool isLast: notes.shown[notes.shown.length - 1] === this
+                Layout.fillWidth: true
+                implicitHeight: 44
+                topLeftRadius: Appearance.rounding.joined
+                topRightRadius: Appearance.rounding.joined
+                bottomLeftRadius: isLast ? Appearance.rounding.normal : Appearance.rounding.joined
+                bottomRightRadius: bottomLeftRadius
+                color: ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colError, 0.9)
+                RowLayout {
+                    anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                    spacing: 6
+                    MaterialSymbol {
+                        visible: note.symbol !== ""
+                        text: note.symbol
+                        iconSize: 18
+                        color: Appearance.colors.colError
+                    }
+                    Repeater {
+                        model: note.apps
+                        delegate: IconImage {
+                            required property var modelData
+                            implicitSize: 20
+                            source: Quickshell.iconPath(AppSearch.guessIcon(modelData), "image-missing")
+                        }
+                    }
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: note.apps.length > 0 || note.symbol !== "" ? 4 : 0
+                        elide: Text.ElideRight
+                        text: note.text
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: note.warn ? Appearance.colors.colError : Appearance.colors.colOnLayer3
+                    }
+                }
+            }
+            readonly property var keyLetters: ({ lock: "L", sleep: "S", reboot: "R", poweroff: "P", logout: "O", tasks: "T",
+                hibernate: "H", firmware: "F" })
+            // The main four, as tiles: counting down one of them, the note takes the strip's place
+            readonly property bool tileCounting: ["reboot", "poweroff"].includes(sessionRoot.pending)
+            component ExtraAction: Action { // A piece of the strip under the tiles: square where pieces meet, a hairline between
+                id: extraAction
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 compact: true
-                outerBottomLeft: extraRow.shown[0] === this
-                outerBottomRight: extraRow.shown[extraRow.shown.length - 1] === this
+                readonly property bool firstShown: extraRow.shown[0] === this
+                readonly property bool lastShown: extraRow.shown[extraRow.shown.length - 1] === this
+                readonly property real bottomCorner: notes.anyShown ? Appearance.rounding.joined : Appearance.rounding.normal
+                buttonRadiusTopLeft: firstShown ? Appearance.rounding.joined : 0
+                buttonRadiusBottomLeft: firstShown ? bottomCorner : 0
+                buttonRadiusTopRight: lastShown ? Appearance.rounding.joined : 0
+                buttonRadiusBottomRight: lastShown ? bottomCorner : 0
+                scale: 1 // The pieces stay put when pressed: they're one strip
+                Rectangle {
+                    visible: !extraAction.firstShown
+                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                    width: 1
+                    height: 22
+                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.9)
+                }
             }
             Connections { // Closed in any way (Esc, a click outside, the shortcut, the lock screen): nothing runs
                 target: GlobalStates
@@ -215,7 +254,7 @@ Scope {
             }
             // Drops out of the middle of the bar as a gooey drawer, like the other bar drawers
             // (onScreenDisplay/OnScreenDisplay.qml), or rises out of it when it's along the bottom.
-            readonly property real padding: 28
+            readonly property real padding: 14
             readonly property real bottomRadius: Appearance.rounding.verylarge
             readonly property real hiddenExtra: 60
             readonly property real barBottom: GlobalStates.drawerTopOn(screen) // Below the bar, or near the top without one
@@ -289,7 +328,7 @@ Scope {
                     ColumnLayout {
                         id: contentColumn
                         anchors.centerIn: parent
-                        spacing: 20
+                        spacing: 12
                         // Grows into place with the drawer (same timing, so opening isn't any slower)
                         scale: 0.92 + 0.08 * (1 - sessionRoot.offsetScale)
                         transformOrigin: GlobalStates.barAtBottom ? Item.Bottom : Item.Top // From the bar's side
@@ -307,79 +346,86 @@ Scope {
                             }
                         }
 
-                        // Header: your wallpaper as a banner, your picture over its bottom edge, a goodbye, and the uptime
-                        // (with the battery on a laptop: worth a look before choosing sleep over shutting down)
-                        Item {
-                            Layout.fillWidth: true
-                            implicitHeight: 176
-                            ClippingRectangle {
-                                id: banner
-                                width: parent.width
-                                height: 130
-                                radius: Appearance.rounding.normal
-                                color: Appearance.colors.colLayer3 // Shown until the picture loads, or for a video wallpaper
-                                readonly property string wallpaper: Config.wallpaperPath
-                                Image {
-                                    anchors.fill: parent
-                                    // A video wallpaper has a still of it (Config.thumbnailPath), an image its screen-sized copy.
-                                    // (By id: a ClippingRectangle's children sit in an inner item, so `parent` isn't the banner)
-                                    source: /\.(mp4|webm|mkv|mov|avi|gif)$/i.test(banner.wallpaper) ? Config.thumbnailPath
-                                        : WallpaperVariants.forScreen(banner.wallpaper, 1100, 260)
-                                    fillMode: Image.PreserveAspectCrop
-                                    sourceSize.width: 1100
-                                    asynchronous: true
-                                }
-                                Rectangle { // A shade, so the banner sits back behind what's on the card
-                                    anchors.fill: parent
-                                    color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.55)
-                                }
-                            }
-                            Avatar {
-                                x: 22
-                                y: 82
-                                editable: false
-                                implicitWidth: 92
-                                implicitHeight: 92
-                            }
-                            ColumnLayout {
-                                x: 128
-                                y: 134
-                                width: parent.width - x
-                                spacing: -2
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                    text: Translation.tr("Bye for now, %1").arg(SystemInfo.username)
-                                    font.family: Appearance.font.family.title
-                                    font.pixelSize: 22
-                                    font.weight: Font.Black
-                                    color: Appearance.colors.colOnLayer0
-                                }
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                    readonly property int battery: Math.round(Battery.percentage * 100)
-                                    text: [Translation.tr("Up %1").arg(DateTime.uptime),
-                                        !Battery.available ? "" : Battery.isCharging ? Translation.tr("battery %1%, charging").arg(battery)
-                                            : Translation.tr("battery %1%").arg(battery)].filter(t => t).join(" · ")
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: Battery.available && !Battery.isPluggedIn && Battery.percentage < 0.2
-                                        ? Appearance.colors.colError : Appearance.colors.colSubtext
-                                }
-                            }
-                        }
-
-                        // The actions: one joined group, the main four as tiles, the rest as wide buttons under them
+                        // One joined group: you (the sidebar's greeting card), the main four as tiles, the rest as a strip
+                        // under them, or while one of the tiles counts down, a note of what closes
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 4
+                            Rectangle {
+                                id: greeting
+                                Layout.fillWidth: true
+                                implicitHeight: 64
+                                topLeftRadius: Appearance.rounding.normal
+                                topRightRadius: Appearance.rounding.normal
+                                bottomLeftRadius: Appearance.rounding.joined
+                                bottomRightRadius: Appearance.rounding.joined
+                                color: ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colPrimary, 0.92)
+                                clip: true
+                                readonly property bool showWeather: Weather.enabled && (Weather.data.temp ?? "") !== ""
+                                readonly property int battery: Math.round(Battery.percentage * 100)
+                                Halo { // Behind your picture
+                                    colour: Appearance.colors.colPrimary
+                                    strength: 0.32
+                                    reach: 31
+                                    centreX: greetingAvatar.x + greetingAvatar.width / 2
+                                    centreY: greetingAvatar.y + greetingAvatar.height / 2
+                                }
+                                Avatar {
+                                    id: greetingAvatar
+                                    x: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    implicitWidth: 40
+                                    implicitHeight: 40
+                                    editable: false
+                                }
+                                ColumnLayout {
+                                    anchors { left: greetingAvatar.right; right: parent.right; leftMargin: 10; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                    spacing: 0
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                        text: Translation.tr("Bye for now, %1").arg(SystemInfo.username)
+                                        font.family: Appearance.font.family.title
+                                        font.pixelSize: Appearance.font.pixelSize.large
+                                        font.weight: Font.Black
+                                        color: Appearance.colors.colOnLayer3
+                                    }
+                                    RowLayout { // The date, the weather, how long it's been up and the battery (worth a look before sleep or shut down)
+                                        Layout.fillWidth: true
+                                        spacing: 4
+                                        StyledText {
+                                            text: Qt.locale().toString(DateTime.clock.date, "dddd d MMMM")
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
+                                            color: Appearance.colors.colSubtext
+                                        }
+                                        MaterialSymbol {
+                                            visible: greeting.showWeather
+                                            Layout.leftMargin: 2
+                                            text: Weather.data.icon || "cloud"
+                                            iconSize: 13
+                                            fill: 1
+                                            color: Appearance.colors.colPrimary
+                                        }
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            elide: Text.ElideRight
+                                            text: [greeting.showWeather ? String(Weather.data.temp).replace(/[CF]$/, "") : "",
+                                                Translation.tr("up %1").arg(DateTime.uptime),
+                                                !Battery.available ? "" : Battery.isCharging ? Translation.tr("%1%, charging").arg(greeting.battery)
+                                                    : Translation.tr("%1%").arg(greeting.battery)].filter(t => t).join(" · ")
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
+                                            color: Battery.available && !Battery.isPluggedIn && Battery.percentage < 0.2
+                                                ? Appearance.colors.colError : Appearance.colors.colSubtext
+                                        }
+                                    }
+                                }
+                            }
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
                                 Action {
                                     id: sessionLock
                                     actionName: "lock"
-                                    outerTopLeft: true
                                     focus: sessionRoot.visible
                                     buttonIcon: "lock"
                                     buttonText: Translation.tr("Lock")
@@ -407,7 +453,6 @@ Scope {
                                 Action {
                                     id: sessionShutdown
                                     actionName: "poweroff"
-                                    outerTopRight: true
                                     buttonIcon: "power_settings_new"
                                     buttonText: Translation.tr("Shut down")
                                     KeyNavigation.left: sessionReboot
@@ -419,7 +464,8 @@ Scope {
                             RowLayout {
                                 id: extraRow
                                 Layout.fillWidth: true
-                                spacing: 4
+                                visible: !sessionRoot.tileCounting // A tile counting down: the note takes its place
+                                spacing: 0
                                 readonly property var shown: [sessionLogout, sessionHibernate, sessionTaskManager, sessionFirmwareReboot].filter(b => b.visible)
                                 ExtraAction {
                                     id: sessionLogout
@@ -458,69 +504,44 @@ Scope {
                                     KeyNavigation.left: sessionTaskManager
                                 }
                             }
-                        }
-
-                        // Counting down: what's about to happen, how to go now or back out, and what closes
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            visible: sessionRoot.pending !== ""
-                            spacing: 6
-                            StyledText {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: Translation.tr("%1 in %2 s").arg(sessionRoot.actions[sessionRoot.pending]?.doing ?? "").arg(sessionRoot.remaining)
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                font.weight: Font.DemiBold
-                                color: Appearance.colors.colError
-                            }
-                            StyledText {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: Translation.tr("Click it again or press Enter to go now. Esc cancels.")
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                color: Appearance.colors.colSubtext
-                            }
-                            RowLayout { // The apps that get closed
-                                Layout.alignment: Qt.AlignHCenter
-                                Layout.topMargin: 4
-                                visible: sessionRoot.openApps.length > 0
-                                spacing: 6
-                                Repeater {
-                                    model: sessionRoot.openApps.slice(0, 8)
-                                    delegate: IconImage {
-                                        required property var modelData
-                                        implicitSize: 22
-                                        source: Quickshell.iconPath(AppSearch.guessIcon(modelData), "image-missing")
-                                    }
+                            ColumnLayout { // Notes joined under the strip: warnings, then the countdown; the last rounds the group off
+                                id: notes
+                                Layout.fillWidth: true
+                                spacing: 4
+                                readonly property var shown: [unsavedNote, packageNote, downloadNote, countdownNote].filter(n => n.visible)
+                                readonly property bool anyShown: shown.length > 0
+                                Note {
+                                    id: unsavedNote
+                                    visible: sessionRoot.unsavedApps.length > 0 && sessionRoot.pending === "" // Counting down, that note says it
+                                    symbol: "edit_note"
+                                    text: sessionRoot.unsavedApps.length === 1 ? Translation.tr("%1 has unsaved changes").arg(sessionRoot.unsavedApps[0])
+                                        : Translation.tr("Unsaved changes in %1").arg(sessionRoot.unsavedApps.join(", "))
                                 }
-                                StyledText {
-                                    Layout.leftMargin: 4
-                                    text: sessionRoot.openApps.length === 1 ? Translation.tr("1 app will close")
-                                        : Translation.tr("%1 apps will close").arg(sessionRoot.openApps.length)
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    color: Appearance.colors.colSubtext
+                                Note {
+                                    id: packageNote
+                                    visible: root.packageManagerRunning
+                                    symbol: "package_2"
+                                    text: Translation.tr("Your package manager is running")
                                 }
-                            }
-                        }
-
-                        // Warnings
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            visible: sessionRoot.unsavedApps.length > 0 || root.packageManagerRunning || root.downloadRunning
-                            spacing: 6
-                            WarningPill {
-                                Layout.alignment: Qt.AlignHCenter
-                                visible: sessionRoot.unsavedApps.length > 0
-                                text: sessionRoot.unsavedApps.length === 1 ? Translation.tr("%1 has unsaved changes").arg(sessionRoot.unsavedApps[0])
-                                    : Translation.tr("Unsaved changes in %1").arg(sessionRoot.unsavedApps.join(", "))
-                            }
-                            WarningPill {
-                                Layout.alignment: Qt.AlignHCenter
-                                visible: root.packageManagerRunning
-                                text: Translation.tr("Your package manager is running")
-                            }
-                            WarningPill {
-                                Layout.alignment: Qt.AlignHCenter
-                                visible: root.downloadRunning
-                                text: Translation.tr("There might be a download in progress")
+                                Note {
+                                    id: downloadNote
+                                    visible: root.downloadRunning
+                                    symbol: "download"
+                                    text: Translation.tr("There might be a download in progress")
+                                }
+                                Note { // Counting down: what closes, any unsaved work, how to go now or back out
+                                    id: countdownNote
+                                    visible: sessionRoot.pending !== ""
+                                    symbol: ""
+                                    apps: sessionRoot.openApps.slice(0, 6)
+                                    warn: sessionRoot.unsavedApps.length > 0
+                                    text: [sessionRoot.openApps.length === 0 ? "" : sessionRoot.openApps.length === 1 ? Translation.tr("1 app closes")
+                                            : Translation.tr("%1 apps close").arg(sessionRoot.openApps.length),
+                                        sessionRoot.unsavedApps.length === 0 ? "" : sessionRoot.unsavedApps.length === 1
+                                            ? Translation.tr("%1 has unsaved work").arg(sessionRoot.unsavedApps[0])
+                                            : Translation.tr("unsaved work in %1").arg(sessionRoot.unsavedApps.join(", ")),
+                                        Translation.tr("Enter goes now, Esc cancels")].filter(t => t).join(" · ")
+                                }
                             }
                         }
                     }
