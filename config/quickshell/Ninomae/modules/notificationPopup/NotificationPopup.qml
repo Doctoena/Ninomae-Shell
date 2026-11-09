@@ -29,13 +29,29 @@ Scope {
         readonly property real targetHeight: hasPopups && drawerReady
             ? Math.min(listview.contentHeight + listview.topMargin + padding * 2, (screen?.height ?? 1080) - topEdge - 20)
             : 0
+        // The cards lay out in steps as one comes in (the title first, a wrapped body a moment later), so the drawer
+        // follows their height once it has held still briefly, as the tray menu does: otherwise it slides out to
+        // the first step and then jumps to the full height
+        property real settledHeight: 0
+        onTargetHeightChanged: settleTimer.restart()
+        Timer {
+            id: settleTimer
+            interval: 70
+            onTriggered: { root.settledHeight = root.targetHeight; settleCap.stop(); }
+        }
+        Timer { // Never waits long on one that keeps changing
+            id: settleCap
+            interval: 300
+            running: settleTimer.running
+            onTriggered: root.settledHeight = root.targetHeight
+        }
         property real drawerHeight: 0
-        Binding on drawerHeight { value: root.targetHeight }
+        Binding on drawerHeight { value: root.settledHeight }
         Behavior on drawerHeight {
             NumberAnimation {
-                duration: root.targetHeight > root.drawerHeight ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
+                duration: root.settledHeight > root.drawerHeight ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
                 easing.type: Easing.BezierSpline
-                easing.bezierCurve: root.targetHeight > root.drawerHeight ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
+                easing.bezierCurve: root.settledHeight > root.drawerHeight ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
             }
         }
 

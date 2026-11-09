@@ -21,7 +21,7 @@
      fill="#334d5c"
      id="path16" />
   <path
-     d="M35 38a3 3 NaN 1 1-6 0 3 3 NaN 1 1 6 0z"
+     d="M35 38a3 3 0 1 1-6 0 3 3 0 1 1 6 0z"
      fill="#f0f0f0"
      id="path18" />
   <path

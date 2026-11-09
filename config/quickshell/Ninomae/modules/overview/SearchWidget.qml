@@ -468,8 +468,11 @@ Item { // Wrapper
                         id: hoverChoose
                         interval: 80
                         onTriggered: {
-                            const p = listHover.point.position;
-                            const i = appResults.indexAt(p.x + appResults.contentX, p.y + appResults.contentY);
+                            // indexAt wants the list's content coordinates: mapped from the pointer's place on screen
+                            // (adding contentY to a position isn't enough: rows of different heights move the content's origin)
+                            const sp = listHover.point.scenePosition;
+                            const p = appResults.contentItem.mapFromItem(null, sp.x, sp.y);
+                            const i = appResults.indexAt(p.x, p.y);
                             if (listHover.hovered && i >= 0) appResults.currentIndex = i;
                         }
                     }
