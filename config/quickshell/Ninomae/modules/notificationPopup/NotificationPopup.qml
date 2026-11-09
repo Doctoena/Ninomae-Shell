@@ -33,7 +33,10 @@ Scope {
         // follows their height once it has held still briefly, as the tray menu does: otherwise it slides out to
         // the first step and then jumps to the full height
         property real settledHeight: 0
-        onTargetHeightChanged: settleTimer.restart()
+        onTargetHeightChanged: {
+            settleTimer.restart();
+            if (!settleCap.running) settleCap.start(); // Started, not bound: a fired timer drops a `running` binding
+        }
         Timer {
             id: settleTimer
             interval: 70
@@ -42,8 +45,7 @@ Scope {
         Timer { // Never waits long on one that keeps changing
             id: settleCap
             interval: 300
-            running: settleTimer.running
-            onTriggered: root.settledHeight = root.targetHeight
+            onTriggered: { root.settledHeight = root.targetHeight; settleTimer.stop(); }
         }
         property real drawerHeight: 0
         Binding on drawerHeight { value: root.settledHeight }

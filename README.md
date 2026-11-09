@@ -103,6 +103,12 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <sub><b>Password prompt</b> · says what's asking and why, warns about Caps Lock</sub>
 </td>
 </tr>
+<tr>
+<td colspan="2" align="center">
+<img src="assets/readme/area-picker.jpg" alt="The screenshot area picker: crosshair lines across the dimmed screen, and at the bottom a toolbar with a line saying how to pick and what letting go does, then Screenshot, Edit, Search and Text, the box and circle shapes, whole screen and close"><br>
+<sub><b>Area picker</b> · screenshot, draw on it, search it or copy its text, says what letting go does</sub>
+</td>
+</tr>
 </table>
 
 </div>
