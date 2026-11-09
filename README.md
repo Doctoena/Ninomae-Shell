@@ -168,8 +168,9 @@ Turned it down? Run `themes/steam/install-theme.sh` any time.
 | `--uninstall` | Remove the links and restore your backups (packages and this folder stay) |
 | `--dry-run` | Show what would happen without changing anything |
 | `-y` | Don't ask questions, use the defaults |
-| `--only a,b` / `--skip a,b` | Pick components: `packages` `codecs` `configs` `shell` `apps` `steam` `sddm` `boot` `fish` |
+| `--only a,b` / `--skip a,b` | Pick components: `packages` `codecs` `configs` `shell` `apps` `steam` `music` `sddm` `boot` `fish` |
 | `--boot` | Also install the boot splash (off by default) |
+| `--music` | Also install YouTube Music: the [Pear Desktop](https://github.com/pear-devs/pear-desktop) app, themed with your wallpaper (off by default) |
 | `--keyboard LAYOUT` | Set the layout without asking: `us`, `de`, `fr`, `us:dvorak`, `de:nodeadkeys`… |
 
 </details>
@@ -260,7 +261,7 @@ desktop recolours to match, with colours made by [matugen](https://github.com/In
 | When | What updates |
 |---|---|
 | **Straight away** | The shell, window borders, the cursor, folder icons, kitty, Steam, Discord (Vesktop), VS Code, the login screen |
-| **Next time you open them** | GTK and Qt apps, Zen |
+| **Next time you open them** | GTK and Qt apps, Zen, YouTube Music |
 | **When you run** `sudo themes/boot/install-boot-theme.sh` | The boot splash |
 
 **Ultrawide and other shapes.** Put a version made for another screen shape next to the wallpaper,
@@ -334,7 +335,7 @@ The same folder works on a desktop and a laptop.
 │   └── quickshell/
 │       ├── Ninomae/            the shell
 │       └── plugins/            ninomae-blobs, the gooey drawer animation
-├── themes/                     login screen, boot splash, Steam, Zen, Discord, VS Code
+├── themes/                     login screen, boot splash, Steam, Zen, Discord, VS Code, YouTube Music
 └── assets/                     fonts, icons, cursors, wallpapers
 ```
 

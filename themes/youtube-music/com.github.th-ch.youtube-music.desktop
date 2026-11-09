@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=YouTube Music
+GenericName=Pear Desktop
+Comment=YouTube Music, themed with your wallpaper's colours
+Keywords=Pear;YouTube;Music;Songs;Player;
+Exec=/usr/bin/pear-desktop --ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations %U
+TryExec=/usr/bin/pear-desktop
+Icon=youtube-music
+Terminal=false
+Type=Application
+StartupWMClass=com.github.th-ch.youtube-music
+Categories=AudioVideo;Audio;Player;

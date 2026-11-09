@@ -105,6 +105,7 @@ COMPONENTS=(
     "Shell extras — Python helpers · gooey drawer plugin · wallpaper colours|shell|on"
     "App themes — VS Code · Zen · Discord (the ones installed)|apps|on"
     "Steam — Material theme · notifications · the launcher's download controls|steam|on"
+    "YouTube Music — the Pear Desktop app · themed with your wallpaper (needs sudo)|music|off"
     "Login screen — SDDM theme (needs sudo)|sddm|on"
     "Boot splash — Plymouth theme · rebuilds the boot image (needs sudo)|boot|off"
     "fish as your login shell (needs sudo)|fish|on"
@@ -517,6 +518,31 @@ comp_steam() {
     else result fail "See the log"; fi
 }
 
+# ── YouTube Music ───────────────────────────────────────────────────────────
+# Pear Desktop (th-ch's YouTube Music app, renamed; from Terra), named YouTube Music in the app search, with the
+# Wayland flags and the shell's colour theme. Optional: off by default
+comp_music() {
+    step "YouTube Music"
+    local failed=0
+    if rpm -q pear-desktop >/dev/null 2>&1; then ok "Pear Desktop (already installed)"
+    else
+        if ! rpm -q terra-release >/dev/null 2>&1; then # When the packages step was skipped
+            spin "Terra repository" sudo dnf install -y --nogpgcheck \
+                --repofrompath "terra,https://repos.fyralabs.com/terra\$releasever" terra-release || failed=1
+        fi
+        spin "Installing Pear Desktop" sudo dnf install -y pear-desktop || failed=1
+    fi
+    (( failed )) && { result fail "Couldn't install Pear Desktop; see the log"; return; }
+    ensure_colours
+    run "$DOTFILES/themes/youtube-music/install-theme.sh"; case $? in
+        0) ok "Launcher and theme set up"; result done "Pear Desktop · themed" ;;
+        3) ok "Launcher set up"
+           info "It's themed by itself once you've opened it once and closed it again"
+           result done "Pear Desktop · themed after its first start" ;;
+        *) result fail "Theme failed; see the log" ;;
+    esac
+}
+
 # ── Login screen ────────────────────────────────────────────────────────────
 comp_sddm() {
     step "Login screen"
@@ -672,6 +698,7 @@ update_apps() {
     [[ -f "$HOME/.var/app/app.zen_browser.zen/.zen/profiles.ini" || -f "$HOME/.zen/profiles.ini" ]] \
         && run "$DOTFILES/themes/zen/apply-theme.sh" && did+=("Zen")
     command -v vesktop >/dev/null && discord_theme && did+=("Discord")
+    command -v pear-desktop >/dev/null && run "$DOTFILES/themes/youtube-music/install-theme.sh" && did+=("YouTube Music")
     if (( ${#did[@]} )); then ok "Re-applied: ${did[*]}"; result done "${did[*]}"; else result skip "Nothing to re-apply"; fi
 }
 

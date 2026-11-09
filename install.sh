@@ -23,13 +23,14 @@
 #    --no-sddm       Skip the login screen theme
 #    --no-boot       Skip the boot splash (off by default anyway)
 #    --boot          Include the boot splash
+#    --music         Include YouTube Music (Pear Desktop, themed; off by default)
 #    --no-steam      Skip the Steam theme
 #    --no-shell      Don't make fish the login shell (uninstall: don't offer bash)
 #    --keyboard K    Keyboard layout for the desktop and login screen, as xkb names it:
 #                    us, de, fr, gb, us:dvorak, de:nodeadkeys… (qwerty and dvorak work too).
 #                    Default: the one this computer uses now
 #    --only a,b      Only these components (install mode): packages, codecs, configs,
-#                    shell, apps, steam, sddm, boot, fish
+#                    shell, apps, steam, music, sddm, boot, fish
 #    --skip a,b      Everything except these components
 #    -h, --help      Show this help
 # ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ while (( $# )); do
         --no-sddm) FORCE[sddm]=off ;;
         --no-boot) FORCE[boot]=off ;;
         --boot) FORCE[boot]=on ;;
+        --music) FORCE[music]=on ;;
         --no-steam) FORCE[steam]=off ;;
         --no-shell) FORCE[fish]=off ;;
         --keyboard)

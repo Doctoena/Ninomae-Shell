@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Generate a YouTube Music (th-ch/youtube-music) CSS theme from the
-# Material You colors already produced by generate_colors_material.py.
-# Called by applycolor.sh after colors are generated.
+# Generate the YouTube Music theme (for Pear Desktop, th-ch's app renamed; themes/youtube-music sets it up) from
+# the Material You colours generate_colors_material.py made. Called by applycolor.sh after the colours change.
+# Checked against the live app and Catppuccin's maintained theme (2026-11): YouTube Music no longer reads the old
+# "black" colour variables, so menus, the volume panel and the like are themed by their elements
 
 XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 STATE_DIR="$XDG_STATE_HOME/quickshell"
@@ -71,15 +72,6 @@ ytmusic-app {
   --yt-spec-text-secondary:             ${ON_SURFACE_VARIANT} !important;
   --yt-spec-text-disabled:              ${OUTLINE} !important;
   --yt-spec-text-primary-inverse:       ${SURFACE} !important;
-  --yt-spec-black-1:                    ${ON_SURFACE} !important;
-  --yt-spec-black-2:                    ${ON_SURFACE_VARIANT} !important;
-  --yt-spec-black-3:                    ${OUTLINE} !important;
-  --yt-spec-black-4:                    ${OUTLINE_VARIANT} !important;
-  --yt-spec-black-pure:                 ${ON_SURFACE} !important;
-  --yt-spec-black-1-alpha-16:           ${ON_SURFACE}29 !important;
-  --yt-spec-black-1-alpha-30:           ${ON_SURFACE}4d !important;
-  --yt-spec-black-pure-alpha-16:        ${ON_SURFACE}29 !important;
-  --yt-spec-black-pure-alpha-30:        ${ON_SURFACE}4d !important;
 
   /* Buttons & links */
   --yt-spec-filled-button-text:         ${ON_PRIMARY} !important;
@@ -96,11 +88,6 @@ ytmusic-app {
 
   /* YouTube Music specific */
   --ytmusic-background:                 ${BG} !important;
-  --ytmusic-color-black1:               ${ON_SURFACE} !important;
-  --ytmusic-color-black2:               ${ON_SURFACE_VARIANT} !important;
-  --ytmusic-color-black3:               ${OUTLINE} !important;
-  --ytmusic-color-black4:               ${OUTLINE_VARIANT} !important;
-  --ytmusic-color-blackpure:            ${ON_SURFACE} !important;
   --ytmusic-color-grey5:                ${SURFACE_VARIANT} !important;
   --ytmusic-text-secondary:             ${ON_SURFACE_VARIANT} !important;
   --ytmusic-general-background-a:       ${BG} !important;
@@ -114,9 +101,12 @@ ytmusic-app {
   --paper-slider-active-color:          ${PRIMARY} !important;
   --paper-slider-knob-color:            ${PRIMARY} !important;
   --paper-slider-container-color:       ${SURFACE_VARIANT} !important;
+  --paper-slider-secondary-color:       ${SURFACE_CONTAINER_HIGHEST} !important;
+  --paper-spinner-color:                ${PRIMARY} !important;
+  --paper-tabs-selection-bar-color:     ${PRIMARY} !important;
+  --yt-page-navigation-progress-color:  ${PRIMARY} !important;
   --paper-toggle-button-checked-bar-color:    ${PRIMARY_CONTAINER} !important;
   --paper-toggle-button-checked-button-color: ${PRIMARY} !important;
-  --ytmd-transparent-player-transparency-color: ${BG} !important;
 }
 
 /* ── Element overrides ─────────────────────────────────── */
@@ -181,6 +171,55 @@ ytmusic-player-bar .time-info {
 ytmusic-player-bar .menu {
   --iron-icon-fill-color: ${ON_SURFACE_VARIANT} !important;
 }
+/* The volume slider and the buttons that slide out beside it on a narrow window: on the player bar's colour */
+ytmusic-player-bar #expanding-menu,
+ytmusic-player-bar .expand-volume,
+ytmusic-player-bar #expand-volume-slider,
+ytmusic-player-bar .right-controls-buttons {
+  background: ${SURFACE_CONTAINER} !important;
+}
+
+/* Seek bar and volume: the accent on a quiet track */
+#progress-bar.ytmusic-player-bar,
+#volume-slider,
+#expand-volume-slider {
+  --paper-slider-active-color: ${PRIMARY} !important;
+  --paper-slider-knob-color: ${PRIMARY} !important;
+  --paper-slider-knob-start-color: ${PRIMARY} !important;
+  --paper-slider-knob-start-border-color: ${PRIMARY} !important;
+  --paper-slider-container-color: ${SURFACE_CONTAINER_HIGHEST} !important;
+}
+
+/* Now Playing page */
+ytmusic-player-page {
+  background-color: ${BG} !important;
+}
+#selectionBar.tp-yt-paper-tabs {
+  border-bottom-color: ${PRIMARY} !important;
+}
+
+/* Buttons: filled in the accent, tonal on a raised surface, outlined with a quiet line */
+.yt-spec-button-shape-next--mono.yt-spec-button-shape-next--filled {
+  background-color: ${PRIMARY} !important;
+  color: ${ON_PRIMARY} !important;
+}
+.yt-spec-button-shape-next--mono.yt-spec-button-shape-next--tonal {
+  background-color: ${SURFACE_CONTAINER_HIGH} !important;
+  color: ${ON_SURFACE} !important;
+}
+.yt-spec-button-shape-next--mono.yt-spec-button-shape-next--outline {
+  border-color: ${OUTLINE_VARIANT} !important;
+  color: ${ON_SURFACE} !important;
+}
+
+/* Toggles (settings) */
+tp-yt-paper-toggle-button[checked]:not([disabled]) .toggle-bar.tp-yt-paper-toggle-button {
+  background-color: ${PRIMARY_CONTAINER} !important;
+  opacity: 1 !important;
+}
+tp-yt-paper-toggle-button[checked]:not([disabled]) .toggle-button.tp-yt-paper-toggle-button {
+  background-color: ${PRIMARY} !important;
+}
 
 /* Nav bar */
 #nav-bar-background.ytmusic-app-layout {
@@ -238,8 +277,8 @@ tp-yt-paper-button.ytmusic-play-button-renderer {
 /* Selected chips */
 ytmusic-chip-cloud-chip-renderer[chip-style="STYLE_PRIMARY"],
 ytmusic-chip-cloud-chip-renderer[selected] {
-  background-color: ${ON_SURFACE} !important;
-  color: ${BG} !important;
+  background-color: ${PRIMARY} !important;
+  color: ${ON_PRIMARY} !important;
 }
 
 /* Search box */
@@ -249,15 +288,19 @@ ytmusic-search-box {
   border: none !important;
   overflow: hidden !important;
 }
+ytmusic-search-suggestions-section,
+div.search-box.ytmusic-search-box {
+  background: ${SURFACE_CONTAINER_HIGH} !important;
+}
 ytmusic-search-box:focus-within {
   background-color: ${SURFACE_CONTAINER_HIGHEST} !important;
   box-shadow: 0 0 0 2px ${PRIMARY} !important;
 }
 
-/* Menus & dropdowns */
+/* Menus & dropdowns (the popups only: ytmusic-menu-renderer is the ⋮ button on every row) */
 tp-yt-paper-listbox,
 ytmusic-menu-popup-renderer,
-ytmusic-menu-renderer {
+ytd-multi-page-menu-renderer {
   border-radius: 8px !important;
   border: none !important;
   background-color: ${SURFACE_CONTAINER_HIGH} !important;
