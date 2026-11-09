@@ -59,6 +59,9 @@ MouseArea {
             trayItemMenuHandle: root.item.menu
             appTitle: root.item.tooltipTitle || root.item.title || root.item.id
             appIcon: root.item.icon
+            appStatus: root.item.tooltipDescription ?? ""
+            appId: root.item.id ?? ""
+            trayItem: root.item
             screen: root.QsWindow.window?.screen ?? null
             centerX: root.QsWindow.window ? root.QsWindow.mapFromItem(root, root.width / 2, 0).x : 0
             onMenuOpened: (window) => root.menuOpened(window);

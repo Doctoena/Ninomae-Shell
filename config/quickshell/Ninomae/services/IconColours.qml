@@ -26,7 +26,7 @@ Singleton {
     function normalise(name) {
         const n = String(name ?? "");
         if (n.startsWith("file://")) return n.slice(7);
-        if (n.startsWith("image://icon/")) return n.slice(13);
+        if (n.startsWith("image://icon/")) return n.slice(13).replace(/\?.*$/, ""); // (Tray icons add "?path=…")
         return n;
     }
     function request(rawName) {
