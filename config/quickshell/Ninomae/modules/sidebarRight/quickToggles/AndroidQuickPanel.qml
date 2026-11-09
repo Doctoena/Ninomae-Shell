@@ -15,6 +15,7 @@ AbstractQuickPanel {
     id: root
     property bool editMode: false
     property bool joinedBelow: false // Another card joins under the block: its bottom corners stay slight
+    property bool joinedAbove: false // And one above it (the sidebar's header): its top corners too
     Layout.fillWidth: true
     implicitHeight: (editMode ? contentItem.implicitHeight : usedRows.implicitHeight)
     Behavior on implicitHeight {
@@ -22,7 +23,7 @@ AbstractQuickPanel {
     }
     readonly property real spacing: 4
     readonly property real wideHeight: 50
-    readonly property real smallHeight: 44
+    readonly property real smallHeight: 48
     readonly property list<string> availableToggleTypes: ["network", "bluetooth", "idleInhibitor", "nightLight", "gameMode", "screenSnip", "colorPicker", "mic", "audio", "notifications", "powerProfile", "antiFlashbang"]
     readonly property int columns: Math.max(1, Config.options.sidebar.quickToggles.android.columns)
     readonly property list<var> toggles: Config.ready ? Config.options.sidebar.quickToggles.android.toggles.filter(t => !!t) : []
@@ -156,7 +157,8 @@ AbstractQuickPanel {
                 required property int index
                 readonly property var items: block.rows[index] ?? []
                 readonly property bool wide: (items[0]?.size ?? 1) > 1
-                spacing: root.spacing
+                // Small tiles outside edit mode make one strip: no gaps between them (AndroidQuickToggleButton)
+                spacing: !wide && !root.editMode && !block.unused ? 0 : root.spacing
                 Repeater {
                     model: ScriptModel {
                         values: toggleRow.items
@@ -169,7 +171,7 @@ AbstractQuickPanel {
                         rowIndex: toggleRow.index
                         rowCount: block.rows.length
                         rowLength: toggleRow.items.length
-                        cellWidth: (block.width - root.spacing * (toggleRow.items.length - 1)) / Math.max(1, toggleRow.items.length)
+                        cellWidth: (block.width - toggleRow.spacing * (toggleRow.items.length - 1)) / Math.max(1, toggleRow.items.length)
                         cellHeight: toggleRow.wide ? root.wideHeight : root.smallHeight
                         onOpenAudioOutputPage: root.openAudioOutputPage()
                         onOpenAudioInputPage: root.openAudioInputPage()

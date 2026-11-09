@@ -1,25 +1,36 @@
+pragma Singleton
 import qs.modules.common
 import QtQuick
 import Quickshell
 import Quickshell.Io
 
 /**
- * The most vivid colour in each result's icon, for its card's tint and halo (the accent for grey icons, no icon,
- * or the shell's own entries). Worked out once per icon and remembered: the rows ask as they're built, so a
- * card already has its colour when it grows. One icon at a time goes through the quantizer (a queue).
- * Icon files are found by a short shell lookup (ColorQuantizer can't read `image://icon/…`).
+ * The most vivid colour in an app's icon, for tinted cards and halos (the app search's chosen result, the
+ * sidebar's newest notification). The accent for grey icons or no icon. Worked out once per icon and
+ * remembered for the session: ask with request(name) as an item is built, read colourFor(name), which is the
+ * accent until it's known. One icon at a time goes through the quantizer (a queue). Icon files are found by a
+ * short shell lookup (ColorQuantizer can't read `image://icon/…`); absolute paths are read as they are.
  */
-Item {
+Singleton {
     id: root
     property var colours: ({}) // icon name → its colour, or null for "use the accent"
     property var iconFiles: ({}) // icon name → its file, "" when none was found
     property var queue: []
     property string current: "" // The icon in the quantizer now
 
-    function colourFor(name) {
+    function colourFor(rawName) {
+        const name = normalise(rawName);
         return (name !== "" && root.colours[name]) ? root.colours[name] : Appearance.colors.colPrimary;
     }
-    function request(name) {
+    // "file:///…" → the path, "image://icon/steam" → "steam"
+    function normalise(name) {
+        const n = String(name ?? "");
+        if (n.startsWith("file://")) return n.slice(7);
+        if (n.startsWith("image://icon/")) return n.slice(13);
+        return n;
+    }
+    function request(rawName) {
+        const name = normalise(rawName);
         if (name === "" || root.colours[name] !== undefined || root.queue.includes(name) || root.current === name) return;
         root.queue.push(name);
         pump();

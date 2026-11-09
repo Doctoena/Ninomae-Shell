@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Shapes
 import Quickshell.Io
 import qs.services
 import qs.modules.common
@@ -89,24 +88,12 @@ ColumnLayout {
             NumberAnimation { duration: 220; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animationCurves.emphasizedDecel }
         }
 
-        Shape { // A soft halo behind the shield, as the search card's
-            id: halo
-            readonly property real r: 64
-            x: shieldTile.x + shieldTile.width / 2 - r
-            y: shieldTile.y + shieldTile.height / 2 - r
-            width: r * 2
-            height: r * 2
-            ShapePath {
-                strokeWidth: -1
-                fillGradient: RadialGradient {
-                    centerX: halo.r; centerY: halo.r
-                    focalX: centerX; focalY: centerY
-                    centerRadius: halo.r
-                    GradientStop { position: 0.0; color: ColorUtils.transparentize(root.tint, 0.62) }
-                    GradientStop { position: 1.0; color: "transparent" }
-                }
-                PathRectangle { width: halo.width; height: halo.height }
-            }
+        Halo { // A soft halo behind the shield
+            colour: root.tint
+            strength: 0.38
+            reach: 42
+            centreX: shieldTile.x + shieldTile.width / 2
+            centreY: shieldTile.y + shieldTile.height / 2
         }
         Rectangle {
             id: shieldTile

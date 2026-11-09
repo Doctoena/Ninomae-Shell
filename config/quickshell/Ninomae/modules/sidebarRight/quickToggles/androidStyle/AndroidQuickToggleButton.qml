@@ -43,12 +43,15 @@ GroupButton {
     // Its corners: round where it's a corner of the block, slight elsewhere. Held, every corner rounds off
     readonly property real outerRadius: Appearance.rounding.normal
     readonly property real innerRadius: Appearance.rounding.joined
-    readonly property bool firstRow: chooser.rowIndex === 0
+    readonly property bool firstRow: chooser.rowIndex === 0 && !(panel?.joinedAbove && !chooser.unused)
     // The block's last row, unless the sliders join under it (then its bottom corners stay slight too)
     readonly property bool lastRow: chooser.rowIndex === chooser.rowCount - 1 && !(panel?.joinedBelow && !chooser.unused)
     readonly property bool firstInRow: index === 0
     readonly property bool lastInRow: index === chooser.rowLength - 1
     function corner(isOuter) { return root.down || isOuter ? root.outerRadius : root.innerRadius; }
+    // Small tiles outside edit mode are pieces of one strip: square where they meet, the icon plain while off
+    readonly property bool inStrip: !expandedSize && !chooser.editMode && !chooser.unused
+    function edge(isOuter, meetsNeighbour) { return root.inStrip && meetsNeighbour && !root.down ? 0 : root.corner(isOuter); }
 
     bounce: false
     baseWidth: chooser.cellWidth
@@ -83,10 +86,10 @@ GroupButton {
     onClicked: root.mainAction()
 
     background: Rectangle {
-        topLeftRadius: root.corner(root.firstRow && root.firstInRow)
-        topRightRadius: root.corner(root.firstRow && root.lastInRow)
-        bottomLeftRadius: root.corner(root.lastRow && root.firstInRow)
-        bottomRightRadius: root.corner(root.lastRow && root.lastInRow)
+        topLeftRadius: root.edge(root.firstRow && root.firstInRow, !root.firstInRow)
+        topRightRadius: root.edge(root.firstRow && root.lastInRow, !root.lastInRow)
+        bottomLeftRadius: root.edge(root.lastRow && root.firstInRow, !root.firstInRow)
+        bottomRightRadius: root.edge(root.lastRow && root.lastInRow, !root.lastInRow)
         color: root.color
         Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
         Behavior on topLeftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
@@ -110,7 +113,7 @@ GroupButton {
             implicitWidth: root.expandedSize ? 32 : 30
             implicitHeight: implicitWidth
             radius: root.toggled ? implicitWidth * 0.32 : implicitWidth / 2
-            color: root.toggled ? Appearance.colors.colPrimary : Appearance.colors.colLayer4
+            color: root.toggled ? Appearance.colors.colPrimary : root.inStrip ? "transparent" : Appearance.colors.colLayer4
             Behavior on radius { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
             Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
             MaterialSymbol {

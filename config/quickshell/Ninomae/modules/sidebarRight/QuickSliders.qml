@@ -8,13 +8,15 @@ import Quickshell
 /**
  * The sidebar's sliders in one card: an icon, a slim slider and the figure per row (volume, brightness, mic,
  * as Settings → Sidebar picks). Clicking the volume or mic icon mutes it, the icon goes accent while muted.
- * The corners are set from outside, so the card joins the player under it into one group.
+ * The corners are set from outside, so the card joins the tiles above it. While music plays it sits inside the
+ * player's card instead (SidebarMedia, withSliders), with a clear background and the player's colour as ringColor.
  */
 Rectangle {
     id: root
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
     readonly property var options: Config.options.sidebar.quickSliders
+    property color ringColor: color // The surface under the sliders' knobs
     color: Appearance.colors.colLayer3
     radius: Appearance.rounding.normal
     implicitHeight: rows.implicitHeight + 16
@@ -62,14 +64,14 @@ Rectangle {
             tip: line.tip
             enabled: line.node !== null
             toggled: line.muted
-            colBackground: Appearance.colors.colLayer4
+            colBackground: "transparent" // A plain icon, a shade on hover
             colBackgroundHover: Appearance.colors.colLayer4Hover
             colRipple: Appearance.colors.colLayer4Active
             onClicked: if (line.node?.audio) line.node.audio.muted = !line.node.audio.muted
         }
         SlimSlider {
             Layout.fillWidth: true
-            ringColor: root.color
+            ringColor: root.ringColor
             level: line.level
             opacity: line.muted ? 0.5 : 1
             onMoved: line.apply(value)

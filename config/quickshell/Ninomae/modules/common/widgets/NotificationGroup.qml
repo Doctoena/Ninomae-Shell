@@ -1,6 +1,7 @@
 import qs.services
 import qs.modules.common
 import "notification_utils.js" as NotificationUtils
+import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -9,7 +10,9 @@ import Quickshell.Services.Notifications
  * A group of notifications from the same app.
  * A card; collapsed it shows the newest two (one in popups), expanded all of them. The cards join into one list
  * as Settings' rows (round at the list's ends, slight between), in the sidebar and the popups alike, and a lone
- * notification shows its app and time beside its title instead of a header line.
+ * notification shows its app and time beside its title instead of a header line. In the sidebar the newest
+ * group is featured, like the app search's chosen result: tinted by its app icon's colour (IconColours), with a
+ * soft halo and its newest notification's buttons named.
  */
 MouseArea { // Notification group area
     id: root
@@ -41,6 +44,12 @@ MouseArea { // Notification group area
         dragIndexDiff == 1 ? (parentDragDistance * 0.3) :
         dragIndexDiff == 2 ? (parentDragDistance * 0.1) : 0
     readonly property bool isUrgent: notifications.some(n => n.urgency === NotificationUrgency.Critical.toString())
+    readonly property bool featured: !popup && listIndex === 0
+    readonly property string appIconName: notificationGroup?.appIcon ?? ""
+    onAppIconNameChanged: if (!popup) IconColours.request(appIconName)
+    Component.onCompleted: if (!popup) IconColours.request(appIconName)
+    property color tint: isUrgent ? Appearance.colors.colError : IconColours.colourFor(appIconName)
+    Behavior on tint { ColorAnimation { duration: 300 } }
     function destroyWithAnimation(left = false) {
         root.qmlParent.resetDrag()
         background.anchors.leftMargin = background.anchors.leftMargin;
@@ -127,7 +136,18 @@ MouseArea { // Notification group area
                 easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
             }
         }
-        color: Appearance.colors.colLayer3
+        color: root.featured ? ColorUtils.mix(Appearance.colors.colLayer3, root.tint, 0.86) : Appearance.colors.colLayer3
+        border.width: root.featured ? 1.5 : 0
+        border.color: ColorUtils.transparentize(root.tint, 0.6)
+        Behavior on color { ColorAnimation { duration: 250 } }
+        Halo { // Featured: a soft halo behind the newest notification's picture
+            visible: root.featured
+            colour: root.tint
+            strength: 0.45
+            reach: 24
+            centreX: contentCol.x + 8 + 16
+            centreY: contentCol.y + notificationsColumn.y + 5 + 16
+        }
         // Sized by its rows (a fixed cap cut rows off once they got thumbnails). Animated both ways, and
         // clipped, so expanding reveals the extra rows as the card grows
         implicitHeight: contentCol.implicitHeight + padding * 2
@@ -212,6 +232,7 @@ MouseArea { // Notification group area
                     required property int index
                     required property var modelData
                     notificationObject: modelData
+                    featured: root.featured && index === 0
                     expanded: root.expanded
                     compact: root.compact
                     onlyNotification: (root.notificationCount === 1)

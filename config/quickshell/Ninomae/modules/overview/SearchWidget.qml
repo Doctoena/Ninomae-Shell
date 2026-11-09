@@ -228,9 +228,6 @@ Item { // Wrapper
             easing.bezierCurve: GlobalStates.overviewOpen ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
         }
     }
-    IconGlow { // Each result's icon colour, for its card's tint and halo (outside the layout: no gap of its own)
-        id: iconGlow
-    }
     // Opening: the shell buttons and results cascade in, top to bottom, as the drawer slides out
     property real openReveal: 1
     function entrance(index) {
@@ -693,7 +690,6 @@ Item { // Wrapper
                         grown: ListView.isCurrentItem
                         enter: root.entrance(index)
                         lastInGroup: index === appResults.count - 1
-                        glow: iconGlow
                         onBackRequested: root.focusSearchInput()
                         query: root.matchQuery
                     }

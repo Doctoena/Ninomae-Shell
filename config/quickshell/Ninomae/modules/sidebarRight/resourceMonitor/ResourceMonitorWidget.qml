@@ -5,7 +5,6 @@ import qs.modules.common.functions
 import qs.services
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
@@ -17,6 +16,8 @@ Item {
     id: root
     property string selected: "" // "", "ram", "cpu" or "gpu"
     readonly property bool open: selected !== ""
+    property bool joinedAbove: false // A card joins above the strip (the sidebar's controls): its top corners stay slight
+    property bool flushAbove: false // That card sits right on it (the volume): square top, a hairline between them
     implicitHeight: tileRow.implicitHeight + (open ? 4 + detail.implicitHeight : 0)
     clip: true
     Behavior on implicitHeight {
@@ -204,7 +205,7 @@ Item {
     RowLayout {
         id: tileRow
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        spacing: 4
+        spacing: 0 // One strip, hairlines between the stats
         ResourceTile {
             first: true
             key: "ram"; icon: "memory"; label: "RAM"
@@ -435,11 +436,13 @@ Item {
         readonly property real inner: tileMouse.containsPress ? height / 2 : Appearance.rounding.joined
         Layout.fillWidth: true
         Layout.preferredWidth: 1
-        implicitHeight: 44 // As the small quick toggles
-        topLeftRadius: first ? outer : inner
-        bottomLeftRadius: first && !root.open ? outer : inner
-        topRightRadius: last ? outer : inner
-        bottomRightRadius: last && !root.open ? outer : inner
+        implicitHeight: 48 // As the small quick toggles
+        // Pieces of one strip: square where they meet (and on top when the volume sits right on it)
+        readonly property real topCorner: root.flushAbove ? 0 : (root.joinedAbove ? inner : outer)
+        topLeftRadius: first ? topCorner : 0
+        bottomLeftRadius: first ? (!root.open ? outer : inner) : 0
+        topRightRadius: last ? topCorner : 0
+        bottomRightRadius: last ? (!root.open ? outer : inner) : 0
         Behavior on topLeftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
         Behavior on bottomLeftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
         Behavior on topRightRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
@@ -454,62 +457,52 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: root.selected = tile.selected ? "" : tile.key
         }
-        RowLayout {
+        Rectangle { // A hairline between the stats
+            visible: !tile.first
+            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+            width: 1
+            height: 22
+            color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.92)
+        }
+        Rectangle { // And over the strip, when the volume sits right on it
+            visible: root.flushAbove
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: tile.first ? 14 : 0; rightMargin: tile.last ? 14 : 0 }
+            height: 1
+            color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.92)
+        }
+        ColumnLayout { // The figure and its name, a thin usage line under them
             anchors.centerIn: parent
-            spacing: 8
-            Item { // Usage ring around the icon
-                id: ring
-                implicitWidth: 26
-                implicitHeight: 26
-                property real shownFraction: Math.min(1, Math.max(0, tile.usage))
+            spacing: 6
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 5
+                StyledText {
+                    text: tile.asleep ? Translation.tr("Asleep") : root.percent(tile.usage)
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.DemiBold
+                    color: tile.selected || tile.warning ? tile.accent : Appearance.colors.colOnLayer3
+                }
+                StyledText {
+                    text: tile.label
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+            }
+            Rectangle {
+                id: usageLine
+                Layout.alignment: Qt.AlignHCenter
+                implicitWidth: 64
+                implicitHeight: 3
+                radius: 2
+                color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.88)
+                property real shownFraction: tile.asleep ? 0 : Math.min(1, Math.max(0, tile.usage))
                 Behavior on shownFraction { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
-                Rectangle { // Filled behind the icon when selected, like an "on" toggle's squircle
-                    anchors.centerIn: parent
-                    width: 18; height: 18; radius: 9
+                Rectangle {
+                    width: parent.width * usageLine.shownFraction
+                    height: parent.height
+                    radius: 2
                     color: tile.accent
-                    opacity: tile.selected ? 1 : 0
-                    Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
                 }
-                Shape {
-                    anchors.fill: parent
-                    preferredRendererType: Shape.CurveRenderer // Smooth edges without multisampling or a layer
-                    ShapePath { // Track
-                        fillColor: "transparent"
-                        strokeColor: Appearance.colors.colLayer4
-                        strokeWidth: 2.5
-                        PathAngleArc { centerX: 13; centerY: 13; radiusX: 11.75; radiusY: 11.75; startAngle: 0; sweepAngle: 360 }
-                    }
-                    ShapePath {
-                        fillColor: "transparent"
-                        strokeColor: tile.accent
-                        strokeWidth: 2.5
-                        capStyle: ShapePath.RoundCap
-                        PathAngleArc {
-                            centerX: 13; centerY: 13; radiusX: 11.75; radiusY: 11.75
-                            startAngle: -90
-                            sweepAngle: 360 * ring.shownFraction
-                        }
-                    }
-                }
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: tile.asleep ? "bedtime" : tile.icon
-                    iconSize: tile.selected ? 12 : 14
-                    fill: tile.selected || tile.warning ? 1 : 0
-                    color: tile.selected ? (tile.warning ? Appearance.colors.colOnError : Appearance.colors.colOnPrimary)
-                        : tile.warning ? Appearance.colors.colError : Appearance.colors.colOnLayer3
-                }
-            }
-            StyledText {
-                text: tile.asleep ? Translation.tr("Asleep") : root.percent(tile.usage)
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.DemiBold
-                color: tile.selected || tile.warning ? tile.accent : Appearance.colors.colOnLayer3
-            }
-            StyledText {
-                text: tile.label
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: Appearance.colors.colSubtext
             }
         }
     }

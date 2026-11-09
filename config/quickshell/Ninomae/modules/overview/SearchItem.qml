@@ -6,7 +6,6 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Shapes
 import Quickshell
 import Quickshell.Widgets
 
@@ -22,12 +21,12 @@ RippleButton {
     property string query
     property bool grown: false // The chosen result
     property bool lastInGroup: false // Rounds the drawer's bottom corners
-    property IconGlow glow // Remembers each icon's colour
-    // Its own icon's colour (the accent for symbols, emoji and the shell's entries), asked for as the row is built
+    // Its own icon's colour (IconColours; the accent for symbols, emoji and the shell's entries), asked for as
+    // the row is built so the card has it when it grows
     readonly property string glowIcon: shellSymbol === "" && materialSymbol === "" && bigText === "" ? itemIcon : ""
-    onGlowIconChanged: glow?.request(glowIcon)
-    Component.onCompleted: glow?.request(glowIcon)
-    property color tint: glow ? glow.colourFor(glowIcon) : Appearance.colors.colPrimary
+    onGlowIconChanged: IconColours.request(glowIcon)
+    Component.onCompleted: IconColours.request(glowIcon)
+    property color tint: IconColours.colourFor(glowIcon)
     Behavior on tint { ColorAnimation { duration: 300 } } // Only if it arrives late: then it fades in
     property string itemType: entry?.type ?? Translation.tr("App")
     property string itemName: entry?.name ?? ""
@@ -324,27 +323,15 @@ RippleButton {
             readonly property real bodyHeight: grownBody.implicitHeight
             property alias moreButton: moreButton
             property alias listRepeater: listRepeater
-            Shape { // A soft halo in the icon's colour behind it, kept inside the card (no clipping layer)
-                id: halo
+            Halo { // A soft halo in the icon's colour behind it
                 visible: grownBody.visible
                 opacity: grownBody.opacity
-                readonly property real r: Math.min(grownIcon.x + grownIcon.width / 2, grownIcon.y + grownIcon.height / 2) + 14
-                x: grownBody.x + grownIcon.x + grownIcon.width / 2 - r
-                y: grownBody.y + grownIcon.y + grownIcon.height / 2 - r
                 scale: 0.5 + 0.5 * root.reveal // Blooms out from the icon
-                width: r * 2
-                height: r * 2
-                ShapePath {
-                    strokeWidth: -1
-                    fillGradient: RadialGradient {
-                        centerX: halo.r; centerY: halo.r
-                        focalX: centerX; focalY: centerY
-                        centerRadius: halo.r
-                        GradientStop { position: 0.0; color: ColorUtils.transparentize(root.tint, 0.55) }
-                        GradientStop { position: 1.0; color: "transparent" }
-                    }
-                    PathRectangle { width: halo.width; height: halo.height }
-                }
+                colour: root.tint
+                strength: 0.45
+                reach: Math.min(grownIcon.x + grownIcon.width / 2, grownIcon.y + grownIcon.height / 2) + 14 // Inside the card
+                centreX: grownBody.x + grownIcon.x + grownIcon.width / 2
+                centreY: grownBody.y + grownIcon.y + grownIcon.height / 2
             }
             Rectangle { // A thin rim in the icon's colour
                 anchors.fill: parent

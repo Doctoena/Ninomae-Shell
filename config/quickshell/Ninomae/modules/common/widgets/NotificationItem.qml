@@ -17,6 +17,7 @@ Item {
     property bool expanded: false
     property bool onlyNotification: false
     property bool compact: false // Sidebar: smaller picture, tighter padding, shorter collapsed body
+    property bool featured: false // The sidebar's newest: its buttons named, under the text
     property bool showTime: !onlyNotification // A single notification's time is already in the group header
     property string appLabel: "" // Sidebar, a lone notification: "App · 1m" where the time goes (no header line)
     property real dragConfirmThreshold: 70
@@ -33,7 +34,7 @@ Item {
     readonly property int actionCount: notificationObject?.actions?.length ?? 0
     // Always on the newest notification of a group; the older ones only once expanded
     readonly property bool showActions: actionCount > 0 && (expanded || onlyNotification || root.index === 0)
-    readonly property bool actionsBelow: actionCount > 2 // Three or more don't fit beside the text
+    readonly property bool actionsBelow: actionCount > 2 || featured // Three or more don't fit beside the text
     readonly property bool actionsInline: showActions && !actionsBelow
     readonly property bool actionsWrapped: showActions && actionsBelow
     readonly property string bodyContent: processNotificationBody(notificationObject?.body ?? "", notificationObject?.appName || notificationObject?.summary).replace(/\n/g, "<br/>")
@@ -168,7 +169,8 @@ Item {
                         textFormat: Text.PlainText // Plain text by spec; markup here would also load <img>
                         elide: Text.ElideRight
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.DemiBold
+                        font.family: root.featured ? Appearance.font.family.title : Appearance.font.family.main
+                        font.weight: root.featured ? Font.Black : Font.DemiBold
                         color: root.isUrgent ? Appearance.colors.colError : Appearance.colors.colOnSurface
                     }
                     Item { // Time and the hover buttons share this corner
