@@ -69,12 +69,12 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <table>
 <tr>
 <td width="50%" align="center">
-<img src="assets/readme/overview.jpg" alt="The overview: app search with a preview of the selected app"><br>
-<sub><b>Overview</b> · apps, clipboard, emoji, web search</sub>
+<img src="assets/readme/overview.jpg" alt="App search dropping from the bar: Volume, Wi-Fi, Bluetooth and Settings buttons under the search field, and the chosen app grown into a card tinted by its icon, with Launch and its actions"><br>
+<sub><b>App search</b> · apps, settings pages, clipboard, emoji, maths, web</sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/readme/sidebar-panel.jpg" alt="Sidebar with quick toggles, grouped notifications and system stats"><br>
-<sub><b>Sidebar</b> · toggles, notifications, system stats</sub>
+<img src="assets/readme/sidebar-panel.jpg" alt="Sidebar: a greeting with the weather, quick toggles, the volume over RAM, CPU and GPU, and the newest notification as a tinted card"><br>
+<sub><b>Sidebar</b> · toggles, sound, system stats, notifications</sub>
 </td>
 </tr>
 <tr>
@@ -83,7 +83,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <sub><b>Settings</b> · every option, applied live</sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/readme/power-menu.jpg" alt="Power menu with lock, sleep, reboot, shut down and the battery level"><br>
+<img src="assets/readme/power-menu.jpg" alt="Power menu: your wallpaper and picture up top with the uptime and battery, then lock, sleep, reboot and shut down, with log out, tasks and firmware under them"><br>
 <sub><b>Power menu</b> · a countdown before anything closes your apps</sub>
 </td>
 </tr>
@@ -95,6 +95,12 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <td width="50%" align="center">
 <img src="assets/readme/cursor-accent.jpg" alt="The cursor in four accents: lavender, teal, coral and grey"><br>
 <sub><b>Cursor</b> · takes the wallpaper's accent, like the folder icons</sub>
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+<img src="assets/readme/polkit.jpg" alt="The password prompt dropping from the bar: a shield, what is asking and why, the password field with your picture, Cancel and Authenticate"><br>
+<sub><b>Password prompt</b> · says what's asking and why, warns about Caps Lock</sub>
 </td>
 </tr>
 </table>
