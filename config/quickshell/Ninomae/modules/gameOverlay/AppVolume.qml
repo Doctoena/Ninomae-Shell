@@ -87,7 +87,7 @@ RowLayout {
             Layout.fillWidth: true
             spacing: 6
             StyledText {
-                Layout.maximumWidth: parent.width - (sub.visible ? sub.implicitWidth + 6 : 0)
+                Layout.preferredWidth: Math.min(implicitWidth, 210) // Not from the row's width: that loops the layout
                 elide: Text.ElideRight
                 text: root.game ? (root.gameName || Translation.tr("The game"))
                     : root.node.properties["application.name"] || root.node.description || root.node.name

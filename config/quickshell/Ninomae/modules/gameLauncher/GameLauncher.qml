@@ -414,17 +414,12 @@ Scope {
                                 anchors.fill: parent
                                 anchors.margins: 16
                                 spacing: 10
-                                Rectangle {
+                                Item { // The toolbar: the filters in one strip on the left, the search in the middle, what's
+                                    // downloading and the actions on the right
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 44
-                                    radius: height / 3
-                                    color: Appearance.colors.colLayer1
-                                    Row {
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: 6
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 6
-                                        z: 2
+                                    Layout.preferredHeight: 38
+                                    Strip { // Launchers · Sort · Tags, each saying what it's set to
+                                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                         ToolbarPicker {
                                             id: _launcherContainer
                                             title: Translation.tr("Launchers")
@@ -448,275 +443,214 @@ Scope {
                                             ]
                                             onPicked: value => GameLauncherService.sortOrder = value
                                         }
-                                        // Tags: the Tags panel grows up out of the launcher (toggled while it's open); with one
-                                        // picked, its name shows here, and a clear button
-                                        ToolbarGroup {
+                                        // Tags: the Tags panel grows up out of the launcher (toggled while it's open). With one
+                                        // picked, its name in the accent, and an × back to every game
+                                        Row {
                                             id: tagContainer
                                             readonly property bool open: root.gridPanel === "tags"
                                             readonly property bool active: GameLauncherService.selectedTag !== ""
                                             function toggle() { root.gridPanel = open ? "" : "tags"; }
                                             visible: GameLauncherService.allTags.length > 0
-                                            IconToolbarButton {
-                                                implicitHeight: 30
-                                                implicitWidth: 30
-                                                buttonRadius: Appearance.rounding.segment
-                                                text: "sell"
-                                                colText: toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colPrimary
-                                                toggled: tagContainer.open
+                                            StripButton {
+                                                iconName: "sell"
+                                                label: tagContainer.active ? GameLauncherService.selectedTag : Translation.tr("Tags")
+                                                chevron: !tagContainer.active
+                                                on: tagContainer.open || tagContainer.active
                                                 onClicked: tagContainer.toggle()
                                                 StyledToolTip { text: tagContainer.open ? Translation.tr("Close") : Translation.tr("Tags") }
                                             }
-                                            StyledText { // The tag in use (opens the panel too); long names are cut short
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                visible: tagContainer.active
-                                                leftPadding: 4; rightPadding: 2
-                                                width: Math.min(implicitWidth, 160)
-                                                elide: Text.ElideRight
-                                                text: GameLauncherService.selectedTag
-                                                font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium
-                                                color: Appearance.colors.colPrimary
-                                                TapHandler { onTapped: tagContainer.toggle() }
-                                            }
                                             ToolbarOption { // Back to every game in one click, without opening the panel
+                                                anchors.verticalCenter: parent.verticalCenter
                                                 visible: tagContainer.active
                                                 text: "close"; tooltip: Translation.tr("Show all games")
                                                 onClicked: { GameLauncherService.selectedTag = ""; if (tagContainer.open) root.gridPanel = ""; }
                                             }
                                         }
                                     }
-                                // Centered search bar
-                                Item {
-                                    id: searchBarContainer
-                                    anchors { horizontalCenter: parent.horizontalCenter; verticalCenter: parent.verticalCenter }
-                                    width: _focused ? 480 : 440
-                                    height: 34
-                                    z: 1
-                                    property bool _focused: searchBarHover.hovered || visibleSearchBar.text.length > 0
-                                    HoverHandler {
-                                        id: searchBarHover
-                                    }
-                                    Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                                    // Centred search, saying how many games it shows
                                     Rectangle {
-                                        anchors.fill: parent
-                                        radius: Appearance.rounding.verysmall
-                                        color: searchBarContainer._focused
-                                            ? Appearance.colors.colLayer2Hover
-                                            : Appearance.colors.colLayer2
+                                        id: searchBarContainer
+                                        anchors { horizontalCenter: parent.horizontalCenter; verticalCenter: parent.verticalCenter }
+                                        width: 520
+                                        height: 36
+                                        z: 1
+                                        readonly property bool _focused: searchBarHover.hovered || visibleSearchBar.text.length > 0
+                                        HoverHandler { id: searchBarHover }
+                                        radius: Appearance.rounding.small
+                                        color: _focused ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
                                         Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                                    }
-                                    RowLayout {
-                                        anchors { fill: parent; leftMargin: 12; rightMargin: 6 }
-                                        spacing: 8
-                                        MaterialSymbol {
-                                            Layout.alignment: Qt.AlignVCenter
-                                            text: "search"
-                                            iconSize: 20
-                                            color: searchBarContainer._focused
-                                                ? Appearance.colors.colPrimary
-                                                : Appearance.colors.colOnSurfaceVariant
-                                            Behavior on color { ColorAnimation { duration: 200 } }
-                                        }
-                                        ToolbarTextField {
-                                            id: visibleSearchBar
-                                            Layout.fillWidth: true
-                                            Layout.fillHeight: true
-                                            font.pixelSize: Appearance.font.pixelSize.small
-                                            verticalAlignment: TextInput.AlignVCenter
-                                            padding: 0
-                                            colBackground: "transparent"
-                                            placeholderText: Translation.tr("Search games...")
-                                            text: ""
-                                            onTextChanged: {
-                                                searchDebounce._pendingQuery = text;
-                                                searchDebounce.restart();
+                                        RowLayout {
+                                            anchors { fill: parent; leftMargin: 12; rightMargin: 8 }
+                                            spacing: 8
+                                            MaterialSymbol {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                text: "search"
+                                                iconSize: 20
+                                                color: searchBarContainer._focused ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                                Behavior on color { ColorAnimation { duration: 200 } }
                                             }
-                                            Keys.onPressed: event => {
-                                                if (event.key === Qt.Key_Escape) {
-                                                    GlobalStates.gameLauncherOpen = false;
-                                                    event.accepted = true;
-                                                } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Right || event.key === Qt.Key_Left) {
-                                                    if (gamesListView.count > 0) {
-                                                        gamesListView.focusTile(0);
+                                            ToolbarTextField {
+                                                id: visibleSearchBar
+                                                Layout.fillWidth: true
+                                                Layout.fillHeight: true
+                                                font.pixelSize: Appearance.font.pixelSize.small
+                                                verticalAlignment: TextInput.AlignVCenter
+                                                padding: 0
+                                                colBackground: "transparent"
+                                                placeholderText: Translation.tr("Search games...")
+                                                text: ""
+                                                onTextChanged: {
+                                                    searchDebounce._pendingQuery = text;
+                                                    searchDebounce.restart();
+                                                }
+                                                Keys.onPressed: event => {
+                                                    if (event.key === Qt.Key_Escape) {
+                                                        GlobalStates.gameLauncherOpen = false;
                                                         event.accepted = true;
+                                                    } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Right || event.key === Qt.Key_Left) {
+                                                        if (gamesListView.count > 0) {
+                                                            gamesListView.focusTile(0);
+                                                            event.accepted = true;
+                                                        }
+                                                    }
+                                                }
+                                                Component.onCompleted: {
+                                                    if (GlobalStates.gameLauncherOpen && !root.showingDetails) {
+                                                        forceActiveFocus();
                                                     }
                                                 }
                                             }
-                                            Component.onCompleted: {
-                                                if (GlobalStates.gameLauncherOpen && !root.showingDetails) {
-                                                    forceActiveFocus();
+                                            StyledText { // How many games show: all of them, or "5 of 617"
+                                                Layout.alignment: Qt.AlignVCenter
+                                                visible: !GameLauncherService.loading
+                                                text: {
+                                                    const filtered = GameLauncherService.filteredGames.length;
+                                                    const total = GameLauncherService.displayableCount;
+                                                    return filtered === total ? (total === 1 ? Translation.tr("1 game") : Translation.tr("%1 games").arg(total))
+                                                        : Translation.tr("%1 of %2").arg(filtered).arg(total);
+                                                }
+                                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                                font.family: Appearance.font.family.numbers
+                                                color: Appearance.colors.colSubtext
+                                            }
+                                            Rectangle { // Clear
+                                                Layout.alignment: Qt.AlignVCenter
+                                                width: 24; height: 24
+                                                radius: Appearance.rounding.chip
+                                                visible: visibleSearchBar.text.length > 0
+                                                color: clearMouseArea.containsMouse ? Appearance.colors.colLayer4Hover : Appearance.colors.colLayer4
+                                                Behavior on color { ColorAnimation { duration: 100 } }
+                                                MaterialSymbol {
+                                                    anchors.centerIn: parent
+                                                    text: "close"
+                                                    iconSize: 14
+                                                    color: Appearance.colors.colOnLayer3
+                                                }
+                                                MouseArea {
+                                                    id: clearMouseArea
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        visibleSearchBar.text = "";
+                                                        visibleSearchBar.forceActiveFocus();
+                                                    }
                                                 }
                                             }
                                         }
-                                        Rectangle {
-                                            Layout.alignment: Qt.AlignVCenter
-                                            width: 26; height: 26
-                                            radius: Appearance.rounding.chip
-                                            visible: visibleSearchBar.text.length > 0
-                                            color: clearMouseArea.containsMouse
-                                                ? Appearance.colors.colSurfaceContainerHighestHover
-                                                : Appearance.colors.colSurfaceContainerHighest
-                                            opacity: visibleSearchBar.text.length > 0 ? 1.0 : 0.0
-                                            scale: visibleSearchBar.text.length > 0 ? 1.0 : 0.6
-                                            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.5 } }
-                                            Behavior on color { ColorAnimation { duration: 100 } }
-                                            MaterialSymbol {
-                                                anchors.centerIn: parent
-                                                text: "close"
-                                                iconSize: 14
-                                                color: Appearance.colors.colOnSurfaceVariant
+                                    }
+                                    Row {
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        spacing: 8
+                                        // Downloads: there while Steam downloads something (or finished in the last hour): the
+                                        // game downloading and how far, with a bar. Opens the Downloads panel
+                                        RippleButton {
+                                            id: downloadsContainer
+                                            readonly property bool open: root.gridPanel === "downloads"
+                                            readonly property var current: GameLauncherService.activeDownloads.find(i => i.state === "downloading") ?? null
+                                            readonly property bool showsProgress: (current?.progress ?? -1) >= 0
+                                            visible: open || GameLauncherService.activeDownloads.length > 0 || GameLauncherService.recentlyFinished
+                                            implicitWidth: dlRow.implicitWidth + 24
+                                            implicitHeight: 36
+                                            buttonRadius: Appearance.rounding.small
+                                            colBackground: open ? ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colPrimary, 0.82) : Appearance.colors.colLayer3
+                                            colBackgroundHover: Appearance.colors.colLayer3Hover
+                                            colRipple: Appearance.colors.colLayer3Active
+                                            onClicked: root.gridPanel = open ? "" : "downloads"
+                                            StyledToolTip { text: downloadsContainer.open ? Translation.tr("Close") : Translation.tr("Downloads") }
+                                            contentItem: Item {
+                                                Row {
+                                                    id: dlRow
+                                                    anchors.centerIn: parent
+                                                    anchors.verticalCenterOffset: downloadsContainer.showsProgress ? -2 : 0
+                                                    spacing: 8
+                                                    MaterialSymbol {
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        text: downloadsContainer.current ? "downloading" : "download"
+                                                        iconSize: 18
+                                                        color: Appearance.colors.colTertiary
+                                                    }
+                                                    StyledText {
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        width: Math.min(implicitWidth, 180)
+                                                        elide: Text.ElideRight
+                                                        text: downloadsContainer.current?.name ?? Translation.tr("Downloads")
+                                                        font.pixelSize: Appearance.font.pixelSize.smallie
+                                                        color: Appearance.colors.colOnLayer3
+                                                    }
+                                                    StyledText {
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        visible: downloadsContainer.showsProgress
+                                                        text: `${Math.floor((downloadsContainer.current?.progress ?? 0) * 100)}%`
+                                                        font.pixelSize: Appearance.font.pixelSize.smallie
+                                                        font.family: Appearance.font.family.numbers
+                                                        font.variableAxes: ({}) // Not Roboto Flex's tuning
+                                                        color: Appearance.colors.colTertiary
+                                                    }
+                                                }
+                                                Rectangle { // How far, as a bar along its foot
+                                                    visible: downloadsContainer.showsProgress
+                                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 12; rightMargin: 12; bottomMargin: 6 }
+                                                    height: 3
+                                                    radius: 1.5
+                                                    color: ColorUtils.transparentize(Appearance.colors.colTertiary, 0.8)
+                                                    Rectangle {
+                                                        width: parent.width * Math.max(0, downloadsContainer.current?.progress ?? 0)
+                                                        height: parent.height
+                                                        radius: 1.5
+                                                        color: Appearance.colors.colTertiary
+                                                        Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                                                    }
+                                                }
                                             }
-                                            MouseArea {
-                                                id: clearMouseArea
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
+                                        }
+                                        Strip { // Add a game · refresh · Library statistics
+                                            StripButton { // Any app into the library: AddGamePanel grows up out of the launcher
+                                                iconName: "library_add"
+                                                on: root.gridPanel === "addGame"
+                                                onClicked: root.gridPanel = root.gridPanel === "addGame" ? "" : "addGame"
+                                                StyledToolTip { text: root.gridPanel === "addGame" ? Translation.tr("Close") : Translation.tr("Add a game") }
+                                            }
+                                            StripButton {
+                                                iconName: "refresh"
+                                                spinning: GameLauncherService.loading && root.visible
+                                                enabled: !GameLauncherService.loading
+                                                onClicked: GameLauncherService.refreshGames()
+                                                StyledToolTip { text: Translation.tr("Refresh game list") }
+                                            }
+                                            StripButton {
+                                                iconName: "bar_chart"
+                                                label: Translation.tr("Stats")
+                                                on: root.showingStats
                                                 onClicked: {
-                                                    visibleSearchBar.text = "";
-                                                    visibleSearchBar.forceActiveFocus();
+                                                    root.showingStats = !root.showingStats;
+                                                    if (root.showingStats) { root.showingDetails = false; root.selectedGame = null; }
                                                 }
-                                            }
-                                        }
-                                        Rectangle {
-                                            Layout.alignment: Qt.AlignVCenter
-                                            width: 1; height: 20
-                                            color: Appearance.colors.colOutlineVariant
-                                            opacity: 0.4
-                                        }
-                                        IconToolbarButton { // Any app into the library: AddGamePanel grows up out of the launcher
-                                            id: addGameButton
-                                            Layout.alignment: Qt.AlignVCenter
-                                            text: "library_add"
-                                            toggled: root.gridPanel === "addGame"
-                                            onClicked: root.gridPanel = root.gridPanel === "addGame" ? "" : "addGame"
-                                            StyledToolTip { text: root.gridPanel === "addGame" ? Translation.tr("Close") : Translation.tr("Add a game") }
-                                        }
-                                        IconToolbarButton {
-                                            id: refreshButton
-                                            Layout.alignment: Qt.AlignVCenter
-                                            text: "refresh"
-                                            enabled: !GameLauncherService.loading
-                                            onClicked: GameLauncherService.refreshGames()
-                                            RotationAnimation {
-                                                id: spinAnimation
-                                                target: refreshButton
-                                                from: 0
-                                                to: 360
-                                                duration: 600
-                                                easing.type: Easing.InOutCubic
-                                                loops: Animation.Infinite
-                                                running: GameLauncherService.loading && root.visible
-                                                onStopped: {
-                                                    refreshButton.rotation = 0;
-                                                }
-                                            }
-                                            StyledToolTip {
-                                                text: Translation.tr("Refresh game list")
+                                                StyledToolTip { text: Translation.tr("Library statistics") }
                                             }
                                         }
                                     }
                                 }
-                                // Downloads: by the stats (status, not a filter), there while Steam downloads something
-                                // (or finished in the last hour), with how far the one downloading is. Opens the Downloads panel
-                                ToolbarGroup {
-                                    id: downloadsContainer
-                                    anchors { right: statsPill.left; rightMargin: 8 }
-                                    readonly property bool open: root.gridPanel === "downloads"
-                                    readonly property var current: GameLauncherService.activeDownloads.find(i => i.state === "downloading") ?? null
-                                    function toggle() { root.gridPanel = open ? "" : "downloads"; }
-                                    visible: open || GameLauncherService.activeDownloads.length > 0 || GameLauncherService.recentlyFinished
-                                    IconToolbarButton {
-                                        implicitHeight: 30
-                                        implicitWidth: 30
-                                        buttonRadius: Appearance.rounding.segment
-                                        text: "download"
-                                        colText: toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colPrimary
-                                        toggled: downloadsContainer.open
-                                        onClicked: downloadsContainer.toggle()
-                                        StyledToolTip { text: downloadsContainer.open ? Translation.tr("Close") : Translation.tr("Downloads") }
-                                    }
-                                    StyledText { // How far the current download is (opens the panel too)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: (downloadsContainer.current?.progress ?? -1) >= 0
-                                        leftPadding: 2; rightPadding: 6
-                                        text: `${Math.floor((downloadsContainer.current?.progress ?? 0) * 100)}%`
-                                        font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium
-                                        font.family: Appearance.font.family.numbers
-                                        font.variableAxes: ({}) // Not Roboto Flex's tuning
-                                        color: Appearance.colors.colPrimary
-                                        TapHandler { onTapped: downloadsContainer.toggle() }
-                                    }
-                                }
-                                // Game count, and the way into Library statistics: hover tints it and slides out a label
-                                Rectangle {
-                                    id: statsPill
-                                    anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                                    height: 34
-                                    radius: height / 3
-                                    clip: true // The label slides in from under the edge
-                                    readonly property bool hovered: _statsPillHover.hovered
-                                    // One value drives the whole reveal, so width, spacing and label move together
-                                    property real reveal: hovered ? 1 : 0
-                                    Behavior on reveal {
-                                        NumberAnimation {
-                                            duration: Appearance.animationCurves.expressiveDefaultSpatialDuration
-                                            easing.type: Easing.BezierSpline
-                                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                                        }
-                                    }
-                                    readonly property real _labelSpace: _statsLabel.implicitWidth + 7
-                                    width: Math.round(_statsBase.implicitWidth + 24 + _labelSpace * Math.max(0, reveal)) // Overshoot only outwards
-                                    color: ColorUtils.mix(ColorUtils.transparentize(Appearance.colors.colPrimary, 0.8), Appearance.colors.colLayer2, Math.max(0, Math.min(1, reveal)))
-                                    opacity: GameLauncherService.loading ? 0.0 : 1.0
-                                    visible: opacity > 0
-                                    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                                    HoverHandler { id: _statsPillHover; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler {
-                                        onTapped: {
-                                            root.showingStats = !root.showingStats;
-                                            if (root.showingStats) { root.showingDetails = false; root.selectedGame = null; }
-                                        }
-                                    }
-                                    StyledToolTip { text: Translation.tr("Library statistics") }
-                                    Row { // Icon + count, pinned to the left so nothing re-centres while the pill grows
-                                        id: _statsBase
-                                        x: 12
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 7
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "bar_chart"
-                                            iconSize: 18
-                                            fill: statsPill.reveal > 0.5 ? 1 : 0
-                                            color: Appearance.colors.colPrimary
-                                        }
-                                        StyledText {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: {
-                                                const filtered = GameLauncherService.filteredGames.length;
-                                                const total = GameLauncherService.displayableCount;
-                                                return filtered === total ? filtered.toString() : filtered + " / " + total;
-                                            }
-                                            font.pixelSize: Appearance.font.pixelSize.small
-                                            font.family: Appearance.font.family.numbers
-                                            font.variableAxes: ({}) // Not Roboto Flex's tuning (its light wght would win over font.weight)
-                                            font.weight: Font.Medium
-                                            color: statsPill.hovered ? Appearance.colors.colOnLayer0 : Appearance.colors.colOnSurfaceVariant
-                                            Behavior on color { ColorAnimation { duration: Appearance.animationCurves.expressiveEffectsDuration } }
-                                        }
-                                    }
-                                    StyledText { // "Stats": fades and slides in behind the count
-                                        id: _statsLabel
-                                        x: _statsBase.x + _statsBase.implicitWidth + 7 - 6 * (1 - statsPill.reveal)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: Translation.tr("Stats")
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        font.weight: Font.DemiBold
-                                        color: Appearance.colors.colPrimary
-                                        opacity: Math.max(0, Math.min(1, statsPill.reveal * 1.6 - 0.4))
-                                    }
-                                }
-                            }
                             Item {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
@@ -1319,25 +1253,84 @@ Scope {
     }
 }
     // ─── Inline Components ────────────────────────────────────
-    // The grid toolbar's buttons (top left): a neutral box, a step up on hover, holding a row of 30 px buttons
-    component ToolbarGroup: Rectangle {
-        id: group
-        default property alias content: groupRow.data
-        property real contentWidth: groupRow.width // Pickers set it themselves, to shrink as their options fade
-        anchors.verticalCenter: parent.verticalCenter
-        width: contentWidth + 6
-        height: 34
-        radius: Appearance.rounding.verysmall
-        color: groupHover.hovered ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2
-        clip: true
-        Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-        HoverHandler { id: groupHover }
-        Row { id: groupRow; anchors.centerIn: parent; spacing: 2 }
+    // The toolbar's strips: joined buttons in one rounded box, hairlines between them
+    component Strip: Rectangle {
+        id: strip
+        default property alias content: stripRow.data
+        implicitWidth: stripRow.implicitWidth
+        implicitHeight: 36
+        radius: Appearance.rounding.small
+        color: Appearance.colors.colLayer3
+        Row { id: stripRow; anchors.verticalCenter: parent.verticalCenter }
+        Repeater {
+            model: Math.max(0, stripRow.visibleChildren.length - 1)
+            Rectangle {
+                required property int index
+                x: stripRow.visibleChildren[index + 1]?.x ?? 0
+                anchors.verticalCenter: parent.verticalCenter
+                width: 1
+                height: 18
+                color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.9)
+            }
+        }
     }
-    // One of them that picks a value (launcher, sort): shows the current option's icon; clicked, the others
-    // slide out beside it. options: [{ value, icon, label }]
-    component ToolbarPicker: ToolbarGroup {
+    // A button in a strip: its icon, a name when it has one, a ▾ for a menu. On: in the accent, on a wash
+    component StripButton: RippleButton {
+        id: sb
+        property string iconName
+        property string label: ""
+        property bool chevron: false
+        property bool on: false
+        property bool spinning: false
+        implicitWidth: sbRow.implicitWidth + (label === "" ? 18 : 24)
+        implicitHeight: 36
+        buttonRadius: Appearance.rounding.small
+        colBackground: on ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.84) : "transparent"
+        colBackgroundHover: on ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.76) : Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
+        contentItem: Item {
+            Row {
+                id: sbRow
+                anchors.centerIn: parent
+                spacing: 6
+                MaterialSymbol {
+                    id: sbIcon
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: sb.iconName
+                    iconSize: 18
+                    fill: sb.on ? 1 : 0
+                    color: sb.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+                    RotationAnimation on rotation {
+                        running: sb.spinning
+                        from: 0; to: 360
+                        duration: 600
+                        easing.type: Easing.InOutCubic
+                        loops: Animation.Infinite
+                        onStopped: sbIcon.rotation = 0
+                    }
+                }
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: sb.label !== ""
+                    width: Math.min(implicitWidth, 160)
+                    elide: Text.ElideRight
+                    text: sb.label
+                    font.pixelSize: Appearance.font.pixelSize.smallie
+                    color: sb.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+                }
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: sb.chevron
+                    text: "expand_more"
+                    iconSize: 16
+                    color: Appearance.colors.colSubtext
+                }
+            }
+        }
+    }
+    // One that picks a value (launcher, sort): says what it's set to; clicked, the other options slide out beside
+    // it as icons. options: [{ value, icon, label }]
+    component ToolbarPicker: Item {
         id: picker
         property string title // Tooltip while closed
         property var options: []
@@ -1345,19 +1338,22 @@ Scope {
         property bool revealed: false
         signal picked(string value)
         readonly property var currentOption: options.find(o => o.value === current) ?? options[0]
-        contentWidth: pickerButton.width + (revealed ? pickerOptions.width + 2 : 0)
-        IconToolbarButton {
+        implicitWidth: pickerButton.implicitWidth + (revealed ? pickerOptions.implicitWidth + 2 : 0)
+        implicitHeight: 36
+        clip: true
+        Behavior on implicitWidth { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        StripButton {
             id: pickerButton
-            implicitHeight: 30; implicitWidth: 30
-            buttonRadius: Appearance.rounding.segment
-            text: picker.currentOption?.icon ?? ""
-            colText: toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colPrimary
-            toggled: picker.revealed
+            iconName: picker.currentOption?.icon ?? ""
+            label: picker.currentOption?.label ?? ""
+            chevron: true
+            on: picker.revealed
             onClicked: picker.revealed = !picker.revealed
-            StyledToolTip { text: picker.revealed ? (picker.currentOption?.label ?? "") : picker.title }
+            StyledToolTip { text: picker.title }
         }
         Row {
             id: pickerOptions
+            x: pickerButton.implicitWidth + 2
             anchors.verticalCenter: parent.verticalCenter
             opacity: picker.revealed ? 1 : 0
             visible: opacity > 0

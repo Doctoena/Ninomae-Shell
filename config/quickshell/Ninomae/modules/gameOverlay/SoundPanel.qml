@@ -163,7 +163,7 @@ Rectangle {
                 Layout.fillWidth: true
                 spacing: 6
                 StyledText {
-                    Layout.maximumWidth: nameRow.width - (rowSub.visible ? rowSub.implicitWidth + 6 : 0) - 32
+                    Layout.preferredWidth: Math.min(implicitWidth, 210) // Not from the row's width: that loops the layout
                     elide: Text.ElideRight
                     text: row.name
                     font.pixelSize: Appearance.font.pixelSize.smallie

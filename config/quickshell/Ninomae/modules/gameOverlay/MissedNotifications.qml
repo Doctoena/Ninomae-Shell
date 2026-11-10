@@ -106,7 +106,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 6
                 StyledText {
-                    Layout.maximumWidth: parent.width - featuredWhen.implicitWidth - 6
+                    Layout.preferredWidth: Math.min(implicitWidth, 200) // Not from the row's width: that loops the layout
                     elide: Text.ElideRight
                     text: featured.n?.summary ?? ""
                     font.pixelSize: Appearance.font.pixelSize.small

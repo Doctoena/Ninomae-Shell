@@ -127,13 +127,19 @@ Item {
         GameLauncherService.fetchPlayerCount(game);
         if (game?.id?.startsWith("steam_")) {
             GameLauncherService.fetchMetadata(game);
-            GameLauncherService.loadNews(game); // For the News button's unread count (cached an hour)
+            GameLauncherService.loadNews(game); // For the News row: its newest headline and how many are new (cached an hour)
+            GameLauncherService.loadAchievements(game); // For the Achievements row's count (cached a day)
         } else if (game?.id?.startsWith("lutris_")) GameLauncherService.fetchLutrisMetadata(game);
+        capturesPeek.running = true;
+        root._measureSize();
         root.arrived();
     }
     Component.onCompleted: { animationResetTimer.start(); _arrive(); }
     onShownChanged: _arrive()
-    onGameChanged: if (_arrived) GameLauncherService.fetchPlayerCount(game)
+    onGameChanged: {
+        factsOpen = false;
+        if (_arrived) GameLauncherService.fetchPlayerCount(game);
+    }
     // "3 days ago": for the Updated chip
     function _ago(ms) {
         const m = Math.floor((Date.now() - ms) / 60000);
@@ -348,116 +354,135 @@ Item {
         return names[r] ?? (r ? r.charAt(0).toUpperCase() + r.slice(1) : "");
     }
     readonly property bool _runsNatively: game?.runner === "linux" || !!game?.flatpakId
-    // ─── Stats pill (top-right): status · ProtonDB · playtime · playing now, in the panel's own style; its
-    // drawer (hover) has last played, install size and where it's from ───
-    readonly property var _stats: {
+    // ─── Facts pill (top-right): one slim see-through line of what changes: how it runs (Lutris), an update since you
+    // last played, ProtonDB, hours, players. Not the install status: the Play button says it. Hovered, the rest
+    // (_extraStats: last played, size, where it's from) drops into a card joined under it ───
+    readonly property var _pillFacts: {
         if (!game) return [];
         const out = [];
         if (root._runnerLabel !== "")
-            out.push({ icon: root._runsNatively ? "terminal" : "wine_bar", label: Translation.tr("Runs on"), value: root._runnerLabel, accent: Appearance.colors.colPrimary });
-        const st = root.installState;
-        const pct = root.downloadProgress >= 0 ? ` ${Math.floor(root.downloadProgress * 100)}%` : "";
-        if (GameClips.gameId === game.id) // Running now
-            out.push({ icon: "sports_esports", label: Translation.tr("Status"), value: Translation.tr("Playing"), accent: Appearance.colors.colPrimary });
-        else if (st === "installing")
-            out.push({ icon: "download", label: Translation.tr("Status"), value: Translation.tr("Installing") + pct, accent: Appearance.colors.colTertiary });
-        else if (st === "installQueued" || st === "updateQueued")
-            out.push({ icon: "schedule", label: Translation.tr("Status"), value: (st === "installQueued" ? Translation.tr("Queued") : Translation.tr("Update queued")) + pct,
-                       accent: Appearance.colors.colTertiary });
-        else if (st === "installPaused")
-            out.push({ icon: "pause_circle", label: Translation.tr("Status"), value: Translation.tr("Install paused") + pct, accent: Appearance.colors.colTertiary });
-        else if (st === "updating")
-            out.push({ icon: "downloading", label: Translation.tr("Status"), value: Translation.tr("Updating") + pct, accent: Appearance.colors.colTertiary });
-        else if (st === "updateRequired")
-            out.push({ icon: "downloading", label: Translation.tr("Status"), value: Translation.tr("Update ready"), accent: Appearance.colors.colTertiary });
-        else if (st === "updatePaused")
-            out.push({ icon: "pause_circle", label: Translation.tr("Status"), value: Translation.tr("Update paused") + pct, accent: Appearance.colors.colTertiary });
-        else if (st === "uninstalling")
-            out.push({ icon: "delete", label: Translation.tr("Status"), value: Translation.tr("Uninstalling"), accent: Appearance.colors.colError });
-        else if (root._modsOnly)
-            out.push({ icon: "extension", label: Translation.tr("Status"), value: Translation.tr("Downloading mods") + pct, accent: Appearance.colors.colTertiary });
-        else if (st === "installed" && GameLauncherService.updatedSincePlayed(game)) // Patched since you last played
-            out.push({ icon: "new_releases", label: Translation.tr("Updated"), value: root._ago(game.lastUpdated * 1000), accent: Appearance.colors.colTertiary });
-
+            out.push({ icon: root._runsNatively ? "terminal" : "wine_bar", text: root._runnerLabel, accent: Appearance.colors.colPrimary });
+        if (root.installState === "installed" && GameClips.gameId !== game.id && !root._modsOnly
+                && GameLauncherService.updatedSincePlayed(game)) // Patched since you last played
+            out.push({ icon: "new_releases", text: Translation.tr("Updated %1").arg(root._ago(game.lastUpdated * 1000)), accent: Appearance.colors.colTertiary });
         const tier = game.protondbTier || "";
         if (tier !== "") {
-            const tierColors = { "platinum": "#b4c7dc", "gold": "#cfb53b", "silver": "#a6a6a6", "bronze": "#cd7f32", "borked": "#ff4444", "native": "#5cb85c" };
-            out.push({ icon: "science", label: "ProtonDB", value: tier.charAt(0).toUpperCase() + tier.slice(1),
-                       accent: ColorUtils.mix(tierColors[tier] || Appearance.colors.colPrimary, Appearance.colors.colPrimary, 0.45) });
+            const tierColors = { "platinum": "#c9d6ea", "gold": "#cfb53b", "silver": "#a6a6a6", "bronze": "#cd7f32", "borked": "#ff4444", "native": "#5cb85c" };
+            out.push({ icon: "science", text: tier.charAt(0).toUpperCase() + tier.slice(1), accent: tierColors[tier] || Appearance.colors.colPrimary });
         }
         if (game.playtime > 0) {
             const h = Math.floor(game.playtime / 60);
-            out.push({ icon: "timer", label: Translation.tr("Played"), value: h > 0 ? h + (h === 1 ? " hour" : " hours") : "< 1 hour", accent: Appearance.colors.colPrimary });
+            out.push({ icon: "timer", text: h > 0 ? Translation.tr("%1 h played").arg(h) : Translation.tr("< 1 h played"), accent: Appearance.colors.colPrimary });
         }
         // Players in it right now (Steam's count; not for games it doesn't count)
         const players = GameLauncherService.playerCount(game); // Re-read as the counts come in (the binding sees playerCounts)
         if (players > 0)
-            out.push({ icon: "group", label: Translation.tr("Playing now"), value: String(players).replace(/\B(?=(\d{3})+(?!\d))/g, ","), accent: Appearance.colors.colPrimary });
+            out.push({ icon: "group", text: Translation.tr("%1 playing").arg(String(players).replace(/\B(?=(\d{3})+(?!\d))/g, ",")), accent: Appearance.colors.colPrimary });
         return out;
     }
-    Rectangle {
+    property bool factsOpen: false
+    // See-through, with a hairline edge, so the art shows through (as Achievements' highlights)
+    readonly property color _glass: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.38)
+    readonly property color _glassEdge: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.91)
+    Timer { id: factsCloseTimer; interval: 250; onTriggered: root.factsOpen = factsHover.hovered }
+    readonly property real _factsWidth: Math.max(factsRow.implicitWidth + 12, factsOpen ? extrasCol.implicitWidth + 28 : 0)
+    Column {
         id: infoCard
         anchors { right: parent.right; rightMargin: 30; top: parent.top; topMargin: 30 }
-        // Grows while the drawer is out so the drawer (which must fit under the flat edge) has room for its values
-        width: Math.max(statsRow.implicitWidth + 8, root.statsHovered ? root._statsCardNeededW + 2 * (radius + root._statsJoin + 4) : 0)
-        Behavior on width {
-            NumberAnimation {
-                duration: root.statsHovered ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: root.statsHovered ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
+        spacing: 3
+        visible: root._pillFacts.length > 0 || root._extraStats.length > 0
+        z: 10
+        HoverHandler { // Open while the pointer is on the pill or its card; a moment's grace on the way out
+            id: factsHover
+            onHoveredChanged: {
+                if (hovered && root._extraStats.length > 0) { factsCloseTimer.stop(); root.factsOpen = true; }
+                else factsCloseTimer.restart();
             }
         }
-        height: 42
-        radius: height / 3
-        color: Appearance.m3colors.m3background
-        visible: root._stats.length > 0
-        z: 10
         opacity: root.animationReady ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-        HoverHandler { id: statsPillHover; onHoveredChanged: root._syncStatsHover() }
-        Row {
-            id: statsRow
-            anchors.centerIn: parent
-            Repeater {
-                model: root._stats
-                Row {
-                    required property var modelData
-                    required property int index
-                    height: 42
-                    Rectangle { // Divider between stats
-                        visible: index > 0
-                        width: 1; height: 18
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: ColorUtils.transparentize(Appearance.colors.colOnSurface, 0.88)
-                    }
+        Rectangle {
+            width: root._factsWidth
+            height: 34
+            topLeftRadius: Appearance.rounding.small
+            topRightRadius: Appearance.rounding.small
+            bottomLeftRadius: root.factsOpen ? Appearance.rounding.joined : Appearance.rounding.small
+            bottomRightRadius: bottomLeftRadius
+            color: root._glass
+            border.width: 1
+            border.color: root._glassEdge
+            Row {
+                id: factsRow
+                anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                Repeater {
+                    model: root._pillFacts
                     Row {
+                        required property var modelData
+                        required property int index
                         anchors.verticalCenter: parent.verticalCenter
-                        leftPadding: 5; rightPadding: 11
-                        spacing: 8
-                        Rectangle {
-                            width: 26; height: 26; radius: 9
+                        Rectangle { // Between facts
+                            visible: index > 0
                             anchors.verticalCenter: parent.verticalCenter
-                            color: ColorUtils.transparentize(modelData.accent, 0.82)
-                            MaterialSymbol { anchors.centerIn: parent; text: modelData.icon; iconSize: 14; fill: 1; color: modelData.accent }
+                            width: 1; height: 16
+                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
                         }
-                        Column {
+                        Row {
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 0
-                            StyledText { text: modelData.label; font.pixelSize: 9; color: Appearance.colors.colSubtext }
-                            StyledText { text: modelData.value; font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.DemiBold; color: Appearance.colors.colOnLayer0 }
+                            leftPadding: 10; rightPadding: 10
+                            spacing: 6
+                            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: modelData.icon; iconSize: 16; fill: 1; color: modelData.accent }
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.text
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                font.weight: Font.Medium
+                                color: Appearance.colors.colOnLayer0
+                            }
                         }
+                    }
+                }
+                MaterialSymbol { // There's more: points down, then up once it's out
+                    visible: root._extraStats.length > 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    leftPadding: 2; rightPadding: 4
+                    text: "expand_more"
+                    iconSize: 20
+                    rotation: root.factsOpen ? 180 : 0
+                    Behavior on rotation { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+                    color: root.factsOpen ? Appearance.colors.colOnLayer0 : Appearance.colors.colSubtext
+                }
+            }
+        }
+        Rectangle { // Last played, size, where it's from
+            visible: opacity > 0
+            opacity: root.factsOpen ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+            width: root._factsWidth
+            height: extrasCol.implicitHeight + 16
+            topLeftRadius: Appearance.rounding.joined
+            topRightRadius: Appearance.rounding.joined
+            bottomLeftRadius: Appearance.rounding.small
+            bottomRightRadius: Appearance.rounding.small
+            color: root._glass
+            border.width: 1
+            border.color: root._glassEdge
+            Column {
+                id: extrasCol
+                x: 14; y: 8
+                spacing: 2
+                Repeater {
+                    model: root._extraStats
+                    Row {
+                        required property var modelData
+                        height: 28; spacing: 10
+                        MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: modelData.icon; iconSize: 15; color: Appearance.colors.colPrimary }
+                        StyledText { anchors.verticalCenter: parent.verticalCenter; width: 84; text: modelData.label; font.pixelSize: Appearance.font.pixelSize.smallest; color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.35) }
+                        StyledText { anchors.verticalCenter: parent.verticalCenter; text: modelData.value; font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium; color: Appearance.colors.colOnLayer0 }
                     }
                 }
             }
         }
     }
-    // ─── Stats hover card: drops down from the stats pill with more detail ───
-    property bool statsHovered: false
-    function _syncStatsHover() {
-        if (statsPillHover.hovered || statsCardHover.hovered) { statsCloseTimer.stop(); statsHovered = true; }
-        else statsCloseTimer.restart();
-    }
-    Timer { id: statsCloseTimer; interval: 250; onTriggered: root.statsHovered = statsPillHover.hovered || statsCardHover.hovered }
     function _fmtBytes(b) {
         const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0;
         while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
@@ -468,10 +493,13 @@ Item {
     // Installed: measured on disk, with its Workshop mods. Not installed (Steam): what it would take,
     // from Steam's own app cache
     readonly property bool _sizeFromSteam: !(game?.gameDir) && (game?.id?.startsWith("steam_") ?? false)
-    onStatsHoveredChanged: {
-        // Re-measured once something changes what's on disk: an install, an update or mods coming in
-        const key = game ? [game.id, game.gameDir || "", installState, root._modsOnly].join("|") : "";
-        if (!statsHovered || !game || _installSizeFor === key) return;
+    // Measured once the page arrives, and again once something changes what's on disk: an install, an update
+    // or mods coming in
+    readonly property string _sizeKey: game ? [game.id, game.gameDir || "", installState, root._modsOnly].join("|") : ""
+    on_SizeKeyChanged: if (_arrived) _measureSize()
+    function _measureSize() {
+        const key = _sizeKey;
+        if (!game || _installSizeFor === key) return;
         if (game.gameDir) {
             _installSizeFor = key; _installSize = "…";
             sizeProc.modsDir = GameLauncherService.steamPaths(game)?.mods ?? "";
@@ -523,105 +551,13 @@ Item {
         if (src) rows.push({ icon: "storefront", label: Translation.tr("From"), value: src });
         return rows;
     }
-    // Drawer that slides down out of the pill's bottom edge (same blob animation as the bar drawers)
-    // Keep the drawer (plus its gooey joins) under the pill's flat bottom edge, clear of the rounded
-    // ends, so the pill keeps its shape while the drawer is out
-    readonly property real _statsJoin: 10
-    readonly property real _statsCardW: infoCard.width - 2 * (infoCard.radius + _statsJoin + 4)
-    // Width the drawer needs to show every value in full (icon + label column + widest value + margins), capped
-    readonly property real _statsCardNeededW: Math.min(420, 15 + 78 + 16 + _statsValueMeasure.implicitWidth + 28 + 2)
-    Column { // Invisible measure of the widest drawer value
-        id: _statsValueMeasure
-        visible: false
-        Repeater {
-            model: root._extraStats
-            StyledText { required property var modelData; text: modelData.value; font.pixelSize: Appearance.font.pixelSize.smallest; font.weight: Font.Medium }
-        }
-    }
-    readonly property real _statsCardH: statsCol.implicitHeight + 24
-    property real _statsOffset: root.statsHovered ? 0 : 1 // 0 = out, 1 = tucked in
-    Behavior on _statsOffset {
-        NumberAnimation {
-            duration: root.statsHovered ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: root.statsHovered ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
-        }
-    }
-    readonly property real _statsTop: -(_statsCardH + 60) * _statsOffset
-    readonly property real _statsY: Math.min(0, _statsTop)
-    readonly property real _statsLen: _statsCardH + Math.max(0, _statsTop)
-    readonly property real _statsShown: Math.max(0, _statsY + _statsLen)
-    Item {
-        id: statsStage
-        // Starts at the pill's top: the blob's stand-in is an exact copy of the pill (hidden behind
-        // it), so the gooey joins follow the pill's rounded shape instead of a flat bar
-        anchors { horizontalCenter: infoCard.horizontalCenter; top: infoCard.top }
-        width: infoCard.width
-        height: infoCard.height + root._statsCardH * 1.12 + 20
-        clip: true
-        z: 9
-        visible: infoCard.visible && root._extraStats.length > 0 && root._statsOffset < 1
-        Loader {
-            anchors.fill: parent
-            active: statsStage.visible
-            source: Qt.resolvedUrl("../overview/BlobDrawerBackground.qml")
-            onLoaded: {
-                item.barBottom = Qt.binding(() => infoCard.height);
-                // Copy of the pill inset by 4px (bottom edge kept) so its corners never peek out
-                // around the real pill and change its roundness while the drawer is open
-                item.barHeight = Qt.binding(() => infoCard.height - 4);
-                item.barRadius = Qt.binding(() => infoCard.radius - 4);
-                item.barX = 4;
-                item.barWidth = Qt.binding(() => statsStage.width - 8);
-                item.fillColor = Appearance.m3colors.m3background;
-                item.fillOpacity = 1.0;
-                item.smoothing = root._statsJoin;
-                item.drawerX = Qt.binding(() => (statsStage.width - root._statsCardW) / 2);
-                item.drawerY = Qt.binding(() => infoCard.height + root._statsY);
-                item.drawerWidth = Qt.binding(() => root._statsCardW);
-                item.drawerHeight = Qt.binding(() => root._statsLen);
-                item.drawerRadius = Qt.binding(() => Math.min(Appearance.rounding.large, root._statsShown / 2));
-            }
-        }
-        Item {
-            id: statsCard
-            x: (statsStage.width - width) / 2
-            y: infoCard.height + root._statsY // Slides with the drawer
-            width: root._statsCardW
-            height: root._statsCardH
-            opacity: 1 - root._statsOffset
-            HoverHandler { id: statsCardHover; onHoveredChanged: root._syncStatsHover() }
-            Column {
-                id: statsCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14; topMargin: 12 }
-                spacing: 2
-                Repeater {
-                    model: root._extraStats
-                    Row {
-                        required property var modelData
-                        height: 28; spacing: 8
-                        MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: modelData.icon; iconSize: 15; color: Appearance.colors.colPrimary }
-                        StyledText { anchors.verticalCenter: parent.verticalCenter; width: 78; text: modelData.label; font.pixelSize: Appearance.font.pixelSize.smallest; color: Appearance.colors.colSubtext }
-                        StyledText {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: statsCol.width - 15 - 78 - 16
-                            text: modelData.value
-                            elide: Text.ElideRight
-                            font.pixelSize: Appearance.font.pixelSize.smallest; font.weight: Font.Medium
-                            color: Appearance.colors.colOnLayer0
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Item { // Back button, top-left
+    Item { // Back to the library, top-left
         anchors { left: parent.left; top: parent.top; leftMargin: 30; topMargin: 28 }
-        width: 36; height: 36; z: 10
+        width: backButton.implicitWidth; height: 36; z: 10
         RippleButton {
             id: backButton
             anchors.fill: parent
-            width: 36
+            implicitWidth: backRow.implicitWidth + 20
             height: 36
             buttonRadius: 12
             padding: 0
@@ -632,28 +568,41 @@ Item {
             opacity: hovered || activeFocus ? 1.0 : 0.7
             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             contentItem: Item {
-                implicitWidth: 36; implicitHeight: 36
-                MaterialSymbol {
-                    anchors.centerIn: parent; text: "arrow_back"; iconSize: 20
-                    color: Appearance.colors.colOnLayer0
+                implicitHeight: 36
+                Row {
+                    id: backRow
+                    anchors.centerIn: parent
+                    spacing: 8
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "arrow_back"; iconSize: 20
+                        color: Appearance.colors.colOnLayer0
+                    }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Translation.tr("Library")
+                        font.pixelSize: Appearance.font.pixelSize.smallie
+                        color: Appearance.colors.colOnLayer0
+                    }
                 }
             }
             onClicked: { root.backPressed(); focus = false; }
-            StyledToolTip { text: Translation.tr("Back") }
         }
     }
     Row { // Game actions, laid out under the Play button (slot reserved in sidebarContent)
         id: topLeftButtons
-        x: sidebarContent.x + actionRowSlot.x + (actionRowSlot.width - width) / 2
-        y: sidebarContent.y + actionRowSlot.y + (actionRowSlot.height - height) / 2
-        spacing: 14; z: 11
+        x: sidebarContent.x + actionRowSlot.x
+        y: sidebarContent.y + actionRowSlot.y
+        spacing: 0; z: 11
         ToggleIcon {
+            label: Translation.tr("Favorite")
             iconName: "star"
             on: { const _ = GameLauncherService.favoritesRevision; return !!game && GameLauncherService.isFavorite(game.id); }
             tip: on ? Translation.tr("Remove from favorites") : Translation.tr("Add to favorites")
             onFlipped: GameLauncherService.toggleFavorite(game.id)
         }
         ToggleIcon {
+            label: Translation.tr("Completed")
             iconName: "check_circle"
             on: { const _ = GameLauncherService.completedGamesRevision; return !!game && GameLauncherService.isCompleted(game.id); }
             tip: on ? Translation.tr("Remove from completed") : Translation.tr("Mark as completed")
@@ -662,34 +611,28 @@ Item {
         // --- Tag button with popup menu ---
         RippleButton {
             id: tagIconBtn
-            width: 36; height: 36
-            buttonRadius: 12; padding: 0
+            width: root._stripCell; height: actionRowSlot.height
+            buttonRadius: Appearance.rounding.small; padding: 0
             colBackground: "transparent"
-            colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.85)
-            colRipple: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.7)
+            colBackgroundHover: Appearance.colors.colLayer3Hover
+            colRipple: Appearance.colors.colLayer3Active
             buttonColor: (hovered || activeFocus || tagMenuPopup.open) ? colBackgroundHover : colBackground
             property var gameTags: {
                 const _ = GameLauncherService.tagsRevision;
                 return game ? GameLauncherService.getGameTags(game.id) : [];
             }
             property bool hasTags: gameTags.length > 0
-            opacity: (hovered || activeFocus || hasTags || tagMenuPopup.open) ? 1.0 : 0.7
-            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-            contentItem: Item {
-                implicitWidth: 36; implicitHeight: 36
-                MaterialSymbol {
-                    anchors.centerIn: parent; text: "sell"; iconSize: 20
-                    fill: tagIconBtn.hasTags ? 1 : 0
-                    color: tagIconBtn.hasTags ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0
-                    Behavior on fill { NumberAnimation { duration: 200 } }
-                    Behavior on color { ColorAnimation { duration: 200 } }
-                }
+            contentItem: StripCell {
+                iconName: "sell"
+                label: Translation.tr("Tags")
+                on: tagIconBtn.hasTags
             }
             onClicked: { tagMenuPopup.open = !tagMenuPopup.open; if (tagMenuPopup.open) tagInputField.forceActiveFocus(); else focus = false; }
             StyledToolTip { text: Translation.tr("Tags"); visible: !tagMenuPopup.open && tagIconBtn.hovered }
         }
         ToggleIcon { // The crosshair overlay in this game (services/Crosshair.qml)
             readonly property var games: Config.options.crosshair?.games ?? []
+            label: Translation.tr("Crosshair")
             iconName: "my_location"
             on: !!game && games.indexOf(game.id) >= 0
             tip: on ? Translation.tr("Crosshair on in this game") : Translation.tr("Turn on the crosshair in this game")
@@ -698,15 +641,15 @@ Item {
         // --- More: less-used actions in a small labelled menu ---
         RippleButton {
             id: moreBtn
-            width: 36; height: 36; buttonRadius: 12; padding: 0
+            width: root._stripCell; height: actionRowSlot.height; buttonRadius: Appearance.rounding.small; padding: 0
             colBackground: "transparent"
-            colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.85)
-            colRipple: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.7)
+            colBackgroundHover: Appearance.colors.colLayer3Hover
+            colRipple: Appearance.colors.colLayer3Active
             buttonColor: (hovered || moreMenu.open) ? colBackgroundHover : colBackground
-            opacity: (hovered || moreMenu.open) ? 1.0 : 0.7
-            contentItem: Item {
-                implicitWidth: 36; implicitHeight: 36
-                MaterialSymbol { anchors.centerIn: parent; text: "more_horiz"; iconSize: 22; color: moreMenu.open ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0 }
+            contentItem: StripCell {
+                iconName: "more_horiz"
+                label: Translation.tr("More")
+                on: moreMenu.open
             }
             onClicked: moreMenu.open = !moreMenu.open
         }
@@ -1127,13 +1070,14 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 8
             Layout.rightMargin: 8
-            spacing: 2
+            spacing: 4
             RippleButton {
                 id: playButton
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
-                buttonRadius: height / 3
-                buttonRadiusRight: chooserButton.visible ? 6 : -1
+                Layout.preferredHeight: 52
+                buttonRadius: Appearance.rounding.joined
+                buttonRadiusTopLeft: Appearance.rounding.normal
+                buttonRadiusTopRight: chooserButton.visible ? Appearance.rounding.joined : Appearance.rounding.normal
                 padding: 0
                 activeFocusOnTab: true
                 colBackground: Appearance.colors.colPrimary
@@ -1185,12 +1129,13 @@ Item {
                     "installed":      { icon: "play_arrow",  text: Translation.tr("Play") }
                 })[root.installState] ?? { icon: "play_arrow", text: Translation.tr("Play") }
                 contentItem: Item {
-                    implicitHeight: 44
-                    Rectangle { // Download progress (the game's, or its mods'), filling the pill from the left
+                    implicitHeight: 52
+                    Rectangle { // Download progress (the game's, or its mods'), filling the button from the left
                         visible: root._downloadPhase !== "" && root.downloadProgress >= 0
                         anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
                         width: parent.width * Math.max(0, root.downloadProgress)
-                        radius: height / 3
+                        radius: Appearance.rounding.joined
+                        topLeftRadius: Appearance.rounding.normal
                         color: ColorUtils.transparentize(Appearance.colors.colOnPrimary, 0.8)
                         Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
                     }
@@ -1231,10 +1176,10 @@ Item {
             RippleButton { // The other ways to start it, once Play starts one without asking (launchDefault)
                 id: chooserButton
                 visible: root.installState === "installed" && !playButton.playing && root.launchDefault >= 0
-                Layout.preferredWidth: 40
-                Layout.preferredHeight: 44
-                buttonRadius: height / 3
-                buttonRadiusLeft: 6
+                Layout.preferredWidth: 44
+                Layout.preferredHeight: 52
+                buttonRadius: Appearance.rounding.joined
+                buttonRadiusTopRight: Appearance.rounding.normal
                 padding: 0
                 colBackground: Appearance.colors.colPrimary
                 colBackgroundHover: Appearance.colors.colPrimaryHover
@@ -1253,12 +1198,28 @@ Item {
                 StyledToolTip { text: Translation.tr("Other ways to start it") }
             }
         }
-        Item { // Slot for the action icons (topLeftButtons is positioned on top of it)
+        Rectangle { // The action strip's card, under Play (topLeftButtons is positioned on top of it, a cell each)
             id: actionRowSlot
             Layout.fillWidth: true
             Layout.leftMargin: 8; Layout.rightMargin: 8
-            Layout.topMargin: 10; Layout.bottomMargin: 14
-            Layout.preferredHeight: 36
+            Layout.topMargin: 4; Layout.bottomMargin: 10
+            Layout.preferredHeight: 58
+            topLeftRadius: Appearance.rounding.joined
+            topRightRadius: Appearance.rounding.joined
+            bottomLeftRadius: Appearance.rounding.normal
+            bottomRightRadius: Appearance.rounding.normal
+            color: Appearance.colors.colLayer3
+            Repeater { // Hairlines between the cells
+                model: 4
+                Rectangle {
+                    required property int index
+                    x: Math.round(root._stripCell * (index + 1))
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 1
+                    height: parent.height - 20
+                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.92)
+                }
+            }
         }
         readonly property bool _isSteam: game?.id?.startsWith("steam_") ?? false
         readonly property bool _isLutris: game?.id?.startsWith("lutris_") ?? false
@@ -1285,11 +1246,11 @@ Item {
             actions.push({ icon: "devices", label: qsTr("PCGamingWiki"),  type: "pcgamingwiki" });
             return actions;
         }
-        ColumnLayout {
+        ColumnLayout { // The menu: joined rows, each saying what's inside
             Layout.fillWidth: true
             Layout.leftMargin: 8
             Layout.rightMargin: 8
-            spacing: 2
+            spacing: 4
             Repeater {
                 id: sidebarRepeater
                 model: sidebarContent._isSteam ? sidebarContent._steamActions
@@ -1301,56 +1262,149 @@ Item {
                     required property var modelData
                     required property int index
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 32
-                    buttonRadius: height / 3
+                    Layout.preferredHeight: headline !== "" ? 48 : 40
+                    buttonRadius: Appearance.rounding.joined
+                    buttonRadiusTopLeft: index === 0 ? Appearance.rounding.normal : Appearance.rounding.joined
+                    buttonRadiusTopRight: buttonRadiusTopLeft
+                    buttonRadiusBottomLeft: index === sidebarRepeater.count - 1 ? Appearance.rounding.normal : Appearance.rounding.joined
+                    buttonRadiusBottomRight: buttonRadiusBottomLeft
                     padding: 0
                     activeFocusOnTab: true
-                    colBackground: "transparent"
-                    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.92)
-                    colRipple: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.85)
+                    colBackground: Appearance.colors.colLayer3
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    colRipple: Appearance.colors.colLayer3Active
                     // Its panel is open: tinted, with the icon and label in the accent (accent = active)
                     readonly property bool panelOpen: root.openPanel !== "" && root.openPanel === modelData.type
                     readonly property bool lit: hovered || activeFocus
-                    buttonColor: panelOpen ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.86)
+                    readonly property bool isLink: !root.panelTypes.includes(modelData.type)
+                    buttonColor: panelOpen ? ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colPrimary, 0.82)
                         : lit ? colBackgroundHover : colBackground
-                    // News: how many posts are new since its panel was last opened
-                    readonly property int unread: modelData.type === "news" && GameLauncherService.newsFor === (game?.id ?? "")
-                        ? GameLauncherService.unreadNews : 0
+                    // News: how many posts are new since its panel was last opened, and the newest one's title
+                    readonly property bool newsLoaded: modelData.type === "news" && GameLauncherService.newsFor === (game?.id ?? "")
+                    readonly property int unread: newsLoaded ? GameLauncherService.unreadNews : 0
+                    readonly property string headline: newsLoaded ? (GameLauncherService.news[0]?.title ?? "") : ""
+                    // Achievements: how many of how many
+                    readonly property var achieved: modelData.type === "achievements" && GameLauncherService.achievementsFor === (game?.id ?? "")
+                        && (GameLauncherService.achievements?.total ?? 0) > 0 ? GameLauncherService.achievements : null
+                    readonly property string tier: modelData.label === "ProtonDB" ? (game?.protondbTier ?? "") : ""
                     contentItem: Item {
-                        implicitHeight: 32
-                        Rectangle { // Unread count
-                            anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                            visible: actionBtn.unread > 0
-                            width: Math.max(height, unreadText.implicitWidth + 12); height: 18; radius: Appearance.rounding.unsharpenmore
-                            color: Appearance.colors.colPrimary
-                            StyledText {
-                                id: unreadText
-                                anchors.centerIn: parent
-                                text: actionBtn.unread > 9 ? "9+" : actionBtn.unread
+                        implicitHeight: actionBtn.Layout.preferredHeight
+                        MaterialSymbol {
+                            id: actionIcon
+                            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                            text: actionBtn.modelData.icon; iconSize: 18
+                            fill: actionBtn.panelOpen ? 1 : 0
+                            color: (actionBtn.lit || actionBtn.panelOpen) ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                            Behavior on color { ColorAnimation { duration: 180 } }
+                        }
+                        Column {
+                            anchors { left: actionIcon.right; leftMargin: 12; right: detail.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                            spacing: 1
+                            Row {
+                                spacing: 6
+                                StyledText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: Math.min(implicitWidth, detail.x - actionIcon.x - actionIcon.width - 20)
+                                    elide: Text.ElideRight
+                                    text: actionBtn.modelData.label
+                                    color: actionBtn.panelOpen ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+                                    font.pixelSize: Appearance.font.pixelSize.smallie
+                                    font.weight: Font.Medium
+                                }
+                                Rectangle { // New posts
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: actionBtn.unread > 0
+                                    width: unreadText.implicitWidth + 10; height: 16; radius: 5
+                                    color: Appearance.colors.colPrimary
+                                    StyledText {
+                                        id: unreadText
+                                        anchors.centerIn: parent
+                                        text: Translation.tr("%1 new").arg(actionBtn.unread > 9 ? "9+" : actionBtn.unread)
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
+                                        font.weight: Font.DemiBold
+                                        color: Appearance.colors.colOnPrimary
+                                    }
+                                }
+                            }
+                            StyledText { // The newest post's title
+                                width: parent.width
+                                visible: actionBtn.headline !== ""
+                                elide: Text.ElideRight
+                                text: actionBtn.headline
                                 font.pixelSize: Appearance.font.pixelSize.smallest
-                                font.weight: Font.DemiBold
-                                color: Appearance.colors.colOnPrimary
+                                color: Appearance.colors.colSubtext
                             }
                         }
-                        Row {
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.left: parent.left; anchors.leftMargin: 12
-                            spacing: 12
-                            MaterialSymbol {
-                                text: actionBtn.modelData.icon; iconSize: 20
-                                fill: actionBtn.panelOpen ? 1 : 0
-                                color: (actionBtn.lit || actionBtn.panelOpen) ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.35)
-                                Behavior on color { ColorAnimation { duration: 180 } }
+                        Row { // What's inside, then where it goes
+                            id: detail
+                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                            spacing: 6
+                            Rectangle { // ProtonDB's tier
                                 anchors.verticalCenter: parent.verticalCenter
+                                visible: actionBtn.tier !== ""
+                                width: tierText.implicitWidth + 12; height: 20; radius: 6
+                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.88)
+                                StyledText {
+                                    id: tierText
+                                    anchors.centerIn: parent
+                                    text: actionBtn.tier.charAt(0).toUpperCase() + actionBtn.tier.slice(1)
+                                    font.pixelSize: Appearance.font.pixelSize.smallest
+                                    color: Appearance.colors.colOnLayer3
+                                }
+                            }
+                            Row { // Captures: the newest screenshots
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 3
+                                Repeater {
+                                model: actionBtn.modelData.type === "screenshots" ? root._peekShots : []
+                                Rectangle {
+                                    required property string modelData
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 28; height: 18; radius: 4
+                                    color: Appearance.colors.colLayer4
+                                    clip: true
+                                    Image {
+                                        anchors.fill: parent
+                                        source: "file://" + parent.modelData
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                        sourceSize.width: 96 // Fixed: re-decoding with the size flickers
+                                    }
+                                }
+                                }
+                            }
+                            StyledText { // Captures: how many
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: actionBtn.modelData.type === "screenshots" && root._peekCount > 0
+                                text: root._peekCount
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                font.family: Appearance.font.family.numbers
+                                color: Appearance.colors.colSubtext
+                            }
+                            Rectangle { // Achievements: how far
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: actionBtn.achieved !== null
+                                width: 24; height: 4; radius: 2
+                                color: Appearance.colors.colLayer4
+                                Rectangle {
+                                    width: parent.width * (actionBtn.achieved ? actionBtn.achieved.unlocked / actionBtn.achieved.total : 0)
+                                    height: parent.height; radius: 2
+                                    color: Appearance.colors.colPrimary
+                                }
                             }
                             StyledText {
-                                text: actionBtn.modelData.label
-                                color: actionBtn.panelOpen ? Appearance.colors.colPrimary
-                                    : actionBtn.lit ? Appearance.colors.colOnLayer0 : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.35)
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.Medium
-                                Behavior on color { ColorAnimation { duration: 180 } }
                                 anchors.verticalCenter: parent.verticalCenter
+                                visible: actionBtn.achieved !== null
+                                text: actionBtn.achieved ? `${actionBtn.achieved.unlocked}/${actionBtn.achieved.total}` : ""
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                font.family: Appearance.font.family.numbers
+                                color: Appearance.colors.colSubtext
+                            }
+                            MaterialSymbol {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: actionBtn.isLink ? "open_in_new" : "chevron_right"
+                                iconSize: actionBtn.isLink ? 15 : 17
+                                color: Appearance.colors.colSubtext
                             }
                         }
                     }
@@ -1399,6 +1453,26 @@ Item {
                     }
                     Keys.onPressed: event => { if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { clicked(); event.accepted = true; } }
                 }
+            }
+        }
+    }
+    readonly property real _stripCell: actionRowSlot.width / 5
+    // For the Captures row: the game's screenshots (find_screenshots.py, newest first, its folder on the first
+    // line) and how many clips its folder holds (a last "clips" line)
+    property var _peekShots: []
+    property int _peekCount: 0
+    Process {
+        id: capturesPeek
+        command: ["bash", "-c", 'python3 -I "$1" "$2" "$3" "$4" "$5"; printf "clips\t%s\n" "$(find "$6" -maxdepth 1 -type f \\( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.webm" -o -iname "*.mov" \\) 2>/dev/null | wc -l)"',
+                  "_", Quickshell.shellPath("scripts/game-launcher/find_screenshots.py"), (root.game?.id ?? "").startsWith("steam_") ? root.game.id.substring(6) : "",
+                  root.game?.gameDir ?? "", root.game?.flatpakId ?? "", root.game?.name ?? "", GameClips.folderFor(root.game?.name ?? "")]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = text.split("\n").filter(l => l && !l.startsWith("folder\t"));
+                const clipsLine = lines.find(l => l.startsWith("clips\t"));
+                const shots = lines.filter(l => !l.startsWith("clips\t")).map(l => l.split("\t").slice(3).join("\t"));
+                root._peekShots = shots.slice(0, 3);
+                root._peekCount = shots.length + (parseInt(clipsLine?.split("\t")[1] ?? "0") || 0);
             }
         }
     }
@@ -1609,35 +1683,58 @@ Item {
     component ToggleIcon: RippleButton {
         id: ti
         property string iconName
+        property string label
         property bool on: false
         property string tip
         signal flipped() // (not toggled(): buttons have that already)
-        width: 36; height: 36
-        buttonRadius: 12; padding: 0
+        width: root._stripCell; height: actionRowSlot.height
+        buttonRadius: Appearance.rounding.small; padding: 0
         colBackground: "transparent"
-        colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.85)
-        colRipple: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.7)
+        colBackgroundHover: Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
         buttonColor: (hovered || activeFocus) ? colBackgroundHover : colBackground
-        opacity: (hovered || activeFocus || on) ? 1.0 : 0.7
-        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-        contentItem: Item {
-            implicitWidth: 36; implicitHeight: 36
+        contentItem: StripCell {
+            id: tiCell
+            iconName: ti.iconName
+            label: ti.label
+            on: ti.on
+        }
+        onClicked: { if (!game) return; ti.flipped(); tiCell.bounce(); focus = false; }
+        StyledToolTip { text: ti.tip }
+    }
+    // A cell of the action strip under Play: its icon, its name under it, both in the accent when on
+    component StripCell: Item {
+        id: cell
+        property string iconName
+        property string label
+        property bool on: false
+        function bounce() { cellBounce.start(); }
+        implicitHeight: 58
+        Column {
+            anchors.centerIn: parent
+            spacing: 3
             MaterialSymbol {
-                id: tiIcon
-                anchors.centerIn: parent; text: ti.iconName; iconSize: 20
-                fill: ti.on ? 1 : 0
-                color: ti.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0
+                id: cellIcon
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: cell.iconName; iconSize: 20
+                fill: cell.on ? 1 : 0
+                color: cell.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0
                 Behavior on fill { NumberAnimation { duration: 200 } }
                 Behavior on color { ColorAnimation { duration: 200 } }
                 SequentialAnimation {
-                    id: tiBounce
-                    NumberAnimation { target: tiIcon; property: "scale"; to: 1.4; duration: 120; easing.type: Easing.OutQuad }
-                    NumberAnimation { target: tiIcon; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+                    id: cellBounce
+                    NumberAnimation { target: cellIcon; property: "scale"; to: 1.4; duration: 120; easing.type: Easing.OutQuad }
+                    NumberAnimation { target: cellIcon; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
                 }
             }
+            StyledText {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: cell.label
+                font.pixelSize: Appearance.font.pixelSize.smallest
+                color: cell.on ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                Behavior on color { ColorAnimation { duration: 200 } }
+            }
         }
-        onClicked: { if (!game) return; ti.flipped(); tiBounce.start(); focus = false; }
-        StyledToolTip { text: ti.tip }
     }
     component MoreItem: RippleButton {
         id: mi
