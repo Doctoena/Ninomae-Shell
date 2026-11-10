@@ -12,15 +12,17 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 
 /**
- * The in-game overlay (Super+Shift+G): one panel down the left, the game still in view beside it. In the panel:
- *  - the game (GameBanner), with the clock and battery in its corner when the game is fullscreen (the bar is
- *    hidden then; in a window it stays above the overlay), and the quick actions under it: save a clip,
- *    screenshot, crosshair, do not disturb, game mode (accent when on; a key each)
- *  - live FPS, CPU and GPU (PerformancePanel), and the sound (SoundPanel): the game's own first, matched by process
+ * The in-game overlay (Super+Shift+G): one panel down the left, as tall as it needs, the game still in view
+ * beside it. In the panel, joined cards like the sidebar's:
+ *  - the game (GameBanner: its art, the frame rate when MangoHud gives one, and the clock and battery in its
+ *    corner when the game is fullscreen: the bar is hidden then, in a window it stays above the overlay), and
+ *    the quick actions in a strip under it: save a clip, screenshot, crosshair, do not disturb, game mode
+ *    (accent when on, a key each)
+ *  - CPU and GPU (PerformancePanel), and the sound (SoundPanel): the game's own first, matched by process
  *    (game_perf.py, with game_pids.py: Steam, Lutris, Flatpak or its program) or, for a Flatpak, its app id, then
- *    voice chat
+ *    voice chat, then the mic
  *  - at its foot, what's playing (NowPlaying) and how to leave
- * The sections scroll when the screen is short. What happened this session is apart, in a column down the right,
+ * The cards scroll when the screen is short. What happened this session is apart, in a column down the right,
  * as it can add up fast: the clips and screenshots (CapturesPanel: one opens in CaptureViewer, over everything),
  * and under them what came in while playing (MissedNotifications), only when something did.
  * On the overlay layer of the game's screen, with the keyboard: Esc or the key again closes it, as does a
@@ -297,7 +299,8 @@ Scope {
                 // (scrolling when the screen is short), what's playing and how to leave at its foot ──
                 OverlayPanel {
                     id: panel
-                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    anchors { left: parent.left; top: parent.top }
+                    height: Math.min(layout.height, sections.implicitHeight + foot.implicitHeight + 46) // As tall as it needs
                     anchors.leftMargin: window.shown ? 0 : -48
                     Behavior on anchors.leftMargin { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
                     width: Math.round(Math.max(380, Math.min(520, layout.width * 0.28)))
@@ -312,82 +315,115 @@ Scope {
                         ColumnLayout {
                             id: sections
                             width: body.width
-                            spacing: 26
-                            ColumnLayout { // The game and what to do
+                            spacing: 10
+                            ColumnLayout { // The game and what to do, joined
                                 Layout.fillWidth: true
-                                spacing: 10
+                                spacing: 4
                                 GameBanner {
+                                    readonly property bool hasFps: (root.perf.fps ?? -1) > 0
                                     Layout.fillWidth: true
                                     art: root.bannerArt
                                     gameName: GameClips.game
                                     showStatus: root.gameFullscreen
                                     sessionText: window.sessionMinutes < 0 ? ""
-                                        : Translation.tr("This session: %1").arg(root.duration(window.sessionMinutes))
+                                        : Translation.tr("This session %1").arg(root.duration(window.sessionMinutes))
                                           // Steam adds this session to its hours when it ends
                                           + (root.game?.playtime ? "  ·  " + Translation.tr("%1 h in all").arg(Math.floor((root.game.playtime + window.sessionMinutes) / 60)) : "")
+                                    fpsText: hasFps ? Math.round(root.perf.fps) : ""
+                                    fpsDetail: hasFps ? Translation.tr("FPS  ·  avg %1  ·  low %2").arg(Math.round(root.perf.fpsAvg ?? 0)).arg(Math.round(root.perf.fpsLow ?? 0)) : ""
+                                    fpsPoints: { // The highest near the top
+                                        const h = root.fpsHistory;
+                                        if (!hasFps || h.length < 2) return [];
+                                        const ceiling = Math.max(60, ...h) * 1.1;
+                                        return h.map((v, i) => Qt.point(i / (h.length - 1), Math.min(1, v / ceiling)));
+                                    }
                                 }
-                                RowLayout {
+                                Rectangle { // The quick actions, one strip, hairlines between them
                                     Layout.fillWidth: true
-                                    spacing: 10
-                                    OverlayQuickAction {
-                                        id: clipAction
-                                        icon: "movie"; key: "C"
-                                        text: Translation.tr("Save clip")
-                                        tip: GameClips.recording ? Translation.tr("The last %1 s").arg(GameClips.seconds)
-                                            : GameClips.enabled ? Translation.tr("Records once a game is running") : Translation.tr("Clips are off in Settings → In game")
-                                        available: GameClips.recording
-                                        onTriggered: root.capture("clip")
+                                    implicitHeight: actionRow.implicitHeight
+                                    topLeftRadius: Appearance.rounding.joined
+                                    topRightRadius: Appearance.rounding.joined
+                                    bottomLeftRadius: Appearance.rounding.normal
+                                    bottomRightRadius: Appearance.rounding.normal
+                                    color: Appearance.colors.colLayer3
+                                    Repeater {
+                                        model: 4
+                                        Rectangle {
+                                            required property int index
+                                            x: Math.round(parent.width * (index + 1) / 5)
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 1
+                                            height: parent.height - 24
+                                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.93)
+                                        }
                                     }
-                                    OverlayQuickAction {
-                                        id: shotAction
-                                        icon: "screenshot_monitor"; key: "S"
-                                        text: Translation.tr("Screenshot")
-                                        tip: Translation.tr("Saved with the game's screenshots")
-                                        onTriggered: root.capture("screenshot")
-                                    }
-                                    OverlayQuickAction {
-                                        id: crosshairAction
-                                        icon: "my_location"; key: "X"
-                                        text: Translation.tr("Crosshair")
-                                        tip: Translation.tr("Its look is in Settings → Crosshair")
-                                        active: Crosshair.manual ?? Crosshair.automatic // What it does once the overlay closes
-                                        onTriggered: Crosshair.toggleOutsideOverlay()
-                                    }
-                                    OverlayQuickAction {
-                                        id: dndAction
-                                        icon: "notifications_paused"; key: "D"
-                                        text: Translation.tr("Silence")
-                                        tip: Translation.tr("Do not disturb: no pop-ups. They still wait in the sidebar")
-                                        active: Notifications.silent
-                                        onTriggered: Notifications.silent = !Notifications.silent
-                                    }
-                                    OverlayQuickAction {
-                                        id: gameModeAction
-                                        icon: "speed"; key: "G"
-                                        text: Translation.tr("Game mode")
-                                        tip: Translation.tr("No animations, blur or gaps")
-                                        active: GameModeService.active
-                                        onTriggered: GameModeService.toggle()
+                                    RowLayout {
+                                        id: actionRow
+                                        anchors { left: parent.left; right: parent.right }
+                                        spacing: 0
+                                        OverlayQuickAction {
+                                            id: clipAction
+                                            icon: "movie"; key: "C"
+                                            text: Translation.tr("Save clip")
+                                            tip: GameClips.recording ? Translation.tr("The last %1 s").arg(GameClips.seconds)
+                                                : GameClips.enabled ? Translation.tr("Records once a game is running") : Translation.tr("Clips are off in Settings → In game")
+                                            available: GameClips.recording
+                                            onTriggered: root.capture("clip")
+                                        }
+                                        OverlayQuickAction {
+                                            id: shotAction
+                                            icon: "screenshot_monitor"; key: "S"
+                                            text: Translation.tr("Screenshot")
+                                            tip: Translation.tr("Saved with the game's screenshots")
+                                            onTriggered: root.capture("screenshot")
+                                        }
+                                        OverlayQuickAction {
+                                            id: crosshairAction
+                                            icon: "my_location"; key: "X"
+                                            text: Translation.tr("Crosshair")
+                                            tip: Translation.tr("Its look is in Settings → Crosshair")
+                                            active: Crosshair.manual ?? Crosshair.automatic // What it does once the overlay closes
+                                            onTriggered: Crosshair.toggleOutsideOverlay()
+                                        }
+                                        OverlayQuickAction {
+                                            id: dndAction
+                                            icon: "notifications_paused"; key: "D"
+                                            text: Translation.tr("Silence")
+                                            tip: Translation.tr("Do not disturb: no pop-ups. They still wait in the sidebar")
+                                            active: Notifications.silent
+                                            onTriggered: Notifications.silent = !Notifications.silent
+                                        }
+                                        OverlayQuickAction {
+                                            id: gameModeAction
+                                            icon: "speed"; key: "G"
+                                            text: Translation.tr("Game mode")
+                                            tip: Translation.tr("No animations, blur or gaps")
+                                            active: GameModeService.active
+                                            onTriggered: GameModeService.toggle()
+                                        }
                                     }
                                 }
                             }
-                            PerformancePanel {
+                            ColumnLayout { // How it's running, and the sound, joined
                                 Layout.fillWidth: true
-                                cpuHistory: root.cpuHistory
-                                gpuHistory: root.gpuHistory
-                                cpuStats: root.cpuStats
-                                gpuStats: root.gpuStats
-                                fpsHistory: root.fpsHistory
-                                perf: root.perf
-                                onIntegrated: root.onIntegrated
-                            }
-                            SoundPanel {
-                                id: soundPanel
-                                Layout.fillWidth: true
-                                gamePids: root.gamePids
-                                gameFlatpak: root.game?.flatpakId ?? ""
-                                gameName: GameClips.game
-                                gameArt: root.perf.icon || GameClips.gameArt // Its square icon, else its cover (a Steam game's icon is its wide logo)
+                                spacing: 4
+                                PerformancePanel {
+                                    Layout.fillWidth: true
+                                    cpuHistory: root.cpuHistory
+                                    gpuHistory: root.gpuHistory
+                                    cpuStats: root.cpuStats
+                                    gpuStats: root.gpuStats
+                                    perf: root.perf
+                                    onIntegrated: root.onIntegrated
+                                }
+                                SoundPanel {
+                                    id: soundPanel
+                                    Layout.fillWidth: true
+                                    gamePids: root.gamePids
+                                    gameFlatpak: root.game?.flatpakId ?? ""
+                                    gameName: GameClips.game
+                                    gameArt: root.perf.icon || GameClips.gameArt // Its square icon, else its cover (a Steam game's icon is its wide logo)
+                                }
                             }
                         }
                     }
@@ -400,13 +436,13 @@ Scope {
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 6
-                            KeyCap { text: "Esc" }
+                            OverlayKey { text: "Esc" }
                             StyledText {
                                 text: Translation.tr("or")
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                                 color: Appearance.colors.colSubtext
                             }
-                            KeyCap { text: "Super+Shift+G" }
+                            OverlayKey { text: "Super+Shift+G" }
                             StyledText {
                                 text: Translation.tr("back to the game")
                                 font.pixelSize: Appearance.font.pixelSize.smaller
@@ -457,9 +493,9 @@ Scope {
                         captures: window.captures
                         clipsFolder: GameClips.folderFor(GameClips.game)
                         shotsFolder: window.shotsFolder
-                        recording: GameClips.recording
                         onOpenCapture: index => window.viewerIndex = index
                         onOpenFolder: folder => root.openFolder(folder)
+                        onTrashed: path => window.forget(path)
                     }
                     OverlayPanel {
                         id: missedCard
@@ -502,22 +538,6 @@ Scope {
                     styleColor: Qt.rgba(0, 0, 0, 0.5)
                 }
             }
-        }
-    }
-
-    // A key, as the overlay's foot shows it
-    component KeyCap: Rectangle {
-        property alias text: label.text
-        implicitWidth: label.implicitWidth + 12
-        implicitHeight: 20
-        radius: 6
-        color: Appearance.colors.colLayer2
-        StyledText {
-            id: label
-            anchors.centerIn: parent
-            font.pixelSize: Appearance.font.pixelSize.smallest
-            font.weight: Font.DemiBold
-            color: Appearance.colors.colOnLayer2
         }
     }
 

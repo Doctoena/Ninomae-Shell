@@ -3,68 +3,58 @@ import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 
-// One slim row of the in-game overlay's Performance, on the neutral surface: its name, the value now (and the
-// temperature under it), its last few minutes as a small graph (history: samples, oldest first, drawn against
-// ceiling), and two lines at its end (the session's average and peak, or low). The rows' columns line up
-Rectangle {
+// One row of the in-game overlay's performance card: the value now, large in its colour, and its name; under it
+// the temperature and the session's average and peak; its last few minutes as a graph on the right
+// (history: samples, oldest first, 0–1). Warning: all of it red
+Item {
     id: root
     property string label
     property string valueText
-    property real temp: 0
+    property string detail
     property var history: []
-    property real ceiling: 1
-    property string sideText
+    property color colour: Appearance.colors.colPrimary
     property bool warning: false
-    readonly property color accent: warning ? Appearance.colors.colError : Appearance.colors.colPrimary
-    implicitHeight: 48
-    radius: Appearance.rounding.normal
-    color: Appearance.colors.colLayer2
-    RowLayout {
-        anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
-        spacing: 10
-        StyledText {
-            Layout.preferredWidth: 30
-            text: root.label
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            color: Appearance.colors.colSubtext
-        }
-        ColumnLayout {
-            Layout.preferredWidth: 58
-            spacing: -4
+    readonly property color accent: warning ? Appearance.colors.colError : colour
+    implicitHeight: 56
+    ColumnLayout {
+        id: figures
+        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+        width: 150
+        spacing: 0
+        RowLayout {
+            spacing: 6
             StyledText {
                 text: root.valueText
-                font.pixelSize: Appearance.font.pixelSize.larger
                 font.family: Appearance.font.family.numbers
-                font.weight: Font.DemiBold
-                color: root.warning ? root.accent : Appearance.colors.colOnLayer2
+                font.pixelSize: 22
+                font.weight: Font.Medium
+                color: root.accent
             }
             StyledText {
-                visible: root.temp > 0
-                text: Math.round(root.temp) + "°C"
+                Layout.alignment: Qt.AlignBaseline
+                text: root.label
                 font.pixelSize: Appearance.font.pixelSize.smallest
-                font.family: Appearance.font.family.numbers
-                color: root.temp >= 90 ? Appearance.colors.colError : Appearance.colors.colSubtext
+                color: Appearance.colors.colSubtext
             }
-        }
-        LineGraph {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 26
-            // Whatever history there is spans the width, newest on the right; a single sample as a level line
-            points: {
-                const samples = root.history.length === 1 ? [root.history[0], root.history[0]] : root.history;
-                const last = Math.max(1, samples.length - 1);
-                return samples.map((v, i) => Qt.point(1 - (samples.length - 1 - i) / last, Math.min(1, v / root.ceiling)));
-            }
-            color: root.accent
         }
         StyledText {
-            Layout.preferredWidth: 62
-            text: root.sideText
-            horizontalAlignment: Text.AlignRight
-            lineHeight: 0.9
-            font.pixelSize: Appearance.font.pixelSize.smallest
+            Layout.fillWidth: true
+            visible: text !== ""
+            elide: Text.ElideRight
+            text: root.detail
             font.family: Appearance.font.family.numbers
+            font.pixelSize: Appearance.font.pixelSize.smallest
             color: Appearance.colors.colSubtext
         }
+    }
+    LineGraph {
+        anchors { left: figures.right; leftMargin: 12; right: parent.right; top: parent.top; bottom: parent.bottom; topMargin: 4 }
+        // Whatever history there is spans the width, newest on the right; a single sample as a level line
+        points: {
+            const samples = root.history.length === 1 ? [root.history[0], root.history[0]] : root.history;
+            const last = Math.max(1, samples.length - 1);
+            return samples.map((v, i) => Qt.point(1 - (samples.length - 1 - i) / last, Math.min(1, v)));
+        }
+        color: root.accent
     }
 }

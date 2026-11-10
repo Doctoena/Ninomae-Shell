@@ -13,7 +13,7 @@ Rectangle {
     visible: player !== null
     implicitHeight: 64
     radius: Appearance.rounding.normal
-    color: Appearance.colors.colLayer2
+    color: Appearance.colors.colLayer3
     RowLayout {
         anchors { fill: parent; margins: 8; rightMargin: 10 }
         spacing: 10

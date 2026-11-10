@@ -6,7 +6,7 @@ import qs.modules.common.functions
 /**
  * Small filled line graph over quiet guides at 50 % and the baseline (battery popup, resource monitor).
  * points: Qt.point(x, value), both 0–1 (x from the left edge, value from the bottom).
- * Until there are two points, or while hideLine is set, it shows emptyText instead.
+ * Until there are two points, or while hideLine is set, it shows emptyText instead. guides: false drops the guides.
  * Extra children (a current-value label) go on top.
  */
 Item {
@@ -14,6 +14,7 @@ Item {
     property var points: []
     property color color: Appearance.colors.colPrimary
     property bool hideLine: false
+    property bool guides: true
     property string emptyText
     implicitHeight: 64
 
@@ -28,7 +29,7 @@ Item {
     readonly property bool lineShown: linePoints.length > 1 && !hideLine
 
     Repeater {
-        model: [0.5, 1]
+        model: root.guides ? [0.5, 1] : []
         Rectangle {
             required property real modelData
             width: root.width

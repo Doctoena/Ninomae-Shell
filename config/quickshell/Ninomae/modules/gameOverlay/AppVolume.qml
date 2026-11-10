@@ -6,14 +6,15 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 
-// An app's volume in the in-game overlay's Sound: its icon and name, and a slider for all its streams (a browser
-// often has several). Its icon mutes it (a crossed speaker on it while muted). The game's own sound shows as the
-// game, in the accent, with its art (gameName, gameArt)
+// An app's volume in the in-game overlay's sound card: its icon, name and what it is (subtitle: the game, voice
+// chat), a slider for all its streams (a browser often has several) and the percentage. Its icon mutes it (a
+// crossed speaker on it while muted). The game's own sound shows as the game, with its art (gameName, gameArt)
 RowLayout {
     id: root
     required property var nodes
     readonly property var node: nodes[0]
     property bool game: false
+    property string subtitle: ""
     property string gameName: ""
     property string gameArt: ""
     readonly property bool muted: nodes.every(n => n.audio?.muted ?? false)
@@ -26,12 +27,12 @@ RowLayout {
     readonly property string iconName: [node.properties["application.icon-name"], node.properties["pipewire.access.portal.app_id"],
         node.properties["application.name"], node.properties["application.process.binary"], node.name]
         .filter(n => n).map(n => AppSearch.guessIcon(n)).find(i => AppSearch.iconExists(i)) ?? ""
-    spacing: 10
+    spacing: 12
     Rectangle {
-        Layout.preferredWidth: 28; Layout.preferredHeight: 28
+        Layout.preferredWidth: 30; Layout.preferredHeight: 30
         Layout.alignment: Qt.AlignVCenter
         radius: Appearance.rounding.chip + 1
-        color: Appearance.colors.colLayer3
+        color: Appearance.colors.colLayer4
         clip: true
         Image { // The game's art
             id: gameArtImage
@@ -84,16 +85,24 @@ RowLayout {
         spacing: 0
         RowLayout {
             Layout.fillWidth: true
+            spacing: 6
             StyledText {
-                Layout.fillWidth: true
+                Layout.maximumWidth: parent.width - (sub.visible ? sub.implicitWidth + 6 : 0)
                 elide: Text.ElideRight
                 text: root.game ? (root.gameName || Translation.tr("The game"))
                     : root.node.properties["application.name"] || root.node.description || root.node.name
-                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.pixelSize: Appearance.font.pixelSize.smallie
                 font.weight: Font.Medium
-                color: root.game ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
+                color: Appearance.colors.colOnLayer3
             }
-            VolumePercent { value: root.node.audio?.volume ?? 0; muted: root.muted }
+            StyledText {
+                id: sub
+                Layout.fillWidth: true
+                visible: root.subtitle !== ""
+                text: root.subtitle
+                font.pixelSize: Appearance.font.pixelSize.smallest
+                color: Appearance.colors.colSubtext
+            }
         }
         OverlaySlider {
             opacity: root.muted ? 0.4 : 1
@@ -101,4 +110,5 @@ RowLayout {
             onMoved: root.nodes.forEach(n => { if (n.audio) n.audio.volume = value; })
         }
     }
+    VolumePercent { value: root.node.audio?.volume ?? 0; muted: root.muted }
 }

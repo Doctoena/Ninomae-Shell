@@ -3,59 +3,45 @@ import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 
-// A small button on the in-game overlay: a folder, the mic, an output device. Neutral; the one in use has its
-// icon on an accent squircle and its name in the accent (as Settings' option rows), a warning is red (the mic muted).
-// trailingIcon after the name (a dropdown's arrow)
-Rectangle {
+// A small button on the in-game overlay: a folder, Clear. Its icon, and a name when it has one (none: a square
+// icon button, its tooltip says what it does). On a glass background over a picture (overPicture: a capture's
+// buttons, white on dark). danger: red (Trash), armed: filled red (click again)
+RippleButton {
     id: root
-    property string icon
-    property string text
-    property bool active: false
-    property bool warn: false
-    property string trailingIcon
-    signal clicked()
-    implicitWidth: Math.min(row.implicitWidth + 16, 360)
+    property string iconName
+    property string label: ""
+    property string tip: ""
+    property bool overPicture: false
+    property bool danger: false
+    property bool armed: false
+    readonly property color fg: armed ? Appearance.colors.colOnError : danger ? Appearance.colors.colError
+        : overPicture ? "white" : Appearance.colors.colOnLayer3
+    implicitWidth: label === "" ? 30 : row.implicitWidth + 20
     implicitHeight: 30
-    radius: Appearance.rounding.segment
-    color: warn ? Appearance.colors.colErrorContainer
-        : mouse.containsMouse ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2
-    readonly property color textColor: warn ? Appearance.colors.colOnErrorContainer : active ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
-    RowLayout {
-        id: row
-        anchors { fill: parent; leftMargin: 4; rightMargin: 10 }
-        spacing: 6
-        Rectangle { // Its icon, on the accent squircle when it's the one in use
-            implicitWidth: 22; implicitHeight: 22
-            radius: Appearance.rounding.chip
-            color: root.active ? Appearance.colors.colPrimary : "transparent"
+    buttonRadius: Appearance.rounding.segment
+    colBackground: armed ? Appearance.colors.colError : overPicture ? Qt.rgba(0, 0, 0, 0.55) : Appearance.colors.colLayer3
+    colBackgroundHover: armed ? Appearance.colors.colError : overPicture ? Qt.rgba(0, 0, 0, 0.75) : Appearance.colors.colLayer3Hover
+    colRipple: overPicture ? Qt.rgba(1, 1, 1, 0.2) : Appearance.colors.colLayer3Active
+    contentItem: Item {
+        RowLayout {
+            id: row
+            anchors.centerIn: parent
+            spacing: 5
             MaterialSymbol {
-                anchors.centerIn: parent
-                text: root.icon
-                iconSize: 15
-                fill: root.active ? 1 : 0
-                color: root.active ? Appearance.colors.colOnPrimary : root.textColor
+                text: root.iconName
+                iconSize: 17
+                color: root.fg
+            }
+            StyledText {
+                visible: root.label !== ""
+                text: root.label
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: root.fg
             }
         }
-        StyledText {
-            Layout.fillWidth: true
-            text: root.text
-            elide: Text.ElideRight
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            color: root.textColor
-        }
-        MaterialSymbol {
-            visible: root.trailingIcon !== ""
-            Layout.rightMargin: -4
-            text: root.trailingIcon
-            iconSize: 16
-            color: root.textColor
-        }
     }
-    MouseArea {
-        id: mouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+    StyledToolTip {
+        extraVisibleCondition: root.hovered && root.tip !== ""
+        text: root.tip
     }
 }

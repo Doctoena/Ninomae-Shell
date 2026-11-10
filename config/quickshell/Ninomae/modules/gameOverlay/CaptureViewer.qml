@@ -6,8 +6,6 @@ import qs.modules.common.functions
 import qs.modules.gameLauncher
 import QtQuick
 import QtMultimedia
-import Quickshell
-import Quickshell.Io
 import Quickshell.Widgets
 
 /**
@@ -30,26 +28,13 @@ Item {
     signal trashed(string path)
 
     // ── Actions ──
-    property string copiedPath: ""
-    Timer { id: copiedTimer; interval: 1500; onTriggered: root.copiedPath = "" }
-    function copyCurrent() {
-        if (!current) return;
-        copier.running = false;
-        copier.path = current.path;
-        copier.command = isClip
-            ? ["bash", "-c", 'printf "file://%s\\n" "$0" | wl-copy --type text/uri-list', current.path]
-            // As PNG: Chromium/Electron apps (Vesktop, browsers) only paste image/png, and Steam saves JPEGs
-            : ["bash", "-o", "pipefail", "-c", 'case "${0,,}" in *.png) wl-copy --type image/png < "$0" ;; *) magick "$0" png:- | wl-copy --type image/png ;; esac', current.path];
-        copier.running = true;
+    CaptureActions {
+        id: actions
+        onTrashed: path => root.trashed(path)
     }
-    Process {
-        id: copier
-        property string path
-        onExited: exitCode => { if (exitCode === 0) { root.copiedPath = copier.path; copiedTimer.restart(); } }
-    }
-    function openCurrent() {
-        if (current) Quickshell.execDetached(["xdg-open", current.path]);
-    }
+    readonly property string copiedPath: actions.copiedPath
+    function copyCurrent() { actions.copy(current); }
+    function openCurrent() { actions.open(current); }
     // To the Trash
     // Trash asks twice, as the launcher's Captures: the first click (or Delete) arms it, red, a second one within
     // 4 s trashes. Another capture, or waiting, puts it back
@@ -63,10 +48,8 @@ Item {
     onIndexChanged: trashArmed = false
     function trashCurrent() {
         if (!current) return;
-        const path = current.path;
         videoLoader.active = false; // Let go of a clip before it goes
-        Quickshell.execDetached(["gio", "trash", "--", path]);
-        root.trashed(path);
+        actions.trash(current);
         videoLoader.active = Qt.binding(() => root.isClip);
     }
     function togglePlay() {
