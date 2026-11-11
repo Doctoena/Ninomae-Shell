@@ -1571,73 +1571,26 @@ Item {
         id: metadataCloseTimer; interval: 300
         onTriggered: root.metadataPaneOpen = infoTabHover.hovered || infoPaneHover.hovered
     }
-    Item { // Reveal tab: a slim accent bar on the menu's edge. Idle, it breathes slowly; hovered, it springs wider
-        // (the shell's expressive curve) and a › slides in; pressed, it squishes. Its hover area is wider than the
-        // bar, so it's easy to find
+    Item { // Reveal tab: a slim accent bar on the menu's edge. Hovered or clicked, it opens the drawer, which then
+        // covers it. Its hover area is wider than the bar
         id: metadataNotch
         visible: root._currentMetadata !== null
         x: sidebarPanel.x + sidebarPanel.width
         y: sidebarPanel.y + (sidebarPanel.height - height) / 2
         z: 9
         width: 20; height: 64
-        readonly property bool lit: infoTabHover.hovered
         opacity: infoDrawer.offset > 0.5 ? 1 : 0 // Hidden once the drawer covers it
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Rectangle {
-            id: notchBar
             anchors.verticalCenter: parent.verticalCenter
             x: 3
-            width: metadataNotch.lit ? 16 : 6
-            height: metadataNotch.lit ? 44 : 40
-            radius: width / 2
-            transformOrigin: Item.Left
-            color: metadataNotch.lit ? Appearance.colors.colLayer3Accent : Appearance.colors.colPrimary
-            // Idle: fades between soft and a little brighter, slowly; still while hovered or hidden
-            property real breath: 0.45
-            opacity: metadataNotch.lit ? 1 : breath
-            SequentialAnimation on breath {
-                running: GlobalStates.gameLauncherOpen && root.shown && metadataNotch.visible && !metadataNotch.lit && metadataNotch.opacity > 0
-                loops: Animation.Infinite
-                NumberAnimation { to: 0.75; duration: 1600; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 0.4; duration: 1600; easing.type: Easing.InOutSine }
-            }
-            Behavior on width {
-                NumberAnimation {
-                    duration: Appearance.animationCurves.expressiveFastSpatialDuration
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
-                }
-            }
-            Behavior on height {
-                NumberAnimation {
-                    duration: Appearance.animationCurves.expressiveFastSpatialDuration
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
-                }
-            }
-            Behavior on color { ColorAnimation { duration: 160 } }
-            Behavior on opacity { NumberAnimation { duration: 160 } }
-            MaterialSymbol {
-                anchors.verticalCenter: parent.verticalCenter
-                x: (parent.width - width) / 2 + (metadataNotch.lit ? 0 : -6) // Slides in from the menu's side
-                Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                text: "chevron_right"
-                iconSize: 14
-                color: Appearance.colors.colPrimary
-                opacity: metadataNotch.lit ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 140 } }
-            }
-            SequentialAnimation { // Pressed: a quick squish and back
-                id: notchSquish
-                NumberAnimation { target: notchBar; property: "scale"; to: 0.85; duration: 70; easing.type: Easing.OutQuad }
-                NumberAnimation { target: notchBar; property: "scale"; to: 1; duration: 260; easing.type: Easing.OutBack }
-            }
+            width: 6; radius: 3
+            height: 40
+            color: Appearance.colors.colPrimary
+            opacity: 0.6
         }
         HoverHandler { id: infoTabHover; enabled: !root._otherSideMenuOpen; onHoveredChanged: root._syncInfoHover() }
-        TapHandler {
-            enabled: !root._otherSideMenuOpen
-            onTapped: { notchSquish.restart(); root.metadataPaneOpen = !root.metadataPaneOpen; }
-        }
+        TapHandler { enabled: !root._otherSideMenuOpen; onTapped: root.metadataPaneOpen = !root.metadataPaneOpen }
     }
     SideDrawer {
         id: infoDrawer
