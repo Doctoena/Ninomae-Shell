@@ -13,6 +13,12 @@ MultiEffect {
     property real rightRadius: radius
     property real topRadius: -1 // Top and bottom apart instead (a settings row in its group); -1: as the sides
     property real bottomRadius: -1
+    // Each corner apart (a piece at a corner of a joined group); -1: as above
+    property real topLeftRadius: -1
+    property real topRightRadius: -1
+    property real bottomLeftRadius: -1
+    property real bottomRightRadius: -1
+    function _corner(own, edge, side) { return own >= 0 ? own : edge >= 0 ? edge : side; }
     property real maskWidth: width
     property real maskHeight: height
 
@@ -26,10 +32,10 @@ MultiEffect {
         width: root.maskWidth
         height: root.maskHeight
         radius: root.radius
-        topLeftRadius: root.topRadius >= 0 ? root.topRadius : root.leftRadius
-        bottomLeftRadius: root.bottomRadius >= 0 ? root.bottomRadius : root.leftRadius
-        topRightRadius: root.topRadius >= 0 ? root.topRadius : root.rightRadius
-        bottomRightRadius: root.bottomRadius >= 0 ? root.bottomRadius : root.rightRadius
+        topLeftRadius: root._corner(root.topLeftRadius, root.topRadius, root.leftRadius)
+        bottomLeftRadius: root._corner(root.bottomLeftRadius, root.bottomRadius, root.leftRadius)
+        topRightRadius: root._corner(root.topRightRadius, root.topRadius, root.rightRadius)
+        bottomRightRadius: root._corner(root.bottomRightRadius, root.bottomRadius, root.rightRadius)
         visible: false
         layer.enabled: true
         layer.smooth: true

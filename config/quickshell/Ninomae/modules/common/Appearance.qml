@@ -171,6 +171,9 @@ Singleton {
         // Something on, on a card: a step toward the accent (an icon square, a picked chip, an open panel's row)
         property color colLayer3Accent: ColorUtils.mix(colLayer3, colPrimary, 0.82)
         property color colLayer3AccentHover: ColorUtils.mix(colLayer3, colPrimary, 0.74)
+        // Something destructive on a card: a step toward red (Uninstall's square, a tag about to go), and its hover
+        property color colLayer3Error: ColorUtils.mix(colLayer3, colError, 0.82)
+        property color colLayer3ErrorHover: ColorUtils.mix(colLayer3, colError, 0.9)
         property color colLayer4: m3colors.m3surfaceContainerHigh // Inside a card
         property color colOnLayer4: m3colors.m3onSurface;
         property color colLayer4Hover: ColorUtils.mix(colLayer4, colOnLayer4, 0.90)

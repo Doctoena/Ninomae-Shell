@@ -146,9 +146,10 @@ Button {
         }
         // Clip only while a ripple shows: a permanent layer cost an offscreen texture per button
         layer.enabled: ripple.visible && ripple.opacity > 0
-        layer.effect: RoundedMask { maskWidth: buttonBackground.width; maskHeight: buttonBackground.height; radius: root.buttonEffectiveRadius
-            leftRadius: root._radiusLeft; rightRadius: root._radiusRight
-            topRadius: root.buttonRadiusTop; bottomRadius: root.buttonRadiusBottom }
+        // The ripple clipped to the background's own corners, each of them (a joined group's piece has its own)
+        layer.effect: RoundedMask { maskWidth: buttonBackground.width; maskHeight: buttonBackground.height
+            topLeftRadius: buttonBackground.topLeftRadius; topRightRadius: buttonBackground.topRightRadius
+            bottomLeftRadius: buttonBackground.bottomLeftRadius; bottomRightRadius: buttonBackground.bottomRightRadius }
         Item {
             id: ripple
             width: ripple.implicitWidth

@@ -671,16 +671,15 @@ Item {
         id: topLeftButtons
         x: sidebarContent.x + actionRowSlot.x
         y: sidebarContent.y + actionRowSlot.y
-        spacing: 0; z: 11
+        spacing: 3; z: 11
         ToggleIcon {
-            label: Translation.tr("Favorite")
+            buttonRadiusBottomLeft: Appearance.rounding.normal // The group's corner
             iconName: "star"
             on: { const _ = GameLauncherService.favoritesRevision; return !!game && GameLauncherService.isFavorite(game.id); }
             tip: on ? Translation.tr("Remove from favorites") : Translation.tr("Add to favorites")
             onFlipped: GameLauncherService.toggleFavorite(game.id)
         }
         ToggleIcon {
-            label: Translation.tr("Completed")
             iconName: "check_circle"
             on: { const _ = GameLauncherService.completedGamesRevision; return !!game && GameLauncherService.isCompleted(game.id); }
             tip: on ? Translation.tr("Remove from completed") : Translation.tr("Mark as completed")
@@ -690,9 +689,9 @@ Item {
         RippleButton {
             id: tagIconBtn
             width: root._stripCell; height: actionRowSlot.height
-            buttonRadius: Appearance.rounding.small; padding: 0
-            colBackground: "transparent"
-            colBackgroundHover: Appearance.colors.colLayer3Hover
+            buttonRadius: Appearance.rounding.joined; padding: 0
+            colBackground: hasTags ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+            colBackgroundHover: hasTags ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Hover
             colRipple: Appearance.colors.colLayer3Active
             buttonColor: (hovered || activeFocus || tagMenuPopup.open) ? colBackgroundHover : colBackground
             property var gameTags: {
@@ -702,15 +701,14 @@ Item {
             property bool hasTags: gameTags.length > 0
             contentItem: StripCell {
                 iconName: "sell"
-                label: Translation.tr("Tags")
                 on: tagIconBtn.hasTags
+                count: tagIconBtn.gameTags.length
             }
             onClicked: { tagMenuPopup.open = !tagMenuPopup.open; if (tagMenuPopup.open) tagInputField.forceActiveFocus(); else focus = false; }
             StyledToolTip { text: Translation.tr("Tags"); visible: !tagMenuPopup.open && tagIconBtn.hovered }
         }
         ToggleIcon { // The crosshair overlay in this game (services/Crosshair.qml)
             readonly property var games: Config.options.crosshair?.games ?? []
-            label: Translation.tr("Crosshair")
             iconName: "my_location"
             on: !!game && games.indexOf(game.id) >= 0
             tip: on ? Translation.tr("Crosshair on in this game") : Translation.tr("Turn on the crosshair in this game")
@@ -719,36 +717,38 @@ Item {
         // --- More: less-used actions in a small labelled menu ---
         RippleButton {
             id: moreBtn
-            width: root._stripCell; height: actionRowSlot.height; buttonRadius: Appearance.rounding.small; padding: 0
-            colBackground: "transparent"
-            colBackgroundHover: Appearance.colors.colLayer3Hover
+            width: root._stripCell; height: actionRowSlot.height; padding: 0
+            buttonRadius: Appearance.rounding.joined
+            buttonRadiusBottomRight: Appearance.rounding.normal // The group's corner
+            colBackground: moreMenu.open ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+            colBackgroundHover: moreMenu.open ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Hover
             colRipple: Appearance.colors.colLayer3Active
-            buttonColor: (hovered || moreMenu.open) ? colBackgroundHover : colBackground
+            buttonColor: hovered ? colBackgroundHover : colBackground
             contentItem: StripCell {
                 iconName: "more_horiz"
-                label: Translation.tr("More")
                 on: moreMenu.open
             }
             onClicked: moreMenu.open = !moreMenu.open
+            StyledToolTip { text: Translation.tr("More"); visible: !moreMenu.open && moreBtn.hovered }
         }
     }
     // ── Side menus (⋯ and tags): slide out of the left menu's right edge, level with their button ──
     // The ⋯, tags and install-where menus and the info pane: one at a time
     function _sideMenuOpened(menu) {
         root.metadataPaneOpen = false;
-        for (const m of [moreMenu, tagMenuPopup, libraryMenu, launchMenu]) if (m !== menu) m.open = false;
+        for (const m of [moreMenu, tagMenuPopup, libraryMenu, launchMenu]) if (m && m !== menu) m.open = false; // (m: not made yet at start-up)
     }
     onMetadataPaneOpenChanged: if (metadataPaneOpen) { moreMenu.open = false; tagMenuPopup.open = false; libraryMenu.open = false; launchMenu.open = false; }
     SideDrawer {
         id: moreMenu
         paneW: 260 // Same as the tags menu; room for Uninstall's confirm note
-        paneH: moreCol.implicitHeight + 16
+        paneH: moreCol.implicitHeight + 24
         anchorCenterY: topLeftButtons.y + moreBtn.y + moreBtn.height / 2
         opener: moreBtn; exclusive: true
         Column {
             id: moreCol
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
-            spacing: 2
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+            spacing: 3 // Joined, as the info drawer's pieces
             MoreItem {
                 iconName: "folder_open"; label: Translation.tr("Open game folder")
                 visible: game && (game.gameDir || "") !== ""
@@ -763,10 +763,9 @@ Item {
                 iconName: "palette"; label: Translation.tr("Customize")
                 onTriggered: { moreMenu.open = false; root.openPanel = "customize"; }
             }
-            Rectangle {
+            Item { // A gap: the destructive one is a group of its own
                 visible: uninstallItem.visible || removeItem.visible
-                width: parent.width - 24; x: 12; height: 1
-                color: Appearance.m3colors.m3surfaceContainerHighest
+                width: parent.width; height: 3
             }
             MoreItem {
                 // Asks here instead of in Steam: the first click arms it, a second one uninstalls. Steam games
@@ -880,15 +879,15 @@ Item {
     SideDrawer { // Which way to start it: one row per launch option, as Steam's dialog but here
         id: launchMenu
         paneW: 280
-        paneH: launchCol.implicitHeight + 16
+        paneH: launchCol.implicitHeight + 24
         anchorCenterY: sidebarContent.y + playRow.y + playRow.height / 2
         opener: chooserButton.visible ? chooserButton : playButton; exclusive: true
         // The switch as this game has it each time (a click on it ends its binding, and the page is reused)
         onOpenChanged: if (open) alwaysSwitch.checked = root.launchDefault >= 0
         Column {
             id: launchCol
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
-            spacing: 2
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+            spacing: 3 // Joined, as the info drawer's pieces
             Repeater {
                 model: root.launchChoices
                 MoreItem {
@@ -929,13 +928,13 @@ Item {
     SideDrawer { // Install where? One row per Steam library, with its free space
         id: libraryMenu
         paneW: 260
-        paneH: libraryCol.implicitHeight + 16
+        paneH: libraryCol.implicitHeight + 24
         anchorCenterY: sidebarContent.y + playRow.y + playRow.height / 2
         opener: playButton; exclusive: true
         Column {
             id: libraryCol
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
-            spacing: 2
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+            spacing: 3 // Joined, as the info drawer's pieces
             Repeater {
                 model: GameLauncherService.steamLibraries
                 MoreItem {
@@ -956,179 +955,190 @@ Item {
     SideDrawer { // Tags: chips for the game's tags, an input pill, suggestion chips
         id: tagMenuPopup
         paneW: 260
-        paneH: _tagPopupContent.implicitHeight + 28
+        paneH: _tagPopupContent.implicitHeight + 24
         anchorCenterY: topLeftButtons.y + tagIconBtn.y + tagIconBtn.height / 2
         exclusive: true // No opener: it has a text field, so it stays while the pointer is away (a click outside closes it)
         MouseArea { anchors.fill: parent } // Keep clicks inside the card
-        Column {
+        Column { // Joined pieces, as the info drawer's: what it is and its tags, adding one; suggestions apart
             id: _tagPopupContent
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
-            spacing: 12
-            // Header: badge, title + count
-            Row {
-                spacing: 12
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+            spacing: 3
+            InfoPiece { // Header: the icon in an accent square, how many
+                implicitHeight: 52
                 Rectangle {
-                    width: 36; height: 36; radius: 12
-                    color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
+                    x: 9; anchors.verticalCenter: parent.verticalCenter
+                    width: 34; height: 34; radius: 9
+                    color: Appearance.colors.colLayer3Accent
                     MaterialSymbol { anchors.centerIn: parent; text: "sell"; iconSize: 18; fill: 1; color: Appearance.colors.colPrimary }
                 }
                 Column {
-                    anchors.verticalCenter: parent.verticalCenter; spacing: 1
+                    x: 54; anchors.verticalCenter: parent.verticalCenter; spacing: 1
                     StyledText {
                         text: Translation.tr("Tags")
-                        font.pixelSize: Appearance.font.pixelSize.normal; font.weight: Font.DemiBold
-                        color: Appearance.colors.colOnLayer0
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colOnLayer3
                     }
                     StyledText {
                         text: tagIconBtn.hasTags
-                            ? tagIconBtn.gameTags.length + (tagIconBtn.gameTags.length === 1 ? " tag · click to remove" : " tags · click to remove")
+                            ? (tagIconBtn.gameTags.length === 1 ? Translation.tr("1 tag · click one to remove it")
+                                : Translation.tr("%1 tags · click one to remove it").arg(tagIconBtn.gameTags.length))
                             : Translation.tr("No tags yet")
-                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.pixelSize: Appearance.font.pixelSize.smallest
                         color: Appearance.colors.colSubtext
                     }
                 }
             }
-            // The game's tags as chips; hover turns one red to remove it
-            Flow {
-                width: parent.width; spacing: 6
+            InfoPiece { // The game's tags as chips; hovered, one turns red to remove it
                 visible: tagIconBtn.hasTags
-                Repeater {
-                    model: tagIconBtn.gameTags
-                    Rectangle {
-                        id: _tagChip
-                        required property string modelData
-                        readonly property bool hovered: _tagChipMa.containsMouse
-                        width: _tagChipRow.implicitWidth + 22; height: 28; radius: Appearance.rounding.segment
-                        color: hovered ? ColorUtils.transparentize(Appearance.colors.colError, 0.82)
-                            : ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                        Row {
-                            id: _tagChipRow
-                            anchors.centerIn: parent; spacing: 4
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: _tagChip.modelData
-                                font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
-                                color: _tagChip.hovered ? Appearance.colors.colError : Appearance.colors.colPrimary
+                implicitHeight: _tagFlow.implicitHeight + 20
+                Flow {
+                    id: _tagFlow
+                    x: 10; y: 10; width: parent.width - 20; spacing: 6
+                    Repeater {
+                        model: tagIconBtn.gameTags
+                        Rectangle {
+                            id: _tagChip
+                            required property string modelData
+                            readonly property bool hovered: _tagChipMa.containsMouse
+                            width: _tagChipRow.implicitWidth + 20; height: 28; radius: 9
+                            color: hovered ? Appearance.colors.colLayer3Error : Appearance.colors.colLayer3Accent
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Row {
+                                id: _tagChipRow
+                                anchors.centerIn: parent; spacing: 4
+                                StyledText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: _tagChip.modelData
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    color: _tagChip.hovered ? Appearance.colors.colError : Appearance.colors.colPrimary
+                                }
+                                MaterialSymbol {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "close"; iconSize: 14
+                                    color: _tagChip.hovered ? Appearance.colors.colError : ColorUtils.transparentize(Appearance.colors.colPrimary, 0.4)
+                                }
                             }
-                            MaterialSymbol {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "close"; iconSize: 14
-                                color: _tagChip.hovered ? Appearance.colors.colError : ColorUtils.transparentize(Appearance.colors.colPrimary, 0.4)
+                            MouseArea {
+                                id: _tagChipMa
+                                anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { if (root.game) GameLauncherService.removeTag(root.game.id, _tagChip.modelData); }
                             }
-                        }
-                        MouseArea {
-                            id: _tagChipMa
-                            anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (root.game) GameLauncherService.removeTag(root.game.id, _tagChip.modelData); }
                         }
                     }
                 }
             }
-            // Add-tag input pill
-            Rectangle {
-                width: parent.width; height: 38; radius: 13
-                color: tagInputField.activeFocus ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
-                border.width: tagInputField.activeFocus ? 2 : 0
-                border.color: Appearance.colors.colPrimary
-                Behavior on color { ColorAnimation { duration: 120 } }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.IBeamCursor
-                    onClicked: tagInputField.forceActiveFocus()
-                }
-                MaterialSymbol {
-                    id: _tagAddIcon
-                    anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                    text: "add"; iconSize: 18
-                    color: tagInputField.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                }
-                TextInput {
-                    id: tagInputField
-                    anchors { left: _tagAddIcon.right; leftMargin: 8; right: parent.right; rightMargin: 14; top: parent.top; bottom: parent.bottom }
-                    verticalAlignment: TextInput.AlignVCenter
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.family: Appearance.font.family.main
-                    color: Appearance.colors.colOnLayer1
-                    clip: true; maximumLength: 30; selectByMouse: true
-                    selectedTextColor: Appearance.colors.colOnPrimary
-                    selectionColor: Appearance.colors.colPrimary
-                    Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                            const tag = text.trim();
-                            if (tag.length > 0 && root.game) {
-                                GameLauncherService.addTag(root.game.id, tag);
-                                text = "";
-                            }
-                            event.accepted = true;
-                        } else if (event.key === Qt.Key_Escape) {
-                            tagMenuPopup.open = false;
-                            text = "";
-                            root.forceActiveFocus();
-                            event.accepted = true;
-                        }
-                    }
-                    StyledText {
+            InfoPiece { // Adding one: a box inside the piece
+                implicitHeight: 54
+                Rectangle {
+                    anchors { fill: parent; margins: 8 }
+                    radius: 9
+                    color: tagInputField.activeFocus ? Appearance.colors.colLayer4Hover : Appearance.colors.colLayer4
+                    border.width: tagInputField.activeFocus ? 2 : 0
+                    border.color: Appearance.colors.colPrimary
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    MouseArea {
                         anchors.fill: parent
-                        verticalAlignment: Text.AlignVCenter
-                        text: Translation.tr("Add a tag and press Enter")
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colSubtext
-                        visible: tagInputField.text.length === 0
+                        cursorShape: Qt.IBeamCursor
+                        onClicked: tagInputField.forceActiveFocus()
                     }
+                    MaterialSymbol {
+                        id: _tagAddIcon
+                        anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                        text: "add"; iconSize: 18
+                        color: tagInputField.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                    }
+                        TextInput {
+                            id: tagInputField
+                            anchors { left: _tagAddIcon.right; leftMargin: 8; right: parent.right; rightMargin: 14; top: parent.top; bottom: parent.bottom }
+                            verticalAlignment: TextInput.AlignVCenter
+                            font.pixelSize: Appearance.font.pixelSize.smallie
+                            font.family: Appearance.font.family.main
+                            color: Appearance.colors.colOnLayer3
+                            clip: true; maximumLength: 30; selectByMouse: true
+                            selectedTextColor: Appearance.colors.colOnPrimary
+                            selectionColor: Appearance.colors.colPrimary
+                            Keys.onPressed: event => {
+                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                    const tag = text.trim();
+                                    if (tag.length > 0 && root.game) {
+                                        GameLauncherService.addTag(root.game.id, tag);
+                                        text = "";
+                                    }
+                                    event.accepted = true;
+                                } else if (event.key === Qt.Key_Escape) {
+                                    tagMenuPopup.open = false;
+                                    text = "";
+                                    root.forceActiveFocus();
+                                    event.accepted = true;
+                                }
+                            }
+                            StyledText {
+                                anchors.fill: parent
+                                verticalAlignment: Text.AlignVCenter
+                                text: Translation.tr("Add a tag and press Enter")
+                                font.pixelSize: Appearance.font.pixelSize.smallie
+                                color: Appearance.colors.colSubtext
+                                visible: tagInputField.text.length === 0
+                            }
+                        }
                 }
             }
-            // Suggestions from tags used on other games
-            Column {
+            Item { width: 1; height: 3; visible: _tagSuggest.visible } // A gap: suggestions are a group of their own
+            InfoPiece { // Suggestions: tags used on other games
                 id: _tagSuggest
                 property var _allTags: { const _ = GameLauncherService.tagsRevision; return GameLauncherService.allTags; }
                 property var _availableTags: {
                     const input = tagInputField.text.trim().toLowerCase();
                     return _allTags.filter(t => tagIconBtn.gameTags.indexOf(t) < 0 && (input.length === 0 || t.toLowerCase().indexOf(input) >= 0));
                 }
-                width: parent.width; spacing: 8
                 visible: _availableTags.length > 0
-                StyledText {
-                    text: Translation.tr("Suggestions")
-                    font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
-                    color: Appearance.colors.colSubtext
-                }
-                Flow {
-                    width: parent.width; spacing: 6
-                    Repeater {
-                        model: _tagSuggest._availableTags
-                        Rectangle {
-                            id: _suggestChip
-                            required property string modelData
-                            width: _suggestRow.implicitWidth + 20; height: 28; radius: Appearance.rounding.segment
-                            color: _suggestMa.containsMouse ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                            Row {
-                                id: _suggestRow
-                                anchors.centerIn: parent; spacing: 4
-                                MaterialSymbol {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "add"; iconSize: 14
-                                    color: _suggestMa.containsMouse ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                implicitHeight: _suggestCol.implicitHeight + 22
+                Column {
+                    id: _suggestCol
+                    x: 10; y: 11; width: parent.width - 20; spacing: 8
+                    StyledText {
+                        leftPadding: 2
+                        text: Translation.tr("Suggestions")
+                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        color: Appearance.colors.colSubtext
+                    }
+                    Flow {
+                        width: parent.width; spacing: 6
+                        Repeater {
+                            model: _tagSuggest._availableTags
+                            Rectangle {
+                                id: _suggestChip
+                                required property string modelData
+                                width: _suggestRow.implicitWidth + 20; height: 28; radius: 9
+                                color: _suggestMa.containsMouse ? Appearance.colors.colLayer4Hover : Appearance.colors.colLayer4
+                                Behavior on color { ColorAnimation { duration: 120 } }
+                                Row {
+                                    id: _suggestRow
+                                    anchors.centerIn: parent; spacing: 4
+                                    MaterialSymbol {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "add"; iconSize: 14
+                                        color: _suggestMa.containsMouse ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                    }
+                                    StyledText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: _suggestChip.modelData
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        color: Appearance.colors.colOnLayer3
+                                    }
                                 }
-                                StyledText {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: _suggestChip.modelData
-                                    font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
-                                    color: Appearance.colors.colOnLayer1
-                                }
-                            }
-                            MouseArea {
-                                id: _suggestMa
-                                anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (!root.game) return;
-                                    // Text first: adding the tag takes this chip out of the list (destroyed mid-click)
-                                    const tag = _suggestChip.modelData, gameId = root.game.id;
-                                    tagInputField.text = "";
-                                    GameLauncherService.addTag(gameId, tag);
+                                MouseArea {
+                                    id: _suggestMa
+                                    anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (!root.game) return;
+                                        // Text first: adding the tag takes this chip out of the list (destroyed mid-click)
+                                        const tag = _suggestChip.modelData, gameId = root.game.id;
+                                        tagInputField.text = "";
+                                        GameLauncherService.addTag(gameId, tag);
+                                    }
                                 }
                             }
                         }
@@ -1152,7 +1162,7 @@ Item {
             RippleButton {
                 id: playButton
                 Layout.fillWidth: true
-                Layout.preferredHeight: 52
+                Layout.preferredHeight: timeLine !== "" ? 58 : 52
                 buttonRadius: Appearance.rounding.joined
                 buttonRadiusTopLeft: Appearance.rounding.normal
                 buttonRadiusTopRight: chooserButton.visible ? Appearance.rounding.joined : Appearance.rounding.normal
@@ -1167,6 +1177,13 @@ Item {
                 opacity: enabled ? 1 : 0.6
                 // Running now (GameClips' watcher): the button says so and goes back to it, instead of starting it again
                 readonly property bool playing: !!game && GameClips.gameId === game.id
+                // Under Play (installed, nothing downloading): your time in it and when you last played
+                readonly property string timeLine: {
+                    if (!game || playing || root.installState !== "installed" || root._downloadPhase !== "") return "";
+                    const h = Math.floor((game.playtime ?? 0) / 60);
+                    const hours = (game.playtime ?? 0) <= 0 ? "" : h > 0 ? Translation.tr("%1 h played").arg(h) : Translation.tr("< 1 h played");
+                    return [hours, root._lastPlayedText].filter(t => t).join("  ·  ");
+                }
                 function activate() {
                     if (playing) {
                         const matchers = GameLauncherService.processMatchers(game);
@@ -1207,7 +1224,7 @@ Item {
                     "installed":      { icon: "play_arrow",  text: Translation.tr("Play") }
                 })[root.installState] ?? { icon: "play_arrow", text: Translation.tr("Play") }
                 contentItem: Item {
-                    implicitHeight: 52
+                    implicitHeight: playButton.Layout.preferredHeight
                     Rectangle { // Download progress (the game's, or its mods'), filling the button from the left
                         visible: root._downloadPhase !== "" && root.downloadProgress >= 0
                         anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
@@ -1217,9 +1234,11 @@ Item {
                         color: ColorUtils.transparentize(Appearance.colors.colOnPrimary, 0.8)
                         Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
                     }
-                    Row {
+                    Column {
                         anchors.centerIn: parent
                         anchors.horizontalCenterOffset: -4
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 8
                         PlayingDot { // Playing: where the icon goes (as the grid's badge)
                             anchors.verticalCenter: parent.verticalCenter
@@ -1249,13 +1268,21 @@ Item {
                             font.letterSpacing: 0.5
                         }
                     }
+                    StyledText {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        visible: playButton.timeLine !== ""
+                        text: playButton.timeLine
+                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        color: ColorUtils.transparentize(Appearance.colors.colOnPrimary, 0.3)
+                    }
+                    }
                 }
             }
             RippleButton { // The other ways to start it, once Play starts one without asking (launchDefault)
                 id: chooserButton
                 visible: root.installState === "installed" && !playButton.playing && root.launchDefault >= 0
                 Layout.preferredWidth: 44
-                Layout.preferredHeight: 52
+                Layout.preferredHeight: playButton.Layout.preferredHeight
                 buttonRadius: Appearance.rounding.joined
                 buttonRadiusTopRight: Appearance.rounding.normal
                 padding: 0
@@ -1276,36 +1303,20 @@ Item {
                 StyledToolTip { text: Translation.tr("Other ways to start it") }
             }
         }
-        Rectangle { // The action strip's card, under Play (topLeftButtons is positioned on top of it, a cell each)
+        Item { // Where the action buttons go, under Play (topLeftButtons is positioned on it): joined icon squares
             id: actionRowSlot
             Layout.fillWidth: true
             Layout.leftMargin: 8; Layout.rightMargin: 8
-            Layout.topMargin: 4; Layout.bottomMargin: 10
-            Layout.preferredHeight: 58
-            topLeftRadius: Appearance.rounding.joined
-            topRightRadius: Appearance.rounding.joined
-            bottomLeftRadius: Appearance.rounding.normal
-            bottomRightRadius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer3
-            Repeater { // Hairlines between the cells
-                model: 4
-                Rectangle {
-                    required property int index
-                    x: Math.round(root._stripCell * (index + 1))
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 1
-                    height: parent.height - 20
-                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.92)
-                }
-            }
+            Layout.topMargin: 3; Layout.bottomMargin: 10
+            Layout.preferredHeight: 38
         }
         readonly property bool _isSteam: game?.id?.startsWith("steam_") ?? false
         readonly property bool _isLutris: game?.id?.startsWith("lutris_") ?? false
-        readonly property var _steamActions: [
+        readonly property var _steamActions: [ // The panels, then the browser link
                 { icon: "newspaper",            label: qsTr("News"),         type: "news" },
-                { icon: "science",              label: qsTr("ProtonDB"),     url: "https://www.protondb.com/app/" },
                 { icon: "perm_media",           label: qsTr("Captures"),     type: "screenshots" },
-                { icon: "emoji_events",         label: qsTr("Achievements"), type: "achievements" }
+                { icon: "emoji_events",         label: qsTr("Achievements"), type: "achievements" },
+                { icon: "science",              label: qsTr("ProtonDB"),     url: "https://www.protondb.com/app/" }
         ]
         readonly property var _lutrisActions: {
             const _ = GameLauncherService.metadataCacheRevision;
@@ -1340,7 +1351,7 @@ Item {
                     required property var modelData
                     required property int index
                     Layout.fillWidth: true
-                    Layout.preferredHeight: headline !== "" ? 48 : 40
+                    Layout.preferredHeight: subtitle !== "" || sidebarContent._isSteam ? 50 : 40 // Steam's four rows all the same
                     buttonRadius: Appearance.rounding.joined
                     buttonRadiusTopLeft: index === 0 ? Appearance.rounding.normal : Appearance.rounding.joined
                     buttonRadiusTopRight: buttonRadiusTopLeft
@@ -1365,18 +1376,35 @@ Item {
                     readonly property var achieved: modelData.type === "achievements" && GameLauncherService.achievementsFor === (game?.id ?? "")
                         && (GameLauncherService.achievements?.total ?? 0) > 0 ? GameLauncherService.achievements : null
                     readonly property string tier: modelData.label === "ProtonDB" ? (game?.protondbTier ?? "") : ""
+                    // The line under the name: what's inside
+                    readonly property string subtitle: headline !== "" ? headline
+                        : modelData.type === "screenshots" ? (root._peekCount === 0 ? Translation.tr("None yet")
+                            : root._peekCount === 1 ? Translation.tr("1 capture") : Translation.tr("%1 captures").arg(root._peekCount))
+                        : achieved ? Translation.tr("%1 of %2 unlocked").arg(achieved.unlocked).arg(achieved.total)
+                        : tier !== "" ? Translation.tr("Rated %1").arg(tier.charAt(0).toUpperCase() + tier.slice(1))
+                        : ""
                     contentItem: Item {
                         implicitHeight: actionBtn.Layout.preferredHeight
-                        MaterialSymbol {
+                        Rectangle { // The icon in a square: accent for a panel here, grey for the browser. Its panel open (the
+                            // row tinted as the square): solid accent, so it still stands out; hovered, a step up
                             id: actionIcon
-                            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                            text: actionBtn.modelData.icon; iconSize: 18
-                            fill: actionBtn.panelOpen ? 1 : 0
-                            color: (actionBtn.lit || actionBtn.panelOpen) ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                            Behavior on color { ColorAnimation { duration: 180 } }
+                            anchors { left: parent.left; leftMargin: 7; verticalCenter: parent.verticalCenter }
+                            width: 32; height: 32; radius: 9
+                            color: actionBtn.panelOpen ? Appearance.colors.colPrimary
+                                : actionBtn.isLink ? (actionBtn.lit ? Appearance.colors.colLayer4Hover : Appearance.colors.colLayer4)
+                                : actionBtn.lit ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Accent
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: actionBtn.modelData.icon; iconSize: 17
+                                fill: actionBtn.panelOpen ? 1 : 0
+                                color: actionBtn.panelOpen ? Appearance.colors.colOnPrimary
+                                    : actionBtn.isLink ? Appearance.colors.colOnLayer3 : Appearance.colors.colPrimary
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                            }
                         }
                         Column {
-                            anchors { left: actionIcon.right; leftMargin: 12; right: detail.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                            anchors { left: actionIcon.right; leftMargin: 10; right: detail.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
                             spacing: 1
                             Row {
                                 spacing: 6
@@ -1404,80 +1432,19 @@ Item {
                                     }
                                 }
                             }
-                            StyledText { // The newest post's title
+                            StyledText { // What's inside: the newest post, how many captures, how far, the rating
                                 width: parent.width
-                                visible: actionBtn.headline !== ""
+                                visible: actionBtn.subtitle !== ""
                                 elide: Text.ElideRight
-                                text: actionBtn.headline
+                                text: actionBtn.subtitle
                                 font.pixelSize: Appearance.font.pixelSize.smallest
                                 color: Appearance.colors.colSubtext
                             }
                         }
-                        Row { // What's inside, then where it goes
+                        Row { // Where it goes
                             id: detail
                             anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                             spacing: 6
-                            Rectangle { // ProtonDB's tier
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: actionBtn.tier !== ""
-                                width: tierText.implicitWidth + 12; height: 20; radius: 6
-                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.88)
-                                StyledText {
-                                    id: tierText
-                                    anchors.centerIn: parent
-                                    text: actionBtn.tier.charAt(0).toUpperCase() + actionBtn.tier.slice(1)
-                                    font.pixelSize: Appearance.font.pixelSize.smallest
-                                    color: Appearance.colors.colOnLayer3
-                                }
-                            }
-                            Row { // Captures: the newest screenshots
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-                                Repeater {
-                                model: actionBtn.modelData.type === "screenshots" ? root._peekShots : []
-                                Rectangle {
-                                    required property string modelData
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 28; height: 18; radius: 4
-                                    color: Appearance.colors.colLayer4
-                                    clip: true
-                                    Image {
-                                        anchors.fill: parent
-                                        source: "file://" + parent.modelData
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        sourceSize.width: 96 // Fixed: re-decoding with the size flickers
-                                    }
-                                }
-                                }
-                            }
-                            StyledText { // Captures: how many
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: actionBtn.modelData.type === "screenshots" && root._peekCount > 0
-                                text: root._peekCount
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                font.family: Appearance.font.family.numbers
-                                color: Appearance.colors.colSubtext
-                            }
-                            Rectangle { // Achievements: how far
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: actionBtn.achieved !== null
-                                width: 24; height: 4; radius: 2
-                                color: Appearance.colors.colLayer4
-                                Rectangle {
-                                    width: parent.width * (actionBtn.achieved ? actionBtn.achieved.unlocked / actionBtn.achieved.total : 0)
-                                    height: parent.height; radius: 2
-                                    color: Appearance.colors.colPrimary
-                                }
-                            }
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: actionBtn.achieved !== null
-                                text: actionBtn.achieved ? `${actionBtn.achieved.unlocked}/${actionBtn.achieved.total}` : ""
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                font.family: Appearance.font.family.numbers
-                                color: Appearance.colors.colSubtext
-                            }
                             MaterialSymbol {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: actionBtn.isLink ? "open_in_new" : "chevron_right"
@@ -1534,10 +1501,9 @@ Item {
             }
         }
     }
-    readonly property real _stripCell: actionRowSlot.width / 5
-    // For the Captures row: the game's screenshots (find_screenshots.py, newest first, its folder on the first
-    // line) and how many clips its folder holds (a last "clips" line)
-    property var _peekShots: []
+    readonly property real _stripCell: (actionRowSlot.width - 12) / 5 // Five, 3 px apart
+    // For the Captures row: how many screenshots (find_screenshots.py, newest first, its folder on the first line)
+    // and clips (a last "clips" line) the game has
     property int _peekCount: 0
     Process {
         id: capturesPeek
@@ -1549,7 +1515,6 @@ Item {
                 const lines = text.split("\n").filter(l => l && !l.startsWith("folder\t"));
                 const clipsLine = lines.find(l => l.startsWith("clips\t"));
                 const shots = lines.filter(l => !l.startsWith("clips\t")).map(l => l.split("\t").slice(3).join("\t"));
-                root._peekShots = shots.slice(0, 3);
                 root._peekCount = shots.length + (parseInt(clipsLine?.split("\t")[1] ?? "0") || 0);
             }
         }
@@ -1751,87 +1716,96 @@ Item {
     }
     // An on/off icon in the row under Play (favourite, completed, crosshair): faded while off, the icon
     // filled in the accent while on, a bounce when clicked
+    // A switch of the action row: a joined square, tinted in the accent while it's on; its name in its tooltip
     component ToggleIcon: RippleButton {
         id: ti
         property string iconName
-        property string label
         property bool on: false
         property string tip
         signal flipped() // (not toggled(): buttons have that already)
         width: root._stripCell; height: actionRowSlot.height
-        buttonRadius: Appearance.rounding.small; padding: 0
-        colBackground: "transparent"
-        colBackgroundHover: Appearance.colors.colLayer3Hover
+        buttonRadius: Appearance.rounding.joined; padding: 0
+        colBackground: on ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+        colBackgroundHover: on ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Hover
         colRipple: Appearance.colors.colLayer3Active
         buttonColor: (hovered || activeFocus) ? colBackgroundHover : colBackground
         contentItem: StripCell {
             id: tiCell
             iconName: ti.iconName
-            label: ti.label
             on: ti.on
         }
         onClicked: { if (!game) return; ti.flipped(); tiCell.bounce(); focus = false; }
         StyledToolTip { text: ti.tip }
     }
-    // A cell of the action strip under Play: its icon, its name under it, both in the accent when on
+    // A cell of the action row under Play: its icon, in the accent (filled) when on, and a small count (Tags)
     component StripCell: Item {
         id: cell
         property string iconName
-        property string label
         property bool on: false
+        property int count: 0
         function bounce() { cellBounce.start(); }
-        implicitHeight: 58
-        Column {
+        implicitHeight: 38
+        MaterialSymbol {
+            id: cellIcon
             anchors.centerIn: parent
-            spacing: 3
-            MaterialSymbol {
-                id: cellIcon
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: cell.iconName; iconSize: 20
-                fill: cell.on ? 1 : 0
-                color: cell.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0
-                Behavior on fill { NumberAnimation { duration: 200 } }
-                Behavior on color { ColorAnimation { duration: 200 } }
-                SequentialAnimation {
-                    id: cellBounce
-                    NumberAnimation { target: cellIcon; property: "scale"; to: 1.4; duration: 120; easing.type: Easing.OutQuad }
-                    NumberAnimation { target: cellIcon; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
-                }
+            text: cell.iconName; iconSize: 20
+            fill: cell.on ? 1 : 0
+            color: cell.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+            Behavior on fill { NumberAnimation { duration: 200 } }
+            Behavior on color { ColorAnimation { duration: 200 } }
+            SequentialAnimation {
+                id: cellBounce
+                NumberAnimation { target: cellIcon; property: "scale"; to: 1.4; duration: 120; easing.type: Easing.OutQuad }
+                NumberAnimation { target: cellIcon; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
             }
+        }
+        Rectangle { // How many (Tags)
+            visible: cell.count > 0
+            x: cellIcon.x + cellIcon.width - 6; y: cellIcon.y - 5
+            width: Math.max(15, countText.implicitWidth + 8); height: 14; radius: 7
+            color: Appearance.colors.colPrimary
             StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: cell.label
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                color: cell.on ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                Behavior on color { ColorAnimation { duration: 200 } }
+                id: countText
+                anchors.centerIn: parent
+                text: cell.count > 9 ? "9+" : cell.count
+                font.pixelSize: 9
+                font.family: Appearance.font.family.numbers
+                font.variableAxes: ({}) // Not Roboto Flex's tuning
+                color: Appearance.colors.colOnPrimary
             }
         }
     }
+    // A row of a side menu (⋯, install where, start how): a piece joined to the rows beside it, as the info drawer's,
+    // the icon in an accent square (red for a destructive one; solid while it's armed)
     component MoreItem: RippleButton {
         id: mi
         property string iconName
         property string label
         property string detail: "" // A second, smaller line under the label (fits in the same height)
-        property bool filled: false // Solid squircle behind the icon: armed/active
+        property bool filled: false // Solid square behind the icon: armed/active
         property bool closesMenu: true
         property bool danger: false
         signal triggered()
         readonly property color accent: danger ? Appearance.colors.colError : Appearance.colors.colPrimary
         width: parent ? parent.width : 200
-        height: visible ? 44 : 0 // Never changes: a taller item would resize and move the open menu
-        buttonRadius: 14
+        height: visible ? 46 : 0 // Never changes: a taller item would resize and move the open menu
+        readonly property bool settingsRow: true
+        GroupCorners { id: miCorners; item: mi; outer: Appearance.rounding.small }
+        buttonRadius: Appearance.rounding.joined
+        buttonRadiusTop: miCorners.top
+        buttonRadiusBottom: miCorners.bottom
         padding: 0
-        colBackground: "transparent"
-        colBackgroundHover: danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.88) : Appearance.m3colors.m3surfaceContainerHigh
+        colBackground: Appearance.colors.colLayer3
+        colBackgroundHover: danger ? Appearance.colors.colLayer3ErrorHover : Appearance.colors.colLayer3Hover
         colRipple: ColorUtils.transparentize(accent, 0.75)
         onClicked: { const close = closesMenu; if (game) mi.triggered(); if (close) moreMenu.open = false; }
         contentItem: Item {
             Row {
-                anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
-                spacing: 12
+                anchors { left: parent.left; leftMargin: 7; verticalCenter: parent.verticalCenter }
+                spacing: 11
                 Rectangle {
-                    width: 32; height: 32; radius: Appearance.rounding.segment
-                    color: mi.filled ? mi.accent : ColorUtils.transparentize(mi.accent, 0.82)
+                    width: 32; height: 32; radius: 9
+                    color: mi.filled ? mi.accent : mi.danger ? Appearance.colors.colLayer3Error : Appearance.colors.colLayer3Accent
                     Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
                     MaterialSymbol {
                         anchors.centerIn: parent; text: mi.iconName; iconSize: 17
@@ -1840,9 +1814,9 @@ Item {
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: mi.width - 6 - 32 - 12 - 10 // What's left of the row: long text is cut off, not spilled
-                    StyledText { width: parent.width; elide: Text.ElideRight; text: mi.label; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium; color: mi.danger ? Appearance.colors.colError : Appearance.colors.colOnLayer0 }
-                    StyledText { width: parent.width; elide: Text.ElideRight; visible: mi.detail !== ""; text: mi.detail; font.pixelSize: Appearance.font.pixelSize.smaller; color: Appearance.colors.colSubtext }
+                    width: mi.width - 7 - 32 - 11 - 12 // What's left of the row: long text is cut off, not spilled
+                    StyledText { width: parent.width; elide: Text.ElideRight; text: mi.label; font.pixelSize: Appearance.font.pixelSize.smallie; color: mi.danger ? Appearance.colors.colError : Appearance.colors.colOnLayer3 }
+                    StyledText { width: parent.width; elide: Text.ElideRight; visible: mi.detail !== ""; text: mi.detail; font.pixelSize: Appearance.font.pixelSize.smallest; color: Appearance.colors.colSubtext }
                 }
             }
         }

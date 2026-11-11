@@ -41,7 +41,7 @@ RippleButton {
     buttonRadiusBottomLeft: lastInMenu ? Appearance.rounding.normal : lastInSection ? Appearance.rounding.small : 4
     buttonRadiusBottomRight: buttonRadiusBottomLeft
     colBackground: menuEntry.isSeparator ? "transparent"
-        : danger ? ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colError, 0.9) : Appearance.colors.colLayer3
+        : danger ? Appearance.colors.colLayer3ErrorHover : Appearance.colors.colLayer3
     colBackgroundHover: ColorUtils.mix(Appearance.colors.colLayer3, accent, 0.84)
     colRipple: ColorUtils.mix(Appearance.colors.colLayer3, accent, 0.72)
 

@@ -169,7 +169,7 @@ Scope {
                 topRightRadius: Appearance.rounding.joined
                 bottomLeftRadius: isLast ? Appearance.rounding.normal : Appearance.rounding.joined
                 bottomRightRadius: bottomLeftRadius
-                color: ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colError, 0.9)
+                color: Appearance.colors.colLayer3ErrorHover
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                     spacing: 6
