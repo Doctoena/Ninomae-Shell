@@ -454,16 +454,24 @@ Scope {
                                             StripButton {
                                                 iconName: "sell"
                                                 label: tagContainer.active ? GameLauncherService.selectedTag : Translation.tr("Tags")
-                                                chevron: !tagContainer.active
                                                 on: tagContainer.open || tagContainer.active
                                                 onClicked: tagContainer.toggle()
                                                 StyledToolTip { text: tagContainer.open ? Translation.tr("Close") : Translation.tr("Tags") }
                                             }
-                                            ToolbarOption { // Back to every game in one click, without opening the panel
+                                            Item { // Back to every game in one click, without opening the panel. Slides in and out
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                visible: tagContainer.active
-                                                text: "close"; tooltip: Translation.tr("Show all games")
-                                                onClicked: { GameLauncherService.selectedTag = ""; if (tagContainer.open) root.gridPanel = ""; }
+                                                width: tagContainer.active ? tagClear.implicitWidth : 0
+                                                height: tagClear.implicitHeight
+                                                clip: true
+                                                visible: width > 0
+                                                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                                ToolbarOption {
+                                                    id: tagClear
+                                                    opacity: tagContainer.active ? 1 : 0
+                                                    Behavior on opacity { NumberAnimation { duration: 160 } }
+                                                    text: "close"; tooltip: Translation.tr("Show all games")
+                                                    onClicked: { GameLauncherService.selectedTag = ""; if (tagContainer.open) root.gridPanel = ""; }
+                                                }
                                             }
                                         }
                                     }
@@ -572,8 +580,9 @@ Scope {
                                             visible: open || GameLauncherService.activeDownloads.length > 0 || GameLauncherService.recentlyFinished
                                             implicitWidth: dlRow.implicitWidth + 24
                                             implicitHeight: 36
+                                            padding: 0 // The bar below lines up with the icon and the % only without the default inset
                                             buttonRadius: Appearance.rounding.small
-                                            colBackground: open ? ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colPrimary, 0.82) : Appearance.colors.colLayer3
+                                            colBackground: open ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
                                             colBackgroundHover: Appearance.colors.colLayer3Hover
                                             colRipple: Appearance.colors.colLayer3Active
                                             onClicked: root.gridPanel = open ? "" : "downloads"
@@ -1274,12 +1283,12 @@ Scope {
             }
         }
     }
-    // A button in a strip: its icon, a name when it has one, a ▾ for a menu. On: in the accent, on a wash
+    // A button in a strip: its icon and a name when it has one. On: in the accent, on a wash. A new name fades out
+    // the old one, the button growing or shrinking to fit, then fades in
     component StripButton: RippleButton {
         id: sb
         property string iconName
         property string label: ""
-        property bool chevron: false
         property bool on: false
         property bool spinning: false
         implicitWidth: sbRow.implicitWidth + (label === "" ? 18 : 24)
@@ -1300,6 +1309,7 @@ Scope {
                     iconSize: 18
                     fill: sb.on ? 1 : 0
                     color: sb.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+                    Behavior on color { ColorAnimation { duration: 150 } }
                     RotationAnimation on rotation {
                         running: sb.spinning
                         from: 0; to: 360
@@ -1310,20 +1320,24 @@ Scope {
                     }
                 }
                 StyledText {
+                    id: sbLabel
                     anchors.verticalCenter: parent.verticalCenter
                     visible: sb.label !== ""
                     width: Math.min(implicitWidth, 160)
-                    elide: Text.ElideRight
+                    clip: true // Wiped in as it grows, rather than shown cut short
+                    elide: implicitWidth > 160 ? Text.ElideRight : Text.ElideNone
                     text: sb.label
                     font.pixelSize: Appearance.font.pixelSize.smallie
                     color: sb.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
-                }
-                MaterialSymbol {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: sb.chevron
-                    text: "expand_more"
-                    iconSize: 16
-                    color: Appearance.colors.colSubtext
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    Behavior on text {
+                        SequentialAnimation {
+                            NumberAnimation { target: sbLabel; property: "opacity"; to: 0; duration: 90; easing.type: Easing.InCubic }
+                            PropertyAction {}
+                            NumberAnimation { target: sbLabel; property: "opacity"; to: 1; duration: 160; easing.type: Easing.OutCubic }
+                        }
+                    }
                 }
             }
         }
@@ -1346,7 +1360,6 @@ Scope {
             id: pickerButton
             iconName: picker.currentOption?.icon ?? ""
             label: picker.currentOption?.label ?? ""
-            chevron: true
             on: picker.revealed
             onClicked: picker.revealed = !picker.revealed
             StyledToolTip { text: picker.title }

@@ -381,8 +381,8 @@ LauncherTopPanel {
         ColumnLayout {
             id: toolsColumn
             width: toolsScroll.width
-            spacing: 8
-            SectionLabel { text: Translation.tr("Tools") }
+            spacing: 3 // Rows join into a group, as Settings'
+            SectionLabel { Layout.bottomMargin: 5; text: Translation.tr("Tools") }
             ToolCard {
                 tool: "gamemode"; iconName: "speed"; title: "GameMode"; pkg: "gamemode"
                 description: Translation.tr("Tunes the CPU and GPU for games while it runs")
@@ -455,23 +455,35 @@ LauncherTopPanel {
     ColumnLayout {
         visible: root.loaded
         anchors { top: banner.bottom; topMargin: 14; left: toolsScroll.right; leftMargin: 20; right: parent.right; rightMargin: 20 }
-        spacing: 8
-        SectionLabel { text: Translation.tr("Launch options") }
-        OptionBox {
+        spacing: 3 // Rows join into a group, as Settings'
+        SectionLabel { Layout.bottomMargin: 5; text: Translation.tr("Launch line") }
+        Rectangle { // The whole line, and what it means, in a card of its own
             Layout.fillWidth: true
-            text: root.options
-            placeholder: "gamemoderun %command% -novid"
-            onEdited: t => root.options = t
+            implicitHeight: launchLine.implicitHeight + 16
+            radius: Appearance.rounding.normal
+            color: Appearance.colors.colLayer3
+            ColumnLayout {
+                id: launchLine
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+                spacing: 8
+                OptionBox {
+                    Layout.fillWidth: true
+                    text: root.options
+                    placeholder: "gamemoderun %command% -novid"
+                    onEdited: t => root.options = t
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 6; Layout.rightMargin: 6; Layout.bottomMargin: 2
+                    wrapMode: Text.Wrap
+                    textFormat: Text.StyledText
+                    text: Translation.tr("As Steam has it. <tt>%command%</tt> is the game: words before it run it, words after it go to the game.")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+            }
         }
-        StyledText {
-            Layout.fillWidth: true
-            wrapMode: Text.Wrap
-            textFormat: Text.StyledText
-            text: Translation.tr("As Steam has it. <tt>%command%</tt> is the game: words before it run it, words after it go to the game.")
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            color: Appearance.colors.colSubtext
-        }
-        SectionLabel { Layout.topMargin: 8; text: Translation.tr("Proton (for games it runs)") }
+        SectionLabel { Layout.topMargin: 14; Layout.bottomMargin: 5; text: Translation.tr("Proton (for games it runs)") }
         ToolCard {
             tool: "wayland"; iconName: "web_asset"; title: Translation.tr("Wayland")
             description: Translation.tr("Draws straight on Wayland, not through Xwayland")
@@ -555,10 +567,14 @@ LauncherTopPanel {
         readonly property bool usable: available || isOn // Can always be switched off
         Layout.fillWidth: true
         implicitHeight: cardColumn.implicitHeight + 20
-        radius: Appearance.rounding.normal
-        color: cardMa.containsMouse && usable ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
-        border.width: isOn ? 1 : 0
-        border.color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.5)
+        // Cards next to each other join into a group (rounded at its ends), as Settings' rows
+        readonly property bool settingsRow: true
+        GroupCorners { id: corners; item: card }
+        topLeftRadius: corners.top
+        topRightRadius: corners.top
+        bottomLeftRadius: corners.bottom
+        bottomRightRadius: corners.bottom
+        color: cardMa.containsMouse && usable ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
         Behavior on color { ColorAnimation { duration: 120 } }
         Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
         clip: true
@@ -578,15 +594,17 @@ LauncherTopPanel {
                 spacing: 12
                 Rectangle {
                     implicitWidth: 34; implicitHeight: 34
-                    radius: Appearance.rounding.container
-                    color: card.isOn ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colPrimary, 0.85)
+                    radius: 9
+                    // On: an accent-tinted square (as the game page's facts); off: a neutral one
+                    color: card.isOn ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer4
+                    Behavior on color { ColorAnimation { duration: 120 } }
                     opacity: card.usable ? 1 : 0.5
                     MaterialSymbol {
                         anchors.centerIn: parent
                         text: card.iconName
                         iconSize: 19
                         fill: card.isOn ? 1 : 0
-                        color: card.isOn ? Appearance.colors.colOnPrimary : Appearance.colors.colPrimary
+                        color: card.isOn ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
                     }
                 }
                 ColumnLayout {
@@ -595,7 +613,7 @@ LauncherTopPanel {
                     StyledText {
                         text: card.title
                         font.weight: Font.DemiBold
-                        color: card.usable ? Appearance.colors.colOnLayer1 : Appearance.colors.colSubtext
+                        color: card.usable ? Appearance.colors.colOnLayer3 : Appearance.colors.colSubtext
                     }
                     StyledText {
                         Layout.fillWidth: true
@@ -621,35 +639,38 @@ LauncherTopPanel {
         }
     }
 
-    // A row of choices, one picked (a value not among them, as "custom", picks none)
-    component Segmented: Rectangle {
+    // A row of choices, one picked (a value not among them, as "custom", picks none): joined chips, the picked one
+    // tinted in the accent
+    component Segmented: Item {
         id: seg
         property var options: []
         property string value
         signal picked(string v)
-        implicitHeight: 36
-        radius: Appearance.rounding.segment
-        color: Appearance.colors.colLayer2
+        implicitHeight: 34
         RowLayout {
-            anchors { fill: parent; margins: 4 }
-            spacing: 2
+            anchors.fill: parent
+            spacing: 3
             Repeater {
                 model: seg.options
                 Rectangle {
                     id: segItem
                     required property var modelData
+                    required property int index
                     readonly property bool active: seg.value === modelData.value
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: Appearance.rounding.segment - 2
-                    color: active ? Appearance.colors.colPrimary : segMa.containsMouse ? Appearance.colors.colLayer2Hover : "transparent"
+                    topLeftRadius: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined
+                    bottomLeftRadius: topLeftRadius
+                    topRightRadius: index === seg.options.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
+                    bottomRightRadius: topRightRadius
+                    color: active ? Appearance.colors.colLayer3Accent
+                        : segMa.containsMouse ? Appearance.colors.colLayer4Hover : Appearance.colors.colLayer4
                     Behavior on color { ColorAnimation { duration: 120 } }
                     StyledText {
                         anchors.centerIn: parent
                         text: segItem.modelData.label
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: segItem.active ? Font.DemiBold : Font.Normal
-                        color: segItem.active ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
+                        color: segItem.active ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
                     }
                     MouseArea {
                         id: segMa
@@ -673,7 +694,7 @@ LauncherTopPanel {
         signal edited(string text)
         implicitHeight: 42
         radius: Appearance.rounding.small
-        color: Appearance.colors.colLayer2
+        color: Appearance.colors.colLayer4
         border.width: field.activeFocus ? 2 : 0
         border.color: Appearance.colors.colPrimary
         ToolbarTextField {

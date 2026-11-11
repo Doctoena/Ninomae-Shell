@@ -141,8 +141,9 @@ LauncherTopPanel {
                     Behavior on opacity { NumberAnimation { duration: 200 } }
                 }
             }
-            ClippingRectangle { // A row: its first picture, else an icon for its kind
+            ClippingRectangle { // A row: its first picture, else the game's own art (an icon for its kind without either)
                 id: thumb
+                readonly property string source: postRow.featured ? "" : (postRow.art || GameLauncherService.bannerArt(root.game))
                 visible: !postRow.featured
                 anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
                 width: 52; height: 34
@@ -150,7 +151,7 @@ LauncherTopPanel {
                 color: Appearance.colors.colLayer2
                 Image {
                     anchors.fill: parent
-                    source: postRow.featured ? "" : postRow.art
+                    source: thumb.source
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 104
@@ -159,7 +160,7 @@ LauncherTopPanel {
                 }
                 MaterialSymbol {
                     anchors.centerIn: parent
-                    visible: postRow.art === ""
+                    visible: thumb.source === ""
                     text: postRow.modelData.update ? "build" : "campaign"
                     iconSize: 16
                     color: postRow.current ? Appearance.colors.colPrimary : Appearance.colors.colSubtext

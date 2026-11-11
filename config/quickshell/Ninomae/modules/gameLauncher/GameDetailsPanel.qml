@@ -6,6 +6,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Window
 import QtQuick.Layouts
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 Item {
@@ -285,7 +286,8 @@ Item {
                 gameName: root.game ? (root.game.name || "") : ""
                 imageSource: {
                     if (bannerImage.source && bannerImage.source.toString() !== "") return bannerImage.source.toString();
-                    if (root.game?.boxArt?.length > 0 && root.game.boxArt.startsWith("/")) return root.game.boxArt;
+                    const cover = GameLauncherService.localArt(root.game, "boxArt"); // Yours if set, as the grid's
+                    if (cover) return cover;
                     if (root.game?.icon?.length > 0 && root.game.icon.startsWith("/")) return root.game.icon;
                     return "";
                 }
@@ -354,45 +356,81 @@ Item {
         return names[r] ?? (r ? r.charAt(0).toUpperCase() + r.slice(1) : "");
     }
     readonly property bool _runsNatively: game?.runner === "linux" || !!game?.flatpakId
-    // ─── Facts pill (top-right): one slim see-through line of what changes: how it runs (Lutris), an update since you
-    // last played, ProtonDB, hours, players. Not the install status: the Play button says it. Hovered, the rest
-    // (_extraStats: last played, size, where it's from) drops into a card joined under it ───
+    // ─── Facts (top-right): joined chips of what changes: how it runs (Lutris), an update since you last played,
+    // ProtonDB, hours, players. Not the install status: the Play button says it. Hovered, the rest (_extraStats:
+    // last played, size, where it's from) joins under them as rows at the same width, and the ⓘ turns on ───
     readonly property var _pillFacts: {
         if (!game) return [];
         const out = [];
         if (root._runnerLabel !== "")
-            out.push({ icon: root._runsNatively ? "terminal" : "wine_bar", text: root._runnerLabel, accent: Appearance.colors.colPrimary });
+            out.push({ icon: root._runsNatively ? "terminal" : "wine_bar", value: root._runnerLabel });
         if (root.installState === "installed" && GameClips.gameId !== game.id && !root._modsOnly
-                && GameLauncherService.updatedSincePlayed(game)) // Patched since you last played
-            out.push({ icon: "new_releases", text: Translation.tr("Updated %1").arg(root._ago(game.lastUpdated * 1000)), accent: Appearance.colors.colTertiary });
+                && GameLauncherService.updatedSincePlayed(game)) // Patched since you last played: news, in the tertiary
+            out.push({ icon: "new_releases", value: Translation.tr("Updated"), name: root._ago(game.lastUpdated * 1000), accent: Appearance.colors.colTertiary });
         const tier = game.protondbTier || "";
-        if (tier !== "") {
-            const tierColors = { "platinum": "#c9d6ea", "gold": "#cfb53b", "silver": "#a6a6a6", "bronze": "#cd7f32", "borked": "#ff4444", "native": "#5cb85c" };
-            out.push({ icon: "science", text: tier.charAt(0).toUpperCase() + tier.slice(1), accent: tierColors[tier] || Appearance.colors.colPrimary });
-        }
+        if (tier !== "")
+            out.push({ icon: "science", value: tier.charAt(0).toUpperCase() + tier.slice(1) });
         if (game.playtime > 0) {
             const h = Math.floor(game.playtime / 60);
-            out.push({ icon: "timer", text: h > 0 ? Translation.tr("%1 h played").arg(h) : Translation.tr("< 1 h played"), accent: Appearance.colors.colPrimary });
+            out.push({ icon: "timer", value: h > 0 ? `${h} h` : "< 1 h", name: Translation.tr("played") });
         }
         // Players in it right now (Steam's count; not for games it doesn't count)
         const players = GameLauncherService.playerCount(game); // Re-read as the counts come in (the binding sees playerCounts)
         if (players > 0)
-            out.push({ icon: "group", text: Translation.tr("%1 playing").arg(String(players).replace(/\B(?=(\d{3})+(?!\d))/g, ",")), accent: Appearance.colors.colPrimary });
+            out.push({ icon: "group", value: String(players).replace(/\B(?=(\d{3})+(?!\d))/g, ","), name: Translation.tr("playing") });
         return out;
     }
     property bool factsOpen: false
-    // See-through, with a hairline edge, so the art shows through (as Achievements' highlights)
-    readonly property color _glass: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.38)
-    readonly property color _glassEdge: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.91)
     Timer { id: factsCloseTimer; interval: 250; onTriggered: root.factsOpen = factsHover.hovered }
-    readonly property real _factsWidth: Math.max(factsRow.implicitWidth + 12, factsOpen ? extrasCol.implicitWidth + 28 : 0)
+    // The chips stretch to the rows' width when the rows need more, so the two always line up
+    readonly property real _factsWidth: Math.max(_chipsNeed, _extrasNeed)
+    readonly property real _chipsNeed: { // The chips' own widths, the ⓘ and the gaps
+        let w = root._extraStats.length > 0 ? 38 : -3;
+        for (let i = 0; i < chipsRepeater.count; i++) w += (chipsRepeater.itemAt(i)?.implicitWidth ?? 0) + 3;
+        return w;
+    }
+    readonly property real _extrasNeed: { // The widest row's own width (label, value), not the width it's given
+        let w = 0;
+        for (let i = 0; i < extrasRepeater.count; i++) w = Math.max(w, extrasRepeater.itemAt(i)?.implicitWidth ?? 0);
+        return w;
+    }
+    // The facts hang from the art's top edge in a tab of the page's colour (as the bar's drawers hang from the bar):
+    // curved in where it meets the edge, hugging the chips, and growing down with the rows
+    Shape {
+        id: factsTab
+        readonly property real pad: 5 // Around the chips
+        readonly property real r: 12 // The curves in at the edge
+        readonly property real rb: Appearance.rounding.normal
+        readonly property real w: infoCard.width + pad * 2
+        readonly property real h: infoCard.height + pad * 2
+        visible: infoCard.visible
+        opacity: infoCard.opacity
+        x: infoCard.x - pad - r
+        y: bannerFrame.y
+        width: w + r * 2; height: h
+        z: 9
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            fillColor: Appearance.m3colors.m3background
+            strokeWidth: -1
+            startX: 0; startY: 0
+            PathArc { x: factsTab.r; y: factsTab.r; radiusX: factsTab.r; radiusY: factsTab.r }
+            PathLine { x: factsTab.r; y: factsTab.h - factsTab.rb }
+            PathArc { x: factsTab.r + factsTab.rb; y: factsTab.h; radiusX: factsTab.rb; radiusY: factsTab.rb; direction: PathArc.Counterclockwise }
+            PathLine { x: factsTab.r + factsTab.w - factsTab.rb; y: factsTab.h }
+            PathArc { x: factsTab.r + factsTab.w; y: factsTab.h - factsTab.rb; radiusX: factsTab.rb; radiusY: factsTab.rb; direction: PathArc.Counterclockwise }
+            PathLine { x: factsTab.r + factsTab.w; y: factsTab.r }
+            PathArc { x: factsTab.w + factsTab.r * 2; y: 0; radiusX: factsTab.r; radiusY: factsTab.r }
+            PathLine { x: 0; y: 0 }
+        }
+    }
     Column {
         id: infoCard
-        anchors { right: parent.right; rightMargin: 30; top: parent.top; topMargin: 30 }
+        anchors { right: parent.right; rightMargin: 35; top: bannerFrame.top; topMargin: factsTab.pad }
         spacing: 3
         visible: root._pillFacts.length > 0 || root._extraStats.length > 0
         z: 10
-        HoverHandler { // Open while the pointer is on the pill or its card; a moment's grace on the way out
+        HoverHandler { // Open while the pointer is on the chips or the rows; a moment's grace on the way out
             id: factsHover
             onHoveredChanged: {
                 if (hovered && root._extraStats.length > 0) { factsCloseTimer.stop(); root.factsOpen = true; }
@@ -401,83 +439,123 @@ Item {
         }
         opacity: root.animationReady ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-        Rectangle {
-            width: root._factsWidth
-            height: 34
-            topLeftRadius: Appearance.rounding.small
-            topRightRadius: Appearance.rounding.small
-            bottomLeftRadius: root.factsOpen ? Appearance.rounding.joined : Appearance.rounding.small
-            bottomRightRadius: bottomLeftRadius
-            color: root._glass
-            border.width: 1
-            border.color: root._glassEdge
-            Row {
-                id: factsRow
-                anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                Repeater {
-                    model: root._pillFacts
+        Row {
+            id: factsRow
+            z: 1 // Over the rows, which slide out from under it
+            readonly property real _stretch: (root._factsWidth - root._chipsNeed) / Math.max(1, root._pillFacts.length)
+            spacing: 3
+            Repeater {
+                id: chipsRepeater
+                model: root._pillFacts
+                Rectangle {
+                    required property var modelData
+                    required property int index
+                    implicitWidth: factChip.implicitWidth + 26
+                    width: implicitWidth + factsRow._stretch
+                    height: 38
+                    color: Appearance.colors.colLayer3
+                    topLeftRadius: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined
+                    bottomLeftRadius: index === 0 && !extrasDrawer.visible ? Appearance.rounding.small : Appearance.rounding.joined
+                    topRightRadius: Appearance.rounding.joined
+                    bottomRightRadius: Appearance.rounding.joined
                     Row {
-                        required property var modelData
-                        required property int index
-                        anchors.verticalCenter: parent.verticalCenter
-                        Rectangle { // Between facts
-                            visible: index > 0
+                        id: factChip
+                        anchors.centerIn: parent
+                        spacing: 7
+                        MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: modelData.icon; iconSize: 17; color: modelData.accent ?? Appearance.colors.colPrimary }
+                        StyledText {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 1; height: 16
-                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
+                            text: modelData.value
+                            font.pixelSize: Appearance.font.pixelSize.smallie
+                            font.family: Appearance.font.family.numbers
+                            font.variableAxes: ({}) // Not Roboto Flex's tuning
+                            color: Appearance.colors.colOnLayer3
                         }
-                        Row {
+                        StyledText {
                             anchors.verticalCenter: parent.verticalCenter
-                            leftPadding: 10; rightPadding: 10
-                            spacing: 6
-                            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: modelData.icon; iconSize: 16; fill: 1; color: modelData.accent }
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.text
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                font.weight: Font.Medium
-                                color: Appearance.colors.colOnLayer0
-                            }
+                            visible: !!modelData.name
+                            text: modelData.name ?? ""
+                            font.pixelSize: Appearance.font.pixelSize.smallie
+                            color: Appearance.colors.colSubtext
                         }
                     }
                 }
-                MaterialSymbol { // There's more: points down, then up once it's out
-                    visible: root._extraStats.length > 0
-                    anchors.verticalCenter: parent.verticalCenter
-                    leftPadding: 2; rightPadding: 4
-                    text: "expand_more"
-                    iconSize: 20
-                    rotation: root.factsOpen ? 180 : 0
-                    Behavior on rotation { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-                    color: root.factsOpen ? Appearance.colors.colOnLayer0 : Appearance.colors.colSubtext
+            }
+            Rectangle { // ⓘ: says there's more, and turns on (in the accent) while it's out
+                visible: root._extraStats.length > 0
+                width: 38; height: 38
+                color: root.factsOpen ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+                Behavior on color { ColorAnimation { duration: 150 } }
+                topLeftRadius: Appearance.rounding.joined
+                bottomLeftRadius: Appearance.rounding.joined
+                topRightRadius: Appearance.rounding.small
+                bottomRightRadius: extrasDrawer.visible ? Appearance.rounding.joined : Appearance.rounding.small
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "info"
+                    iconSize: 19
+                    fill: root.factsOpen ? 1 : 0
+                    color: root.factsOpen ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
         }
-        Rectangle { // Last played, size, where it's from
-            visible: opacity > 0
-            opacity: root.factsOpen ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+        Item { // Last played, size, where it's from: rows joined under the chips, sliding out from under them in one
+            // piece on the bar drawers' curve (and their timing), cut off at the chips
+            id: extrasDrawer
+            property real progress: root.factsOpen ? 1 : 0
+            Behavior on progress {
+                NumberAnimation {
+                    duration: root.factsOpen ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: root.factsOpen ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
+                }
+            }
             width: root._factsWidth
-            height: extrasCol.implicitHeight + 16
-            topLeftRadius: Appearance.rounding.joined
-            topRightRadius: Appearance.rounding.joined
-            bottomLeftRadius: Appearance.rounding.small
-            bottomRightRadius: Appearance.rounding.small
-            color: root._glass
-            border.width: 1
-            border.color: root._glassEdge
+            height: extrasCol.implicitHeight * Math.min(1, progress)
+            visible: progress > 0
+            clip: true
             Column {
                 id: extrasCol
-                x: 14; y: 8
-                spacing: 2
+                y: extrasCol.implicitHeight * (Math.min(1, extrasDrawer.progress) - 1)
+                spacing: 3
                 Repeater {
+                    id: extrasRepeater
                     model: root._extraStats
-                    Row {
+                    Rectangle {
                         required property var modelData
-                        height: 28; spacing: 10
-                        MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: modelData.icon; iconSize: 15; color: Appearance.colors.colPrimary }
-                        StyledText { anchors.verticalCenter: parent.verticalCenter; width: 84; text: modelData.label; font.pixelSize: Appearance.font.pixelSize.smallest; color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.35) }
-                        StyledText { anchors.verticalCenter: parent.verticalCenter; text: modelData.value; font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium; color: Appearance.colors.colOnLayer0 }
+                        required property int index
+                        implicitWidth: 52 + extraLabel.implicitWidth + 24 + extraValue.implicitWidth + 14
+                        width: root._factsWidth
+                        height: 46
+                        color: Appearance.colors.colLayer3
+                        topLeftRadius: Appearance.rounding.joined
+                        topRightRadius: Appearance.rounding.joined
+                        bottomLeftRadius: index === root._extraStats.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
+                        bottomRightRadius: bottomLeftRadius
+                        Rectangle {
+                            x: 7; anchors.verticalCenter: parent.verticalCenter
+                            width: 34; height: 34
+                            radius: 9
+                            color: Appearance.colors.colLayer3Accent
+                            MaterialSymbol { anchors.centerIn: parent; text: modelData.icon; iconSize: 18; color: Appearance.colors.colPrimary }
+                        }
+                        StyledText {
+                            id: extraLabel
+                            x: 52; anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.label
+                            font.pixelSize: Appearance.font.pixelSize.smallie
+                            color: Appearance.colors.colSubtext
+                        }
+                        StyledText {
+                            id: extraValue
+                            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                            text: modelData.value
+                            font.pixelSize: Appearance.font.pixelSize.smallie
+                            font.family: Appearance.font.family.numbers
+                            font.variableAxes: ({})
+                            color: Appearance.colors.colOnLayer3
+                        }
                     }
                 }
             }
@@ -1277,7 +1355,7 @@ Item {
                     readonly property bool panelOpen: root.openPanel !== "" && root.openPanel === modelData.type
                     readonly property bool lit: hovered || activeFocus
                     readonly property bool isLink: !root.panelTypes.includes(modelData.type)
-                    buttonColor: panelOpen ? ColorUtils.mix(Appearance.colors.colLayer3, Appearance.colors.colPrimary, 0.82)
+                    buttonColor: panelOpen ? Appearance.colors.colLayer3Accent
                         : lit ? colBackgroundHover : colBackground
                     // News: how many posts are new since its panel was last opened, and the newest one's title
                     readonly property bool newsLoaded: modelData.type === "news" && GameLauncherService.newsFor === (game?.id ?? "")
@@ -1493,71 +1571,120 @@ Item {
         id: metadataCloseTimer; interval: 300
         onTriggered: root.metadataPaneOpen = infoTabHover.hovered || infoPaneHover.hovered
     }
-    Rectangle { // Reveal tab: a small nub sticking out of the menu edge
+    Item { // Reveal tab: a slim accent bar on the menu's edge. Idle, it breathes slowly; hovered, it springs wider
+        // (the shell's expressive curve) and a › slides in; pressed, it squishes. Its hover area is wider than the
+        // bar, so it's easy to find
         id: metadataNotch
         visible: root._currentMetadata !== null
         x: sidebarPanel.x + sidebarPanel.width
         y: sidebarPanel.y + (sidebarPanel.height - height) / 2
         z: 9
-        width: 18; height: 64
-        topRightRadius: 9; bottomRightRadius: 9
-        color: Appearance.m3colors.m3background
+        width: 20; height: 64
+        readonly property bool lit: infoTabHover.hovered
         opacity: infoDrawer.offset > 0.5 ? 1 : 0 // Hidden once the drawer covers it
         Behavior on opacity { NumberAnimation { duration: 150 } }
-        MaterialSymbol {
-            anchors.centerIn: parent
-            anchors.horizontalCenterOffset: -1
-            text: "chevron_right"
-            iconSize: 18
-            color: infoTabHover.hovered ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-            Behavior on color { ColorAnimation { duration: 150 } }
+        Rectangle {
+            id: notchBar
+            anchors.verticalCenter: parent.verticalCenter
+            x: 3
+            width: metadataNotch.lit ? 16 : 6
+            height: metadataNotch.lit ? 44 : 40
+            radius: width / 2
+            transformOrigin: Item.Left
+            color: metadataNotch.lit ? Appearance.colors.colLayer3Accent : Appearance.colors.colPrimary
+            // Idle: fades between soft and a little brighter, slowly; still while hovered or hidden
+            property real breath: 0.45
+            opacity: metadataNotch.lit ? 1 : breath
+            SequentialAnimation on breath {
+                running: GlobalStates.gameLauncherOpen && root.shown && metadataNotch.visible && !metadataNotch.lit && metadataNotch.opacity > 0
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.75; duration: 1600; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 0.4; duration: 1600; easing.type: Easing.InOutSine }
+            }
+            Behavior on width {
+                NumberAnimation {
+                    duration: Appearance.animationCurves.expressiveFastSpatialDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
+                }
+            }
+            Behavior on height {
+                NumberAnimation {
+                    duration: Appearance.animationCurves.expressiveFastSpatialDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
+                }
+            }
+            Behavior on color { ColorAnimation { duration: 160 } }
+            Behavior on opacity { NumberAnimation { duration: 160 } }
+            MaterialSymbol {
+                anchors.verticalCenter: parent.verticalCenter
+                x: (parent.width - width) / 2 + (metadataNotch.lit ? 0 : -6) // Slides in from the menu's side
+                Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                text: "chevron_right"
+                iconSize: 14
+                color: Appearance.colors.colPrimary
+                opacity: metadataNotch.lit ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 140 } }
+            }
+            SequentialAnimation { // Pressed: a quick squish and back
+                id: notchSquish
+                NumberAnimation { target: notchBar; property: "scale"; to: 0.85; duration: 70; easing.type: Easing.OutQuad }
+                NumberAnimation { target: notchBar; property: "scale"; to: 1; duration: 260; easing.type: Easing.OutBack }
+            }
         }
         HoverHandler { id: infoTabHover; enabled: !root._otherSideMenuOpen; onHoveredChanged: root._syncInfoHover() }
-        TapHandler { enabled: !root._otherSideMenuOpen; onTapped: root.metadataPaneOpen = !root.metadataPaneOpen }
+        TapHandler {
+            enabled: !root._otherSideMenuOpen
+            onTapped: { notchSquish.restart(); root.metadataPaneOpen = !root.metadataPaneOpen; }
+        }
     }
     SideDrawer {
         id: infoDrawer
         open: root.metadataPaneOpen && root._currentMetadata !== null
         paneW: 280
-        paneH: Math.min(_metaCol.implicitHeight + 36, sidebarPanel.height - 32)
+        paneH: Math.min(_metaCol.implicitHeight + 24, sidebarPanel.height - 32)
         anchorCenterY: sidebarPanel.y + sidebarPanel.height / 2
         HoverHandler { id: infoPaneHover; onHoveredChanged: root._syncInfoHover() }
         Flickable {
-            anchors { fill: parent; margins: 18 }
+            anchors { fill: parent; margins: 12 }
             contentHeight: _metaCol.implicitHeight
             clip: true; boundsBehavior: Flickable.StopAtBounds
+            // Joined pieces, as the facts' drop-down: the score, then a row each, the description last
             Column {
                 id: _metaCol
                 width: parent.width
-                spacing: 14
-                // Metacritic: round score badge coloured by rating
-                Row {
-                    visible: root._currentMetadata?.metacritic != null
-                    spacing: 12
-                    readonly property int score: root._currentMetadata?.metacritic ?? 0
-                    readonly property color tone: score >= 75 ? Appearance.colors.colPrimary
-                        : score >= 50 ? Appearance.colors.colTertiary : Appearance.colors.colError
+                spacing: 3
+                readonly property var meta: root._currentMetadata
+                readonly property bool _lutris: game?.id?.startsWith("lutris_") ?? false
+                readonly property string _devs: meta?.developers?.join(", ") ?? ""
+                readonly property string _pubs: meta?.publishers?.join(", ") ?? ""
+                InfoPiece { // Metacritic: the score in an accent square, what it means beside it
+                    id: scorePiece
+                    visible: _metaCol.meta?.metacritic != null
+                    implicitHeight: 58
+                    readonly property int score: _metaCol.meta?.metacritic ?? 0
                     Rectangle {
-                        width: 36; height: 36; radius: 12
-                        color: parent.tone
+                        x: 9; anchors.verticalCenter: parent.verticalCenter
+                        width: 40; height: 40; radius: 11
+                        color: Appearance.colors.colLayer3Accent
                         StyledText {
                             anchors.centerIn: parent
-                            text: parent.parent.score
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.Bold
+                            text: scorePiece.score
+                            font.pixelSize: Appearance.font.pixelSize.normal
                             font.family: Appearance.font.family.numbers
-                            font.variableAxes: ({}) // Not Roboto Flex's tuning (its light wght would win over font.weight)
-                            color: Appearance.colors.colOnPrimary
+                            font.variableAxes: ({}) // Not Roboto Flex's tuning
+                            color: Appearance.colors.colPrimary
                         }
                     }
                     Column {
-                        anchors.verticalCenter: parent.verticalCenter
+                        x: 60; anchors.verticalCenter: parent.verticalCenter
                         spacing: 1
                         StyledText {
-                            text: parent.parent.score >= 75 ? "Favorable" : parent.parent.score >= 50 ? "Mixed" : "Unfavorable"
+                            text: scorePiece.score >= 75 ? Translation.tr("Favorable reviews")
+                                : scorePiece.score >= 50 ? Translation.tr("Mixed reviews") : Translation.tr("Unfavorable reviews")
                             font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.DemiBold
-                            color: parent.parent.tone
+                            color: Appearance.colors.colOnLayer3
                         }
                         StyledText {
                             text: "Metacritic"
@@ -1566,36 +1693,27 @@ Item {
                         }
                     }
                 }
-                // Details: icon badge + label + value
-                MetaRow { iconName: "code"; label: "Developer"; value: root._currentMetadata?.developers?.join(", ") ?? "" }
-                MetaRow { iconName: "storefront"; label: "Publisher"; value: root._currentMetadata?.publishers?.join(", ") ?? "" }
-                MetaRow { iconName: "calendar_month"; label: "Released"; value: root._currentMetadata?.releaseDate ?? "" }
+                // Who made it: one row when the developer is the publisher too
+                InfoRow { iconName: "code"; label: _metaCol._devs === _metaCol._pubs ? Translation.tr("Made by") : Translation.tr("Developer"); value: _metaCol._devs }
+                InfoRow { iconName: "storefront"; label: Translation.tr("Publisher"); value: _metaCol._pubs !== _metaCol._devs ? _metaCol._pubs : "" }
+                InfoRow { iconName: "calendar_month"; label: Translation.tr("Released"); value: _metaCol.meta?.releaseDate ?? "" }
                 // Lutris games: what the Lutris database knows (Steam games have the store's details above)
-                readonly property bool _lutris: game?.id?.startsWith("lutris_") ?? false
-                MetaRow { iconName: "category"; label: "Genres"; value: _metaCol._lutris ? (root._currentMetadata?.genres ?? []).join(", ") : "" }
-                MetaRow { iconName: "devices"; label: "Platforms"; value: _metaCol._lutris ? (root._currentMetadata?.platforms ?? []).join(", ") : "" }
-                MetaRow { iconName: root._runsNatively ? "terminal" : "wine_bar"; label: "Runs on"; value: root._runnerLabel }
-                MetaRow { iconName: "group"; label: "Lutris players"; value: _metaCol._lutris && (root._currentMetadata?.userCount ?? 0) > 0 ? Number(root._currentMetadata.userCount).toLocaleString(Qt.locale(), "f", 0) : "" }
-                // Description
-                Column {
-                    width: parent.width
-                    spacing: 6
-                    topPadding: 2
-                    visible: (root._currentMetadata?.description ?? "") !== ""
+                InfoRow { iconName: "category"; label: Translation.tr("Genres"); value: _metaCol._lutris ? (_metaCol.meta?.genres ?? []).join(", ") : "" }
+                InfoRow { iconName: "devices"; label: Translation.tr("Platforms"); value: _metaCol._lutris ? (_metaCol.meta?.platforms ?? []).join(", ") : "" }
+                InfoRow { iconName: root._runsNatively ? "terminal" : "wine_bar"; label: Translation.tr("Runs on"); value: root._runnerLabel }
+                InfoRow { iconName: "group"; label: Translation.tr("Lutris players"); value: _metaCol._lutris && (_metaCol.meta?.userCount ?? 0) > 0 ? Number(_metaCol.meta.userCount).toLocaleString(Qt.locale(), "f", 0) : "" }
+                InfoPiece { // A line about it, last
+                    visible: (_metaCol.meta?.description ?? "") !== ""
+                    implicitHeight: aboutText.implicitHeight + 24
                     StyledText {
-                        text: "About"
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                        color: Appearance.colors.colOnLayer0
-                    }
-                    StyledText {
-                        width: parent.width
-                        text: GameLauncherService.decodeEntities(root._currentMetadata?.description ?? "")
+                        id: aboutText
+                        x: 14; y: 12; width: parent.width - 28
+                        text: GameLauncherService.decodeEntities(_metaCol.meta?.description ?? "")
                         textFormat: Text.PlainText // Store text, never markup
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         color: Appearance.colors.colSubtext
                         wrapMode: Text.Wrap
-                        lineHeight: 1.3
+                        lineHeight: 1.25
                         maximumLineCount: 8
                         elide: Text.ElideRight
                     }
@@ -1776,26 +1894,49 @@ Item {
             }
         }
     }
-    component MetaRow: Row {
-        id: metaRow
+    // A piece of the info drawer: joined to the ones beside it (rounded at the group's ends), as Settings' rows
+    component InfoPiece: Rectangle {
+        id: piece
+        default property alias content: pieceBody.data
+        width: parent?.width ?? 0
+        readonly property bool settingsRow: true
+        GroupCorners { id: pieceCorners; item: piece; outer: Appearance.rounding.small }
+        topLeftRadius: pieceCorners.top
+        topRightRadius: pieceCorners.top
+        bottomLeftRadius: pieceCorners.bottom
+        bottomRightRadius: pieceCorners.bottom
+        color: Appearance.colors.colLayer3
+        height: implicitHeight
+        Item { id: pieceBody; anchors.fill: parent }
+    }
+    // A row of it: the icon in an accent square, the name, the value on the right. Hidden without a value
+    component InfoRow: InfoPiece {
+        id: infoRow
         property string iconName: ""
         property string label: ""
         property string value: ""
-        width: parent.width
-        spacing: 12
         visible: value !== ""
+        implicitHeight: 46
         Rectangle {
-            width: 32; height: 32; radius: Appearance.rounding.segment
-            anchors.verticalCenter: parent.verticalCenter
-            color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
-            MaterialSymbol { anchors.centerIn: parent; text: metaRow.iconName; iconSize: 17; color: Appearance.colors.colPrimary }
+            x: 7; anchors.verticalCenter: parent.verticalCenter
+            width: 34; height: 34; radius: 9
+            color: Appearance.colors.colLayer3Accent
+            MaterialSymbol { anchors.centerIn: parent; text: infoRow.iconName; iconSize: 18; color: Appearance.colors.colPrimary }
         }
-        Column {
-            anchors.verticalCenter: parent.verticalCenter
-            width: metaRow.width - 32 - metaRow.spacing
-            spacing: 1
-            StyledText { text: metaRow.label; font.pixelSize: Appearance.font.pixelSize.smallest; color: Appearance.colors.colSubtext }
-            StyledText { width: parent.width; text: metaRow.value; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.DemiBold; color: Appearance.colors.colOnLayer0; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+        StyledText {
+            id: infoLabel
+            x: 52; anchors.verticalCenter: parent.verticalCenter
+            text: infoRow.label
+            font.pixelSize: Appearance.font.pixelSize.smallie
+            color: Appearance.colors.colSubtext
+        }
+        StyledText {
+            anchors { left: infoLabel.right; leftMargin: 12; right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+            horizontalAlignment: Text.AlignRight
+            elide: Text.ElideRight
+            text: infoRow.value
+            font.pixelSize: Appearance.font.pixelSize.smallie
+            color: Appearance.colors.colOnLayer3
         }
     }
 }

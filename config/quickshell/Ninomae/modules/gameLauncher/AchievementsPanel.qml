@@ -36,15 +36,15 @@ LauncherTopPanel {
         const out = [];
         const latest = unlocked.reduce((best, a) => !best || a.time > best.time ? a : best, null);
         if (latest) out.push({ key: latest.id, image: latest.icon, label: Translation.tr("Latest"), value: latest.name,
-                               detail: Qt.formatDate(new Date(latest.time * 1000), "MMM d, yyyy") });
+                               detail: Qt.formatDate(new Date(latest.time * 1000), "MMM d") });
         const rarest = unlocked.filter(a => a.percent >= 0).reduce((best, a) => !best || a.percent < best.percent ? a : best, null);
         if (rarest && rarest !== latest)
             out.push({ key: rarest.id, image: rarest.icon, label: Translation.tr("Rarest"), value: rarest.name,
-                       detail: Translation.tr("%1% of players").arg(percentText(rarest.percent)), accent: Appearance.colors.colTertiary });
+                       detail: `${percentText(rarest.percent)}%` });
         const next = all.filter(a => !a.unlocked && !a.hidden)
             .reduce((best, a) => !best || a.percent > best.percent ? a : best, null);
         if (next) out.push({ key: next.id, image: next.iconGray || next.icon, label: Translation.tr("Next up"), value: next.name,
-                             detail: next.percent >= 0 ? Translation.tr("%1% of players have it").arg(percentText(next.percent)) : "" });
+                             detail: next.percent >= 0 ? `${percentText(next.percent)}%` : "" });
         return out;
     }
     // A highlight's achievement, in the list: every one shown, scrolled to it, its card lit for a moment
@@ -92,7 +92,7 @@ LauncherTopPanel {
         id: banner
         game: root.game
         coverIcon: "emoji_events"
-        shadeMid: 0.72; shadeEnd: 0.55 // Lighter on the right: the highlights carry their own card
+        shadeMid: 0.72; shadeEnd: 0.55 // Lighter on the right: the highlights are solid chips
         anchors { top: parent.top; topMargin: 12; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
         height: root.total > 0 ? 112 : 0
         visible: root.total > 0
@@ -125,101 +125,99 @@ LauncherTopPanel {
             }
         }
 
-        Rectangle { // The highlights, on a see-through card with a hairline edge, so the art shows through
+        Row { // The highlights, as joined chips (as the game page's facts)
             id: highlightRow
             anchors { right: parent.right; rightMargin: 14 + 36 + 12; verticalCenter: parent.verticalCenter } // Clear of close
             visible: root.highlights.length > 0
-            width: highlightItems.implicitWidth + 8
-            height: highlightItems.implicitHeight + 8
-            radius: Appearance.rounding.normal
-            color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
-            border.width: 1
-            border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
-            Row {
-                id: highlightItems
-                anchors.centerIn: parent
-                Repeater {
-                    model: root.highlights
-                    Row {
-                        required property var modelData
-                        required property int index
-                        Rectangle { // Divider
-                            visible: index > 0
-                            width: 1; height: 26
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
-                        }
-                        Highlight { item: modelData }
-                    }
+            spacing: 3
+            Repeater {
+                model: root.highlights
+                Highlight {
+                    required property var modelData
+                    required property int index
+                    item: modelData
+                    first: index === 0
+                    last: index === root.highlights.length - 1
                 }
             }
         }
     }
 
-    // A banner highlight: the achievement's icon, what it is (Latest, Rarest…) and its name. Clicking it shows
-    // it in the list
-    component Highlight: Item {
+    // A banner highlight, a chip of the joined row: the achievement's picture, what it is (Latest, Rarest…) over its
+    // name, and when or how rare beside it. Clicking it shows it in the list
+    component Highlight: RippleButton {
         id: hl
         property var item: ({})
+        property bool first: false
+        property bool last: false
         readonly property bool clickable: (item.key ?? "") !== ""
-        width: hlRow.implicitWidth + 20
-        height: 54
-        Rectangle {
-            anchors { fill: parent; margins: 2 }
-            radius: Appearance.rounding.small
-            color: hlHover.hovered && hl.clickable ? ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9) : "transparent"
-            Behavior on color { ColorAnimation { duration: 120 } }
-        }
-        Row {
-            id: hlRow
-            anchors.centerIn: parent
-            spacing: 10
-            ClippingRectangle {
+        focusPolicy: Qt.NoFocus // The details page keeps the keys
+        implicitWidth: hlRow.implicitWidth + 22
+        implicitHeight: 50
+        padding: 0
+        enabled: clickable
+        buttonRadiusLeft: first ? Appearance.rounding.small : Appearance.rounding.joined
+        buttonRadiusRight: last ? Appearance.rounding.small : Appearance.rounding.joined
+        colBackground: Appearance.colors.colLayer3
+        colBackgroundHover: Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
+        onClicked: root.showAchievement(hl.item.key)
+        contentItem: Item {
+            Row {
+                id: hlRow
+                x: 8
                 anchors.verticalCenter: parent.verticalCenter
-                width: 32; height: 32
-                radius: Appearance.rounding.small
-                color: ColorUtils.transparentize(hl.item.accent ?? Appearance.colors.colPrimary, 0.8)
-                Image {
-                    anchors.fill: parent
-                    visible: !!hl.item.image
-                    source: hl.item.image ?? ""
-                    sourceSize: Qt.size(64, 64)
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
+                spacing: 10
+                ClippingRectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 34; height: 34
+                    radius: 9
+                    color: Appearance.colors.colLayer3Accent
+                    Image {
+                        anchors.fill: parent
+                        visible: !!hl.item.image
+                        source: hl.item.image ?? ""
+                        sourceSize: Qt.size(64, 64)
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                    }
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        visible: !hl.item.image
+                        text: hl.item.icon ?? ""
+                        iconSize: 18
+                        color: Appearance.colors.colPrimary
+                    }
                 }
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    visible: !hl.item.image
-                    text: hl.item.icon ?? ""
-                    iconSize: 18; fill: 1
-                    color: hl.item.accent ?? Appearance.colors.colPrimary
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 1
+                    StyledText {
+                        text: hl.item.label ?? ""
+                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        color: Appearance.colors.colSubtext
+                    }
+                    Row {
+                        spacing: 6
+                        StyledText {
+                            width: Math.min(implicitWidth, 200)
+                            text: hl.item.value ?? ""
+                            elide: Text.ElideRight
+                            font.pixelSize: Appearance.font.pixelSize.smallie
+                            color: Appearance.colors.colOnLayer3
+                        }
+                        StyledText {
+                            visible: (hl.item.detail ?? "") !== ""
+                            text: hl.item.detail ?? ""
+                            font.pixelSize: Appearance.font.pixelSize.smallie
+                            font.family: Appearance.font.family.numbers
+                            font.variableAxes: ({}) // Not Roboto Flex's tuning
+                            color: Appearance.colors.colSubtext
+                        }
+                    }
                 }
             }
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 0
-                StyledText {
-                    text: hl.item.label ?? ""
-                    font.pixelSize: 10; font.weight: Font.Medium
-                    color: hl.item.accent ?? Appearance.colors.colPrimary
-                }
-                StyledText {
-                    width: Math.min(implicitWidth, 200)
-                    text: hl.item.value ?? ""
-                    elide: Text.ElideRight
-                    font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer0
-                }
-                StyledText {
-                    visible: (hl.item.detail ?? "") !== ""
-                    text: hl.item.detail ?? ""
-                    font.pixelSize: 10
-                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.35)
-                }
-            }
         }
-        HoverHandler { id: hlHover; cursorShape: hl.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor }
-        TapHandler { enabled: hl.clickable; onTapped: root.showAchievement(hl.item.key) }
     }
 
     // ── List ──

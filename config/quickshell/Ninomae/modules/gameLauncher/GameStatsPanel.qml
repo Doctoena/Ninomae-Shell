@@ -186,7 +186,7 @@ Item {
     // The cards' models: changed only when their list is a new one (see _recompute's keep)
     property var _recentRows: []
     property var _mostRows: []
-    property var _storageRows: [] // Downloads ({ appid, game }) first, then the installs ({ game, size })
+    property var _storageRows: [] // Downloads ({ appid, game }, with size when installed) first, then the installs ({ game, size })
     on_StatsChanged: {
         if (_recentRows !== (_stats?.recent ?? _recentRows)) _recentRows = _stats.recent;
         if (_mostRows !== (_stats?.mostPlayed ?? _mostRows)) _mostRows = _stats.mostPlayed;
@@ -198,7 +198,11 @@ Item {
         const biggest = _stats?.biggest ?? [];
         if (_storageFor[0] === _downloads && _storageFor[1] === biggest) return;
         _storageFor = [_downloads, biggest];
-        _storageRows = _downloads.concat(biggest);
+        // A game both installed and updating is one row: the download's, with its size on disk
+        const sizes = new Map(biggest.map(b => [b.game.id, b.size]));
+        const merged = _downloads.map(d => sizes.has(d.game.id) ? Object.assign({ size: sizes.get(d.game.id) }, d) : d);
+        const downloading = new Set(_downloads.map(d => d.game.id));
+        _storageRows = merged.concat(biggest.filter(b => !downloading.has(b.game.id)));
     }
 
     // Everything below comes from one pass over the library, redone (debounced) when anything it reads changes
@@ -287,23 +291,16 @@ Item {
                 TapHandler { enabled: !!banner.game; onTapped: root.gameSelected(banner.game) }
                 HoverHandler { cursorShape: banner.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
 
-                RippleButton { // Back, on the art: see-through as the numbers' card
+                RippleButton { // Back, on the art: solid, as the numbers' chips
                     anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
                     implicitWidth: 36; implicitHeight: 36; padding: 0
-                    buttonRadius: Appearance.rounding.container
-                    colBackground: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
-                    colBackgroundHover: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.1)
-                    colRipple: Appearance.colors.colLayer2Active
-                    contentItem: Item { MaterialSymbol { anchors.centerIn: parent; text: "arrow_back"; iconSize: 18; color: Appearance.colors.colOnLayer0 } }
+                    buttonRadius: Appearance.rounding.small
+                    colBackground: Appearance.colors.colLayer3
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    colRipple: Appearance.colors.colLayer3Active
+                    contentItem: Item { MaterialSymbol { anchors.centerIn: parent; text: "arrow_back"; iconSize: 18; color: Appearance.colors.colOnLayer3 } }
                     onClicked: root.backPressed()
                     StyledToolTip { text: Translation.tr("Back") }
-                    Rectangle { // Hairline edge
-                        anchors.fill: parent
-                        radius: Appearance.rounding.container
-                        color: "transparent"
-                        border.width: 1
-                        border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
-                    }
                 }
 
                 Column { // How much you've played, and what most of it was
@@ -340,51 +337,43 @@ Item {
                     }
                 }
 
-                Rectangle { // The other numbers, on a see-through card with a hairline edge (as Achievements' highlights)
+                Row { // The other numbers, as joined chips (as the game page's facts)
                     id: facts
                     anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                    width: factRow.implicitWidth + 6
-                    height: factRow.implicitHeight + 6
-                    radius: Appearance.rounding.normal
-                    color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
-                    border.width: 1
-                    border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
-                    Row {
-                        id: factRow
-                        anchors.centerIn: parent
-                        BannerFact {
-                            icon: "download_done"; label: Translation.tr("Installed")
-                            value: Translation.tr("%1  ·  %2").arg(root._stats?.installed ?? 0).arg(root._formatBytes(root._stats?.diskTotal ?? 0))
-                            tip: (root._stats?.backlog ?? 0) === 1 ? Translation.tr("1 of them never played")
-                                : (root._stats?.backlog ?? 0) > 1 ? Translation.tr("%1 of them never played").arg(root._stats.backlog) : ""
-                        }
-                        BannerFact {
-                            divider: true
-                            icon: "history"; label: Translation.tr("Last 2 weeks")
-                            value: (root._stats?.recentGames ?? 0) === 1 ? Translation.tr("%1  ·  1 game").arg(root._formatTime(root._stats.recentTotalMin))
-                                : Translation.tr("%1  ·  %2 games").arg(root._formatTime(root._stats?.recentTotalMin ?? 0)).arg(root._stats?.recentGames ?? 0)
-                        }
-                        BannerFact { // The library's ProtonDB: one bar, the counts in its tooltip
-                            divider: true
-                            icon: "verified"; label: Translation.tr("ProtonDB")
-                            value: (root._stats?.tierGames ?? 0) > 0 ? Translation.tr("%1 rated").arg(root._thousands(root._stats.tierGames)) : Translation.tr("None rated")
-                            tip: (root._stats?.tiers ?? []).map(t => t.count + " " + t.tier).join("  ·  ")
-                            Item { // Sized here, the Row only fills it (segments sized from a layout-managed Row looped)
-                                width: 120; height: 6
-                                visible: (root._stats?.tierGames ?? 0) > 0
-                                Row {
-                                    id: tierBar
-                                    anchors.fill: parent
-                                    spacing: 2
-                                    Repeater {
-                                        model: root._stats?.tiers ?? []
-                                        Rectangle {
-                                            required property var modelData
-                                            width: Math.max(4, (tierBar.width - 2 * ((root._stats?.tiers?.length ?? 1) - 1)) * modelData.fraction)
-                                            height: tierBar.height
-                                            radius: 3
-                                            color: ColorUtils.mix(root._tierColors[modelData.tier] ?? Appearance.colors.colPrimary, Appearance.colors.colPrimary, 0.5)
-                                        }
+                    spacing: 3
+                    BannerFact {
+                        first: true
+                        icon: "download_done"; label: Translation.tr("Installed")
+                        value: String(root._stats?.installed ?? 0); note: root._formatBytes(root._stats?.diskTotal ?? 0)
+                        tip: (root._stats?.backlog ?? 0) === 1 ? Translation.tr("1 of them never played")
+                            : (root._stats?.backlog ?? 0) > 1 ? Translation.tr("%1 of them never played").arg(root._stats.backlog) : ""
+                    }
+                    BannerFact {
+                        icon: "history"; label: Translation.tr("Last 2 weeks")
+                        value: root._formatTime(root._stats?.recentTotalMin ?? 0)
+                        note: (root._stats?.recentGames ?? 0) === 1 ? Translation.tr("1 game") : Translation.tr("%1 games").arg(root._stats?.recentGames ?? 0)
+                    }
+                    BannerFact { // The library's ProtonDB: one bar, the counts in its tooltip
+                        last: true
+                        icon: "verified"; label: Translation.tr("ProtonDB")
+                        value: (root._stats?.tierGames ?? 0) > 0 ? root._thousands(root._stats.tierGames) : Translation.tr("None")
+                        note: Translation.tr("rated")
+                        tip: (root._stats?.tiers ?? []).map(t => t.count + " " + t.tier).join("  ·  ")
+                        Item { // Sized here, the Row only fills it (segments sized from a layout-managed Row looped)
+                            width: 120; height: 6
+                            visible: (root._stats?.tierGames ?? 0) > 0
+                            Row {
+                                id: tierBar
+                                anchors.fill: parent
+                                spacing: 2
+                                Repeater {
+                                    model: root._stats?.tiers ?? []
+                                    Rectangle {
+                                        required property var modelData
+                                        width: Math.max(4, (tierBar.width - 2 * ((root._stats?.tiers?.length ?? 1) - 1)) * modelData.fraction)
+                                        height: tierBar.height
+                                        radius: 3
+                                        color: ColorUtils.mix(root._tierColors[modelData.tier] ?? Appearance.colors.colPrimary, Appearance.colors.colPrimary, 0.5)
                                     }
                                 }
                             }
@@ -467,8 +456,10 @@ Item {
                         readonly property var item: modelData.appid ? root._downloadItem(modelData.appid) : null // Live
                         width: ListView.view.width
                         game: modelData.game
-                        subtitle: item ? root._downloadText(item) : ""
-                        trailing: item ? root._formatBytes(item.toDownload) : modelData.appid ? "" : root._formatBytes(modelData.size)
+                        // Installed and updating: its size, the update under the name (with what's left of it)
+                        subtitle: !item ? "" : modelData.size ? root._downloadText(item) + "  ·  " + Translation.tr("%1 left").arg(root._formatBytes(item.toDownload))
+                            : root._downloadText(item)
+                        trailing: modelData.size ? root._formatBytes(modelData.size) : item ? root._formatBytes(item.toDownload) : ""
                         fraction: modelData.appid ? Math.max(0, item?.progress ?? 0) : modelData.size / root._stats.maxSize
                     }
                 }
@@ -599,53 +590,65 @@ Item {
     }
 
     // One of the banner's numbers: a tinted squircle, a small label and the value (extra content under them)
-    component BannerFact: Row {
+    // A number on the banner: a chip of the joined row, its icon in an accent square, a small name over the value
+    // (bright, in the numbers' font) and a quieter note beside it. Anything added goes under them (ProtonDB's bar)
+    component BannerFact: Rectangle {
         id: fact
         property string icon
         property string label
         property string value
+        property string note: ""
         property string tip: ""
-        property bool divider: false
+        property bool first: false
+        property bool last: false
         default property alias content: factCol.data
-        height: 48
-        Rectangle {
-            visible: fact.divider
-            width: 1; height: 22
+        implicitWidth: factInner.implicitWidth + 22
+        implicitHeight: 50
+        color: Appearance.colors.colLayer3
+        topLeftRadius: first ? Appearance.rounding.small : Appearance.rounding.joined
+        bottomLeftRadius: topLeftRadius
+        topRightRadius: last ? Appearance.rounding.small : Appearance.rounding.joined
+        bottomRightRadius: topRightRadius
+        Row {
+            id: factInner
+            x: 8
             anchors.verticalCenter: parent.verticalCenter
-            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
-        }
-        Item {
-            width: factInner.implicitWidth + 22
-            height: parent.height
-            Row {
-                id: factInner
-                anchors.centerIn: parent
-                spacing: 9
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 28; height: 28; radius: 9
-                    color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.8)
-                    MaterialSymbol { anchors.centerIn: parent; text: fact.icon; iconSize: 16; fill: 1; color: Appearance.colors.colPrimary }
+            spacing: 10
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 34; height: 34; radius: 9
+                color: Appearance.colors.colLayer3Accent
+                MaterialSymbol { anchors.centerIn: parent; text: fact.icon; iconSize: 18; color: Appearance.colors.colPrimary }
+            }
+            Column {
+                id: factCol
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 1
+                StyledText {
+                    text: fact.label
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    color: Appearance.colors.colSubtext
                 }
-                Column {
-                    id: factCol
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 1
-                    StyledText {
-                        text: fact.label
-                        font.pixelSize: 10; font.weight: Font.Medium
-                        color: Appearance.colors.colPrimary
-                    }
+                Row {
+                    spacing: 6
                     StyledText {
                         text: fact.value
-                        font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.DemiBold
-                        color: Appearance.colors.colOnLayer0
+                        font.pixelSize: Appearance.font.pixelSize.smallie
+                        font.family: Appearance.font.family.numbers
+                        font.variableAxes: ({}) // Not Roboto Flex's tuning
+                        color: Appearance.colors.colOnLayer3
+                    }
+                    StyledText {
+                        visible: fact.note !== ""
+                        text: fact.note
+                        font.pixelSize: Appearance.font.pixelSize.smallie
+                        color: Appearance.colors.colSubtext
                     }
                 }
             }
-            HoverHandler { id: factHover }
-            StyledToolTip { text: fact.tip; visible: fact.tip !== "" && factHover.hovered }
         }
+        HoverHandler { id: factHover }
+        StyledToolTip { text: fact.tip; visible: fact.tip !== "" && factHover.hovered }
     }
 
     // A recently played game: its cover, the name and a line under it. Opens its details
@@ -876,7 +879,9 @@ Item {
                     Image {
                         id: thumb
                         anchors.fill: parent
-                        source: row.game?.boxArt ? "file://" + row.game.boxArt : ""
+                        // Your own cover if you set one (as the grid), else the game's
+                        readonly property string art: GameLauncherService.localArt(row.game, "boxArt")
+                        source: art ? "file://" + art : ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         sourceSize: Qt.size(56, 76)

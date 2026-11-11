@@ -157,12 +157,13 @@ Singleton {
     }
     readonly property var allTags: _tagInfo.tags
     readonly property var tagCounts: _tagInfo.counts
-    // Count of games that have box art (the actual displayable pool)
+    // Count of games that have box art (the actual displayable pool). Games added by hand always count, as in
+    // refilter (their art is their own), so "5 of N" agrees with Tags' and the stats' totals
     readonly property int displayableCount: {
         if (!root.hideWithoutBoxArt) return root.games.length;
         let count = 0;
         for (let i = 0; i < root.games.length; i++) {
-            if (root.games[i].boxArt) count++;
+            if (root.games[i].boxArt || root.games[i].source === "Custom") count++;
         }
         return count;
     }

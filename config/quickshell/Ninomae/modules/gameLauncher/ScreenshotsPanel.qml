@@ -352,11 +352,13 @@ LauncherTopPanel {
         }
         RailGroup {
             SheetIconButton { // Also the way back to all of them from the viewer
+                joined: true
                 iconName: "photo_library"; active: root.onShots
                 tip: rail.counted(Translation.tr("Screenshots"), rail.shotCount)
                 onClicked: { if (root.onShots) root.viewerIndex = -1; else root.page = "shots"; }
             }
             SheetIconButton {
+                joined: true
                 iconName: "movie"; active: !root.onShots
                 tip: rail.counted(Translation.tr("Clips"), clipsPage.clips.length)
                 onClicked: { if (!root.onShots) clipsPage.back(); else root.page = "clips"; }
@@ -365,16 +367,19 @@ LauncherTopPanel {
         RailGroup { // Where the shots are: only with some of both
             visible: root.onShots && !root.viewing && root.localCount > 0 && root.remoteCount > 0
             SheetIconButton {
+                joined: true
                 iconName: "apps"; active: root.filter === "all"
                 tip: rail.counted(Translation.tr("Everywhere"), rail.shotCount)
                 onClicked: root.filter = "all"
             }
             SheetIconButton {
+                joined: true
                 iconName: "computer"; active: root.filter === "local"
                 tip: rail.counted(Translation.tr("On this PC"), root.localCount)
                 onClicked: root.filter = "local"
             }
             SheetIconButton {
+                joined: true
                 iconName: "cloud"; active: root.filter === "immich"
                 tip: rail.counted(Translation.tr("In Immich"), root.remoteCount)
                 onClicked: root.filter = "immich"
@@ -383,6 +388,7 @@ LauncherTopPanel {
         RailGroup { // The actions for what's showing
             // ── The grid ──
             SheetIconButton { // Screenshots: the folder the newest one on disk is in, else where they go (made if missing)
+                joined: true
                 visible: rail.onGrid && (root.onShots ? root.localPaths.length > 0 || root.screenshotFolder !== "" : true)
                 iconName: "folder_open"
                 tip: root.onShots ? Translation.tr("Open screenshots folder") : Translation.tr("Open clips folder")
@@ -393,18 +399,21 @@ LauncherTopPanel {
                 }
             }
             SheetIconButton {
+                joined: true
                 visible: rail.onGrid && root.onShots && root.immichAlbumId !== "" && GameLauncherService.immichReady
                 iconName: "photo_album"; tip: Translation.tr("Open album in Immich")
                 onClicked: Quickshell.execDetached(["xdg-open", `${GameLauncherService.immichUrl}/albums/${root.immichAlbumId}`])
             }
             // ── A shot ──
             SheetIconButton {
+                joined: true
                 visible: root.onShots && root.viewing
                 iconName: root.copied ? "check" : "content_copy"
                 tip: root.copied ? Translation.tr("Copied") : Translation.tr("Copy image (Ctrl+C)")
                 onClicked: root.copyCurrent()
             }
             SheetIconButton {
+                joined: true
                 visible: root.onShots && root.viewing
                 iconName: "open_in_new"
                 tip: root.currentIsRemote ? Translation.tr("Open in Immich") : Translation.tr("Open in image viewer")
@@ -412,6 +421,7 @@ LauncherTopPanel {
             }
             // ── A clip ──
             SheetIconButton {
+                joined: true
                 visible: !root.onShots && clipsPage.viewing
                 enabled: clipsPage.exportKind === ""
                 active: clipsPage.trimming
@@ -419,12 +429,14 @@ LauncherTopPanel {
                 onClicked: clipsPage.toggleTrim()
             }
             SheetIconButton {
+                joined: true
                 visible: !root.onShots && clipsPage.viewing
                 iconName: clipsPage.copied ? "check" : "content_copy"
                 tip: clipsPage.copied ? Translation.tr("Copied") : Translation.tr("Copy clip (Ctrl+C)")
                 onClicked: clipsPage.copyClip(clipsPage.current?.path ?? "")
             }
             SheetIconButton {
+                joined: true
                 visible: !root.onShots && clipsPage.viewing
                 iconName: "open_in_new"; tip: Translation.tr("Open in video app")
                 onClicked: clipsPage.openExternally()
@@ -432,6 +444,7 @@ LauncherTopPanel {
             // ── Immich: on the grid all of them (not the album's own photos: they're there already), else the
             //    one open. Clips are "backed up" ──
             SheetIconButton {
+                joined: true
                 readonly property var files: root.onShots ? (root.viewing ? [root.currentEntry] : root.localPaths)
                     : (clipsPage.viewing ? [clipsPage.current?.path ?? ""] : clipsPage.clips.map(c => c.path))
                 readonly property string uploadState: GameLauncherService.immichUploadState
@@ -448,6 +461,7 @@ LauncherTopPanel {
         RailGroup { // Trash, apart from the rest: the shot or clip open (not an Immich photo), asked twice
             visible: root.onShots ? root.viewing && !root.currentIsRemote : clipsPage.viewing
             SheetIconButton {
+                joined: true
                 danger: true
                 active: root.trashArmed
                 iconName: root.trashArmed ? "delete_forever" : "delete"
@@ -456,20 +470,12 @@ LauncherTopPanel {
             }
         }
     }
-    // A group of the rail's buttons on one surface. With none of them shown it's 0 high, which
-    // the rail's Column skips (not hidden: its buttons would then count as hidden too, and it'd never come back)
-    component RailGroup: Rectangle {
-        default property alias buttons: groupColumn.data
-        readonly property bool any: groupColumn.implicitHeight > 0
+    // A group of the rail's buttons (each `joined: true`): each its own square, 3 px apart, rounded at the group's ends. With
+    // none of them shown it's 0 high, which the rail's Column skips (not hidden: its buttons would then count as
+    // hidden too, and it'd never come back)
+    component RailGroup: Column {
         width: 36
-        height: any ? groupColumn.implicitHeight + 6 : 0
-        radius: Appearance.rounding.container
-        color: any ? Appearance.colors.colLayer2 : "transparent"
-        Column {
-            id: groupColumn
-            anchors.centerIn: parent
-            spacing: 2
-        }
+        spacing: 3
     }
 
     // ── Grid: the shots in 16:9 tiles, four across, as the Clips page's (CaptureGrid; shots of another shape

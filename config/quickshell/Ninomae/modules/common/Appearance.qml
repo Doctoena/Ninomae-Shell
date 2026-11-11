@@ -168,6 +168,9 @@ Singleton {
         property color colOnLayer3: m3colors.m3onSurface;
         property color colLayer3Hover: ColorUtils.mix(colLayer3, colOnLayer3, 0.90)
         property color colLayer3Active: ColorUtils.mix(colLayer3, colOnLayer3, 0.80);
+        // Something on, on a card: a step toward the accent (an icon square, a picked chip, an open panel's row)
+        property color colLayer3Accent: ColorUtils.mix(colLayer3, colPrimary, 0.82)
+        property color colLayer3AccentHover: ColorUtils.mix(colLayer3, colPrimary, 0.74)
         property color colLayer4: m3colors.m3surfaceContainerHigh // Inside a card
         property color colOnLayer4: m3colors.m3onSurface;
         property color colLayer4Hover: ColorUtils.mix(colLayer4, colOnLayer4, 0.90)
