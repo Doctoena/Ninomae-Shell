@@ -159,7 +159,7 @@ LauncherTopPanel {
                 height: 44
                 visible: !root.empty && (steamOff || !root.canControl)
                 radius: Appearance.rounding.normal
-                color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.88)
+                color: Appearance.colors.colLayer3Accent
                 MaterialSymbol {
                     id: offIcon
                     anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
@@ -171,7 +171,7 @@ LauncherTopPanel {
                         : Translation.tr("To pause, resume or pick what downloads first from here, Steam needs Millennium and the Ninomae plugin. Run ninomae update to set them up.")
                     elide: Text.ElideRight
                     font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colOnLayer1
+                    color: Appearance.colors.colOnLayer3
                 }
             }
 
@@ -189,13 +189,6 @@ LauncherTopPanel {
                 visible: row !== null
                 TapHandler { enabled: !!banner.game; onTapped: root.openGame(banner.game) }
                 HoverHandler { cursorShape: banner.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
-                SheetIconButton { // Above the play button, in the corner the art leaves free
-                    anchors { top: parent.top; topMargin: 6; right: parent.right; rightMargin: 6 }
-                    z: 1
-                    iconName: "open_in_new"
-                    tip: Translation.tr("Open Steam's Downloads page")
-                    onClicked: GameLauncherService.openDownloads()
-                }
 
                 Column {
                     anchors { left: banner.coverItem.right; leftMargin: 16; right: bannerSide.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
@@ -264,11 +257,17 @@ LauncherTopPanel {
                             samples: root.data.history ?? []
                         }
                     }
-                    Row {
+                    Row { // Joined: what it does next, off the queue, Steam's own page
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 6
-                        RemoveButton { row: banner.row; headOfQueue: true; large: true }
+                        spacing: 3
                         ActionButton { row: banner.row; large: true }
+                        RemoveButton { row: banner.row; headOfQueue: true; large: true }
+                        SquircleButton {
+                            large: true
+                            symbol: "open_in_new"
+                            tip: Translation.tr("Open Steam's Downloads page")
+                            onClicked: GameLauncherService.openDownloads()
+                        }
                     }
                 }
             }
@@ -281,6 +280,45 @@ LauncherTopPanel {
                 rows: root.finished
                 finishedRows: true
                 clearable: true
+            }
+            Rectangle { // Room left where Steam installs: each drive once, and how full they are
+                readonly property var drives: {
+                    const seen = {};
+                    for (const l of GameLauncherService.steamLibraries) seen[`${l.free}:${l.size}`] = l;
+                    return Object.values(seen);
+                }
+                readonly property real free: drives.reduce((t, d) => t + d.free, 0)
+                readonly property real total: drives.reduce((t, d) => t + d.size, 0)
+                visible: !root.empty && total > 0
+                width: parent.width
+                height: 40
+                radius: Appearance.rounding.normal
+                color: Appearance.colors.colLayer3
+                MaterialSymbol {
+                    id: diskIcon
+                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    text: "hard_drive"; iconSize: 17
+                    color: Appearance.colors.colSubtext
+                }
+                StyledText {
+                    id: diskText
+                    anchors { left: diskIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: Translation.tr("%1 free").arg(root.size(parent.free))
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.family: Appearance.font.family.numbers
+                    font.variableAxes: ({}) // Not Roboto Flex's tuning
+                    color: Appearance.colors.colSubtext
+                }
+                Rectangle { // How full
+                    anchors { left: diskText.right; leftMargin: 16; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                    height: 5; radius: 2.5
+                    color: Appearance.colors.colLayer4
+                    Rectangle {
+                        width: parent.width * Math.max(0, Math.min(1, 1 - parent.parent.free / parent.parent.total))
+                        height: parent.height; radius: parent.radius
+                        color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.3)
+                    }
+                }
             }
         }
     }
@@ -301,12 +339,12 @@ LauncherTopPanel {
         property bool finishedRows: false
         property bool clearable: false // A "Clear all" by the heading (finished rows)
         width: parent.width
-        spacing: 6
+        spacing: 3 // Its rows join into a group, as Settings'
         visible: rows.length > 0
         topPadding: 4
         Item {
             width: section.width
-            height: 22
+            height: 25 // With the rows' 3 px: 28 to the first, as before
             StyledText {
                 anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
                 text: section.title
@@ -320,7 +358,7 @@ LauncherTopPanel {
                 height: 22; implicitWidth: clearLabel.implicitWidth + 16; padding: 0
                 buttonRadius: Appearance.rounding.small
                 colBackground: "transparent"
-                colBackgroundHover: Appearance.colors.colLayer2Hover
+                colBackgroundHover: Appearance.colors.colLayer3Hover
                 onClicked: GameLauncherService.clearFinishedDownloads(section.rows)
                 contentItem: StyledText {
                     id: clearLabel
@@ -328,7 +366,7 @@ LauncherTopPanel {
                     verticalAlignment: Text.AlignVCenter
                     text: Translation.tr("Clear all")
                     font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
-                    color: clearAll.hovered ? Appearance.colors.colOnLayer1 : Appearance.colors.colSubtext
+                    color: clearAll.hovered ? Appearance.colors.colOnLayer3 : Appearance.colors.colSubtext
                 }
             }
         }
@@ -350,8 +388,13 @@ LauncherTopPanel {
         readonly property var game: root.gameFor(row.appid)
         readonly property string cover: GameLauncherService.localArt(game, "boxArt")
         height: 54
-        radius: Appearance.rounding.normal
-        color: rowHover.hovered && game ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
+        readonly property bool settingsRow: true // Joins the rows beside it (GroupCorners)
+        GroupCorners { id: rowCorners; item: rowItem }
+        topLeftRadius: rowCorners.top
+        topRightRadius: rowCorners.top
+        bottomLeftRadius: rowCorners.bottom
+        bottomRightRadius: rowCorners.bottom
+        color: rowHover.hovered && game ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
         Behavior on color { ColorAnimation { duration: 120 } }
         HoverHandler { id: rowHover; cursorShape: rowItem.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
         TapHandler { enabled: !!rowItem.game; onTapped: root.openGame(rowItem.game) }
@@ -361,7 +404,7 @@ LauncherTopPanel {
             anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
             width: 30; height: 40
             radius: Appearance.rounding.small - 2
-            color: Appearance.colors.colLayer2
+            color: Appearance.colors.colLayer4
             Image {
                 anchors.fill: parent
                 source: rowItem.cover
@@ -384,8 +427,8 @@ LauncherTopPanel {
                 width: parent.width
                 text: rowItem.game?.name ?? rowItem.row.name ?? ""
                 elide: Text.ElideRight
-                font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.DemiBold
-                color: Appearance.colors.colOnLayer1
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colOnLayer3
             }
             StyledText {
                 width: parent.width
@@ -398,7 +441,8 @@ LauncherTopPanel {
         Row {
             id: rowSide
             anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-            spacing: 6
+            spacing: 3 // Joined buttons
+            ActionButton { visible: !rowItem.finishedRow && act !== null; row: rowItem.row } // First, as the banner's
             RemoveButton { visible: !rowItem.finishedRow && removable; row: rowItem.row }
             SquircleButton { // Off the panel (not Steam's: only the launcher's list)
                 visible: rowItem.finishedRow
@@ -407,7 +451,6 @@ LauncherTopPanel {
                 tip: Translation.tr("Clear from the list")
                 onClicked: GameLauncherService.clearFinishedDownloads([rowItem.row])
             }
-            ActionButton { visible: !rowItem.finishedRow && act !== null; row: rowItem.row }
             DialogButton {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: rowItem.finishedRow && !!rowItem.game?.launchCommand
@@ -433,7 +476,8 @@ LauncherTopPanel {
         onClicked: GameLauncherService.controlDownload(act.verb, act.verb === "resume" ? row.appid : undefined)
     }
 
-    // A row's button: a neutral squircle (the accent one when primary), red on hover when it removes
+    // A row's button: a square joined to the others beside it (rounded at the group's ends), tinted in the accent
+    // when it starts something, red on hover when it removes
     component SquircleButton: RippleButton {
         id: squircle
         property string symbol
@@ -441,22 +485,27 @@ LauncherTopPanel {
         property bool large: false
         property bool primary: false
         property bool danger: false
+        // Where it sits among the buttons shown beside it
+        readonly property var _shown: parent?.visibleChildren ?? []
+        readonly property int _at: _shown.indexOf(squircle)
         anchors.verticalCenter: parent?.verticalCenter
         width: large ? 40 : 34; height: width; padding: 0
-        buttonRadius: Appearance.rounding.small
-        colBackground: primary ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
-        colBackgroundHover: primary ? Appearance.colors.colPrimaryHover
-            : danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.8) : Appearance.colors.colLayer2Hover
-        colRipple: primary ? Appearance.colors.colPrimaryActive
-            : danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.7) : Appearance.colors.colLayer2Active
+        buttonRadius: Appearance.rounding.joined
+        buttonRadiusLeft: _at <= 0 ? Appearance.rounding.small : Appearance.rounding.joined
+        buttonRadiusRight: _at === _shown.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
+        colBackground: primary ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer4
+        colBackgroundHover: primary ? Appearance.colors.colLayer3AccentHover
+            : danger ? Appearance.colors.colLayer3Error : Appearance.colors.colLayer4Hover
+        colRipple: primary ? Appearance.colors.colLayer3AccentHover
+            : danger ? ColorUtils.transparentize(Appearance.colors.colError, 0.7) : Appearance.colors.colLayer4Active
         contentItem: Item {
             MaterialSymbol {
                 anchors.centerIn: parent
                 text: squircle.symbol
                 iconSize: squircle.large ? 22 : 20
                 fill: 1
-                color: squircle.primary ? Appearance.colors.colOnPrimary
-                    : squircle.danger && squircle.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer2
+                color: squircle.primary ? Appearance.colors.colPrimary
+                    : squircle.danger && squircle.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer3
                 Behavior on color { ColorAnimation { duration: 120 } }
             }
         }

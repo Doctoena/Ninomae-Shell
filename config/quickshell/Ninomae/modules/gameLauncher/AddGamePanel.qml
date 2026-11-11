@@ -273,16 +273,17 @@ LauncherTopPanel {
     }
 
     // ── The list: search (no header and no close: the toolbar's + closes it, as Esc does), then the apps ──
-    Rectangle {
+    Rectangle { // The top of one joined group with the list under it
         id: searchBox
         anchors { left: preview.right; leftMargin: 16; right: parent.right; rightMargin: 16; top: parent.top; topMargin: 16 }
-        height: 36
-        radius: Appearance.rounding.segment
-        color: search.activeFocus ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
+        height: 44
+        topLeftRadius: Appearance.rounding.normal; topRightRadius: Appearance.rounding.normal
+        bottomLeftRadius: Appearance.rounding.joined; bottomRightRadius: Appearance.rounding.joined
+        color: search.activeFocus ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
         Behavior on color { ColorAnimation { duration: 140 } }
         MaterialSymbol {
             id: searchIcon
-            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; leftMargin: 15; verticalCenter: parent.verticalCenter }
             text: "search"
             iconSize: 17
             color: search.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colOnSurfaceVariant
@@ -312,9 +313,9 @@ LauncherTopPanel {
     }
     ListView {
         id: list
-        anchors { left: searchBox.left; right: searchBox.right; top: searchBox.bottom; topMargin: 10; bottom: parent.bottom; bottomMargin: 16 }
+        anchors { left: searchBox.left; right: searchBox.right; top: searchBox.bottom; topMargin: 3; bottom: parent.bottom; bottomMargin: 16 }
         clip: true
-        spacing: 2
+        spacing: 3 // Joined rows, under the search
         boundsBehavior: Flickable.StopAtBounds
         highlightMoveDuration: 0
         model: root.matches
@@ -323,46 +324,69 @@ LauncherTopPanel {
             required property var modelData
             required property int index
             readonly property bool lit: ListView.isCurrentItem
+            readonly property bool added: !!modelData.customId
             width: ListView.view.width
-            height: 46
-            radius: Appearance.rounding.container
-            color: lit ? Appearance.colors.colLayer1Hover : "transparent"
+            height: 48
+            topLeftRadius: Appearance.rounding.joined; topRightRadius: Appearance.rounding.joined
+            bottomLeftRadius: index === list.count - 1 ? Appearance.rounding.normal : Appearance.rounding.joined
+            bottomRightRadius: bottomLeftRadius
+            color: lit ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
             HoverHandler {
                 cursorShape: Qt.PointingHandCursor
                 onHoveredChanged: if (hovered && root.settled) list.currentIndex = row.index
             }
-            TapHandler { onTapped: row.modelData.customId ? root.open(row.modelData) : root.add(row.modelData) }
-            IconImage {
+            TapHandler { onTapped: row.added ? root.open(row.modelData) : root.add(row.modelData) }
+            Rectangle { // The app's icon in a square
                 id: rowIcon
-                anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                implicitSize: 26
-                source: Quickshell.iconPath(row.modelData.icon, "application-x-executable")
+                anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
+                width: 32; height: 32; radius: 9
+                color: Appearance.colors.colLayer4
+                IconImage {
+                    anchors.centerIn: parent
+                    implicitSize: 22
+                    source: Quickshell.iconPath(row.modelData.icon, "application-x-executable")
+                }
             }
-            StyledText {
-                anchors { left: rowIcon.right; leftMargin: 12; right: rowTrail.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                elide: Text.ElideRight
-                text: row.modelData.name
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.Medium
-                color: Appearance.colors.colOnLayer1
-            }
-            Row { // What it is; while lit, that a click adds it
-                id: rowTrail
-                anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                spacing: 6
-                MaterialSymbol {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: !!row.modelData.customId
-                    text: "check"
-                    iconSize: 16
-                    color: Appearance.colors.colPrimary
+            Column { // Its name, and what it is under it
+                anchors { left: rowIcon.right; leftMargin: 11; right: rowTrail.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                spacing: 1
+                StyledText {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: row.modelData.name
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnLayer3
                 }
                 StyledText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: row.modelData.customId ? Translation.tr("In your library") : row.lit ? Translation.tr("Click to add")
-                        : row.modelData.isGame ? Translation.tr("Game") : ""
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: row.lit && !row.modelData.customId ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: [row.modelData.isGame ? Translation.tr("Game") : Translation.tr("App"), row.modelData.flatpak ? "Flatpak" : ""].filter(t => t).join(" · ")
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    color: Appearance.colors.colSubtext
+                }
+            }
+            Rectangle { // In the library already, or (lit) Add: a chip
+                id: rowTrail
+                anchors { right: parent.right; rightMargin: 9; verticalCenter: parent.verticalCenter }
+                visible: row.added || row.lit
+                width: trailRow.implicitWidth + 18; height: 30; radius: 9
+                color: row.added ? Appearance.colors.colLayer4 : Appearance.colors.colLayer3Accent
+                Row {
+                    id: trailRow
+                    anchors.centerIn: parent
+                    spacing: 5
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: row.added ? "check" : "library_add"
+                        iconSize: 15
+                        color: Appearance.colors.colPrimary
+                    }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: row.added ? Translation.tr("In your library") : Translation.tr("Add")
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: row.added ? Appearance.colors.colSubtext : Appearance.colors.colPrimary
+                    }
                 }
             }
         }

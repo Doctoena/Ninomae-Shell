@@ -69,14 +69,16 @@ LauncherTopPanel {
         return Qt.formatDate(d, d.getFullYear() === new Date().getFullYear() ? "MMM d" : "MMM d, yyyy");
     }
 
-    // No header: the banner names the game. All / Updates sit over the list (when the feed has both), the post on
-    // Steam and close in the corner, over the banner
+    // No header: the banner names the game. The post on Steam and close in its top corner; All / Updates (when the
+    // feed has both) in its bottom one, there while the post's top is in view (they'd sit over its text after)
     Row {
         id: filterRow
-        visible: root.canFilter
-        anchors { top: parent.top; topMargin: 12; horizontalCenter: postList.horizontalCenter }
-        height: visible ? 30 : 0
-        spacing: 4
+        anchors { top: article.top; topMargin: 148 - 30 - 12; right: article.right; rightMargin: 12 } // The banner's bottom corner
+        z: 1
+        opacity: article.contentY < 40 ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        visible: root.canFilter && opacity > 0
+        spacing: 3
         SheetFilterChip { label: Translation.tr("All"); on: !root.updatesOnly; onPicked: Config.options.gameLauncher.newsUpdatesOnly = false }
         SheetFilterChip { label: Translation.tr("Updates"); symbol: "build"; on: root.updatesOnly; onPicked: Config.options.gameLauncher.newsUpdatesOnly = true }
     }
@@ -102,7 +104,7 @@ LauncherTopPanel {
     // ── Posts ──
     ListView {
         id: postList
-        anchors { top: filterRow.bottom; topMargin: filterRow.visible ? 8 : 0; bottom: parent.bottom; bottomMargin: 8; left: parent.left; leftMargin: 12 }
+        anchors { top: parent.top; topMargin: 12; bottom: parent.bottom; bottomMargin: 8; left: parent.left; leftMargin: 12 }
         width: 280
         clip: true
         spacing: 2

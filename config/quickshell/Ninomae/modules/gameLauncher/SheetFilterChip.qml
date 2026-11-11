@@ -2,16 +2,24 @@ import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 
-// A filter over a panel's list (News: All / Updates, Achievements: All / Unlocked / Locked), in a row of them:
-// neutral, accent when it's the one showing
+// A filter over a panel's list (News: All / Updates, Achievements: Unlocked / All / Locked), on its banner's
+// corner: joined to the chips beside it (rounded at the row's ends), tinted in the accent when it's the one showing
 Rectangle {
     id: fc
     property string label
     property string symbol: ""
     property bool on: false
     signal picked()
-    width: fcRow.implicitWidth + 20; height: 30; radius: Appearance.rounding.segment
-    color: on ? Appearance.colors.colPrimary : fcHover.hovered ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
+    readonly property bool filterChip: true
+    // Where it sits among the chips shown beside it (not the Repeater that made them)
+    readonly property var _row: (parent?.visibleChildren ?? []).filter(c => c.filterChip === true)
+    readonly property int _at: _row.indexOf(fc)
+    width: fcRow.implicitWidth + 22; height: 30
+    topLeftRadius: _at <= 0 ? Appearance.rounding.small : Appearance.rounding.joined
+    bottomLeftRadius: topLeftRadius
+    topRightRadius: _at === _row.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
+    bottomRightRadius: topRightRadius
+    color: on ? Appearance.colors.colLayer3Accent : fcHover.hovered ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
     Behavior on color { ColorAnimation { duration: 140 } }
     Row {
         id: fcRow
@@ -21,14 +29,14 @@ Rectangle {
             visible: fc.symbol !== ""
             anchors.verticalCenter: parent.verticalCenter
             text: fc.symbol; iconSize: 16
-            color: fc.on ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
+            fill: fc.on ? 1 : 0
+            color: fc.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
         }
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
             text: fc.label
             font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: fc.on ? Font.DemiBold : Font.Medium
-            color: fc.on ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
+            color: fc.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
         }
     }
     HoverHandler { id: fcHover; cursorShape: Qt.PointingHandCursor }

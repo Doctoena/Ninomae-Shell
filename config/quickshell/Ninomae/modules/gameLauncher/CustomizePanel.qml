@@ -202,46 +202,45 @@ LauncherTopPanel {
         id: topRow
         anchors { top: parent.top; topMargin: 16; left: side.right; leftMargin: 25; right: parent.right; rightMargin: 19 }
         height: 36
-        Rectangle { // The tabs
+        Row { // The tabs: joined chips, the one shown tinted in the accent
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            width: tabRow.width + 8; height: 36; radius: Appearance.rounding.segment
-            color: Appearance.colors.colLayer1
-            Row {
-                id: tabRow
-                anchors.centerIn: parent
-                Repeater {
-                    model: root.tabs
-                    Rectangle {
-                        id: tabPill
-                        required property var modelData
-                        readonly property bool active: root.tab === modelData.key
-                        width: tabContent.implicitWidth + 28; height: 28; radius: Appearance.rounding.segment
-                        color: active ? Appearance.colors.colPrimary : tabMa.containsMouse ? Appearance.colors.colLayer1Hover : "transparent"
-                        Behavior on color { ColorAnimation { duration: 140 } }
-                        Row {
-                            id: tabContent
-                            anchors.centerIn: parent
-                            spacing: 6
-                            MaterialSymbol {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: tabPill.modelData.icon; iconSize: 16
-                                fill: tabPill.active ? 1 : 0
-                                color: tabPill.active ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
-                            }
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: tabPill.modelData.label
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                font.weight: tabPill.active ? Font.DemiBold : Font.Medium
-                                color: tabPill.active ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-                            }
+            spacing: 3
+            Repeater {
+                model: root.tabs
+                Rectangle {
+                    id: tabPill
+                    required property var modelData
+                    required property int index
+                    readonly property bool active: root.tab === modelData.key
+                    width: tabContent.implicitWidth + 24; height: 34
+                    topLeftRadius: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined
+                    bottomLeftRadius: topLeftRadius
+                    topRightRadius: index === root.tabs.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
+                    bottomRightRadius: topRightRadius
+                    color: active ? Appearance.colors.colLayer3Accent : tabMa.containsMouse ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
+                    Behavior on color { ColorAnimation { duration: 140 } }
+                    Row {
+                        id: tabContent
+                        anchors.centerIn: parent
+                        spacing: 6
+                        MaterialSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: tabPill.modelData.icon; iconSize: 16
+                            fill: tabPill.active ? 1 : 0
+                            color: tabPill.active ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
                         }
-                        MouseArea {
-                            id: tabMa
-                            anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.tab = tabPill.modelData.key
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: tabPill.modelData.label
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: tabPill.active ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
                         }
+                    }
+                    MouseArea {
+                        id: tabMa
+                        anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.tab = tabPill.modelData.key
                     }
                 }
             }
@@ -341,24 +340,91 @@ LauncherTopPanel {
             }
         }
 
-        RowLayout { // What it is: custom or the game's own
+        ColumnLayout { // What's set (and Reset, when you changed it), then Choose file: joined rows, as Settings'
             Layout.fillWidth: true
-            spacing: 8
-            StyledText {
-                text: root.tab === "effect" ? root.effectLabel(root.effectNow) : root.tabs.find(t => t.key === root.tab)?.label ?? ""
-                font.pixelSize: Appearance.font.pixelSize.normal
-                font.weight: Font.DemiBold
-                color: Appearance.colors.colOnLayer0
+            spacing: 3
+            Rectangle {
+                id: nowRow
+                Layout.fillWidth: true
+                implicitHeight: 52
+                readonly property bool settingsRow: true
+                GroupCorners { id: nowCorners; item: nowRow }
+                topLeftRadius: nowCorners.top; topRightRadius: nowCorners.top
+                bottomLeftRadius: nowCorners.bottom; bottomRightRadius: nowCorners.bottom
+                color: Appearance.colors.colLayer3
+                readonly property bool changed: root.tab === "effect" ? root.effectNow !== "auto" : root.isCustom
+                Rectangle {
+                    id: nowIcon
+                    anchors { left: parent.left; leftMargin: 9; verticalCenter: parent.verticalCenter }
+                    width: 34; height: 34; radius: 9
+                    color: Appearance.colors.colLayer3Accent
+                    MaterialSymbol { anchors.centerIn: parent; text: root.tabs.find(t => t.key === root.tab)?.icon ?? ""; iconSize: 18; color: Appearance.colors.colPrimary }
+                }
+                Column {
+                    anchors { left: nowIcon.right; leftMargin: 11; right: resetButton.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                    spacing: 1
+                    StyledText {
+                        width: parent.width; elide: Text.ElideRight
+                        text: root.tab === "effect" ? root.effectLabel(root.effectNow) : root.tabs.find(t => t.key === root.tab)?.label ?? ""
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colOnLayer3
+                    }
+                    StyledText {
+                        width: parent.width; elide: Text.ElideRight
+                        text: root.tab === "effect" ? (nowRow.changed ? Translation.tr("Chosen") : Translation.tr("From the game's name"))
+                            : nowRow.changed ? Translation.tr("Custom") : Translation.tr("The game's own")
+                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        color: Appearance.colors.colSubtext
+                    }
+                }
+                RippleButton { // Back to the game's own
+                    id: resetButton
+                    anchors { right: parent.right; rightMargin: 9; verticalCenter: parent.verticalCenter }
+                    visible: root.isCustom
+                    width: visible ? 32 : 0; height: 32; padding: 0
+                    buttonRadius: 9
+                    colBackground: Appearance.colors.colLayer4
+                    colBackgroundHover: Appearance.colors.colLayer3Error
+                    colRipple: ColorUtils.transparentize(Appearance.colors.colError, 0.65)
+                    onClicked: root.reset()
+                    contentItem: MaterialSymbol {
+                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                        text: "restart_alt"; iconSize: 17
+                        color: resetButton.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer3
+                    }
+                    StyledToolTip { text: root.tab === "effect" ? Translation.tr("Reset effect") : Translation.tr("Back to the game's own") }
+                }
             }
-            SheetInfoChip {
-                icon: (root.tab === "effect" ? root.effectNow !== "auto" : root.isCustom) ? "edit" : "verified"
-                text: root.tab === "effect" ? (root.effectNow !== "auto" ? Translation.tr("Chosen") : Translation.tr("From the game's name"))
-                    : root.isCustom ? Translation.tr("Custom") : Translation.tr("The game's own")
+            RippleButton {
+                id: chooseRow
+                visible: root.isArt
+                Layout.fillWidth: true
+                implicitHeight: 44
+                readonly property bool settingsRow: true
+                GroupCorners { id: chooseCorners; item: chooseRow }
+                buttonRadiusTop: chooseCorners.top
+                buttonRadiusBottom: chooseCorners.bottom
+                padding: 0
+                colBackground: Appearance.colors.colLayer3
+                colBackgroundHover: Appearance.colors.colLayer3Hover
+                colRipple: Appearance.colors.colLayer3Active
+                onClicked: root.chooseFile()
+                contentItem: Item {
+                    MaterialSymbol {
+                        id: chooseIcon
+                        anchors { left: parent.left; leftMargin: 17; verticalCenter: parent.verticalCenter }
+                        text: "folder_open"; iconSize: 18; color: Appearance.colors.colOnLayer3
+                    }
+                    StyledText {
+                        anchors { left: chooseIcon.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                        text: Translation.tr("Choose file"); color: Appearance.colors.colOnLayer3
+                    }
+                }
             }
-            Item { Layout.fillWidth: true }
         }
         StyledText {
             Layout.fillWidth: true
+            Layout.leftMargin: 4; Layout.rightMargin: 4
             wrapMode: Text.Wrap
             text: root.tab === "hero" ? Translation.tr("Behind the game's page, and its colours tint the particles.")
                 : root.tab === "grid" ? Translation.tr("The game's tile in the library.")
@@ -384,42 +450,6 @@ LauncherTopPanel {
             onReleased: root.saveTweak()
         }
         Item { Layout.fillHeight: true }
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-            RippleButton {
-                visible: root.isArt
-                Layout.fillWidth: true
-                implicitHeight: 40; buttonRadius: Appearance.rounding.container
-                colBackground: Appearance.colors.colLayer1
-                colBackgroundHover: Appearance.colors.colLayer1Hover
-                colRipple: Appearance.colors.colLayer1Active
-                onClicked: root.chooseFile()
-                contentItem: Row {
-                    anchors.centerIn: parent; spacing: 8
-                    MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "folder_open"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                    StyledText { anchors.verticalCenter: parent.verticalCenter; text: Translation.tr("Choose file"); font.weight: Font.Medium; color: Appearance.colors.colOnLayer1 }
-                }
-            }
-            RippleButton {
-                visible: root.isCustom
-                Layout.fillWidth: true
-                implicitHeight: 40; buttonRadius: Appearance.rounding.container
-                colBackground: ColorUtils.transparentize(Appearance.colors.colError, 0.88)
-                colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colError, 0.8)
-                colRipple: ColorUtils.transparentize(Appearance.colors.colError, 0.65)
-                onClicked: root.reset()
-                contentItem: Row {
-                    anchors.centerIn: parent; spacing: 8
-                    MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "restart_alt"; iconSize: 18; color: Appearance.colors.colError }
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.tab === "effect" ? Translation.tr("Reset effect") : Translation.tr("Reset")
-                        font.weight: Font.Medium; color: Appearance.colors.colError
-                    }
-                }
-            }
-        }
     }
 
     // ── Right: SteamGridDB's art for the tab, or the effects ──
@@ -431,8 +461,8 @@ LauncherTopPanel {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 38
-            radius: Appearance.rounding.full
-            color: Appearance.colors.colLayer1
+            radius: Appearance.rounding.small
+            color: Appearance.colors.colLayer3
             border.width: searchField.activeFocus ? 2 : 0
             border.color: Appearance.colors.colPrimary
             MaterialSymbol {

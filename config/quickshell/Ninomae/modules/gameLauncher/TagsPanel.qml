@@ -145,38 +145,49 @@ LauncherTopPanel {
                         color: cell.armed ? Appearance.colors.colError : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.25)
                     }
                 }
-                RippleButton { // Take the tag off every game (a second click confirms), on the art: see-through
+                RippleButton { // Take the tag off every game (a second click confirms), on the art: solid
                     id: bin
                     anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                     width: cell.all ? 0 : 34; height: 34; padding: 0
                     focusPolicy: Qt.NoFocus
-                    buttonRadius: Appearance.rounding.container
+                    buttonRadius: Appearance.rounding.small
                     opacity: !cell.all && (cell.lit || cell.armed) ? 1 : 0
                     visible: opacity > 0
                     Behavior on opacity { NumberAnimation { duration: 140 } }
-                    colBackground: cell.armed ? ColorUtils.transparentize(Appearance.colors.colError, 0.75)
-                        : ColorUtils.transparentize(Appearance.m3colors.m3background, 0.35)
-                    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colError, cell.armed ? 0.65 : 0.75)
+                    colBackground: cell.armed ? Appearance.colors.colLayer3Error : Appearance.colors.colLayer3
+                    colBackgroundHover: cell.armed ? Appearance.colors.colLayer3ErrorHover : Appearance.colors.colLayer3Error
                     colRipple: ColorUtils.transparentize(Appearance.colors.colError, 0.6)
                     contentItem: Item {
                         MaterialSymbol {
                             anchors.centerIn: parent
                             text: cell.armed ? "delete_forever" : "delete"
                             iconSize: 18
-                            color: cell.armed || bin.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer0
+                            color: cell.armed || bin.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer3
                         }
                     }
                     StyledToolTip { text: cell.armed ? Translation.tr("Click again to remove") : Translation.tr("Remove from every game") }
                     onClicked: root.remove(cell.modelData)
                 }
-                Rectangle { // The one in use: the accent edge. The keyboard's: a faint one
+                Rectangle { // The one in use: a tinted chip on its art, in the top corner
+                    anchors { right: parent.right; top: parent.top; margins: 10 }
+                    visible: cell.active
+                    width: showingRow.implicitWidth + 16; height: 24; radius: 8
+                    color: Appearance.colors.colLayer3Accent
+                    Row {
+                        id: showingRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "check"; iconSize: 14; color: Appearance.colors.colPrimary }
+                        StyledText { anchors.verticalCenter: parent.verticalCenter; text: Translation.tr("Showing"); font.pixelSize: Appearance.font.pixelSize.smallest; color: Appearance.colors.colPrimary }
+                    }
+                }
+                Rectangle { // The keyboard's: a faint edge (no outlines otherwise)
                     anchors.fill: parent
+                    visible: root.keyboardNav && grid.currentIndex === cell.index
                     radius: banner.radius
                     color: "transparent"
-                    border.width: cell.active || (root.keyboardNav && grid.currentIndex === cell.index) ? 2 : 1
-                    border.color: cell.active ? Appearance.colors.colPrimary
-                        : root.keyboardNav && grid.currentIndex === cell.index ? ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.5)
-                        : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
+                    border.width: 2
+                    border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.5)
                 }
             }
         }

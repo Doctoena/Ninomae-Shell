@@ -21,6 +21,7 @@ ClippingRectangle {
     property bool showLogo: false // The game's logo in the cover's place (News), when it has one
     property real coverInset: 0 // Room left of the cover, for something of the panel's own (the stats page's back button)
     property string art: "" // A picture of its own (a URL or path), over the game's art
+    property bool showCover: true // Off: the panel puts its own thing there (Achievements: a progress ring)
     readonly property string hero: GameLauncherService.bannerArt(game)
     readonly property string sharp: art || hero
     readonly property string cover: GameLauncherService.localArt(game, "boxArt")
@@ -165,7 +166,8 @@ ClippingRectangle {
         // A logo keeps its own shape, up to 220 wide (its height comes first: most are wide)
         height: root.logoShown ? Math.min(96, root.height - 40) : Math.min(84, root.height - 24)
         width: root.logoShown ? Math.min(220, Math.round(height * logoImage.implicitWidth / Math.max(1, logoImage.implicitHeight)))
-            : Math.round(height * 3 / 4)
+            : root.showCover ? Math.round(height * 3 / 4) : 0
+        visible: root.showCover
         radius: Appearance.rounding.small
         color: root.logoShown ? "transparent" : Appearance.colors.colLayer2
         Image {

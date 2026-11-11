@@ -816,7 +816,11 @@ Item {
                 Layout.topMargin: 2
                 Layout.leftMargin: 4
                 spacing: 10
-                QuickDialogIcon { implicitWidth: 28; implicitHeight: 28; radius: Appearance.rounding.segment; icon: card.iconName; active: true }
+                Rectangle { // The icon in a tinted square, as everywhere else
+                    implicitWidth: 28; implicitHeight: 28; radius: 8
+                    color: Appearance.colors.colLayer3Accent
+                    MaterialSymbol { anchors.centerIn: parent; text: card.iconName; iconSize: 16; color: Appearance.colors.colPrimary }
+                }
                 StyledText {
                     text: card.title
                     font.pixelSize: Appearance.font.pixelSize.small
