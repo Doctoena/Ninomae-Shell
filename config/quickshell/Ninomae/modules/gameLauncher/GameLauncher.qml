@@ -413,11 +413,12 @@ Scope {
                             ColumnLayout {
                                 anchors.fill: parent
                                 anchors.margins: 16
+                                anchors.topMargin: 10 // The toolbar as far from the top as from the grid under it
                                 spacing: 10
                                 Item { // The toolbar: the filters in one strip on the left, the search in the middle, what's
                                     // downloading and the actions on the right
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 38
+                                    Layout.preferredHeight: 36 // The buttons' own height: none above or below them
                                     Strip { // Launchers · Sort · Tags, each saying what it's set to
                                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                                         ToolbarPicker {
@@ -451,22 +452,28 @@ Scope {
                                             readonly property bool active: GameLauncherService.selectedTag !== ""
                                             function toggle() { root.gridPanel = open ? "" : "tags"; }
                                             visible: GameLauncherService.allTags.length > 0
+                                            spacing: 3
                                             StripButton {
+                                                roundRight: !tagContainer.active // Last in its strip; the ✕ ends it while a tag's picked
                                                 iconName: "sell"
                                                 label: tagContainer.active ? GameLauncherService.selectedTag : Translation.tr("Tags")
                                                 on: tagContainer.open || tagContainer.active
                                                 onClicked: tagContainer.toggle()
                                                 StyledToolTip { text: tagContainer.open ? Translation.tr("Close") : Translation.tr("Tags") }
                                             }
-                                            Item { // Back to every game in one click, without opening the panel. Slides in and out
+                                            Rectangle { // Back to every game in one click, without opening the panel. Slides in and out
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                width: tagContainer.active ? tagClear.implicitWidth : 0
-                                                height: tagClear.implicitHeight
+                                                width: tagContainer.active ? 36 : 0
+                                                height: 36
+                                                topLeftRadius: Appearance.rounding.joined; bottomLeftRadius: Appearance.rounding.joined
+                                                topRightRadius: Appearance.rounding.small; bottomRightRadius: Appearance.rounding.small
+                                                color: Appearance.colors.colLayer3
                                                 clip: true
                                                 visible: width > 0
                                                 Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                                                 ToolbarOption {
                                                     id: tagClear
+                                                    anchors.centerIn: parent
                                                     opacity: tagContainer.active ? 1 : 0
                                                     Behavior on opacity { NumberAnimation { duration: 160 } }
                                                     text: "close"; tooltip: Translation.tr("Show all games")
@@ -580,24 +587,34 @@ Scope {
                                             visible: open || GameLauncherService.activeDownloads.length > 0 || GameLauncherService.recentlyFinished
                                             implicitWidth: dlRow.implicitWidth + 24
                                             implicitHeight: 36
-                                            padding: 0 // The bar below lines up with the icon and the % only without the default inset
+                                            padding: 0 // The fill reaches the chip's edges only without the default inset
                                             buttonRadius: Appearance.rounding.small
-                                            colBackground: open ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+                                            colBackground: open && !showsProgress ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
                                             colBackgroundHover: Appearance.colors.colLayer3Hover
                                             colRipple: Appearance.colors.colLayer3Active
                                             onClicked: root.gridPanel = open ? "" : "downloads"
                                             StyledToolTip { text: downloadsContainer.open ? Translation.tr("Close") : Translation.tr("Downloads") }
                                             contentItem: Item {
+                                                Rectangle { // How far: the chip fills with the accent from the left (as Play does)
+                                                    visible: downloadsContainer.showsProgress
+                                                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                                                    readonly property real fraction: Math.max(0, Math.min(1, downloadsContainer.current?.progress ?? 0))
+                                                    width: parent.width * fraction
+                                                    topLeftRadius: Appearance.rounding.small; bottomLeftRadius: Appearance.rounding.small
+                                                    topRightRadius: fraction > 0.97 ? Appearance.rounding.small : 0
+                                                    bottomRightRadius: topRightRadius
+                                                    color: Appearance.colors.colLayer3Accent
+                                                    Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                                                }
                                                 Row {
                                                     id: dlRow
                                                     anchors.centerIn: parent
-                                                    anchors.verticalCenterOffset: downloadsContainer.showsProgress ? -2 : 0
                                                     spacing: 8
                                                     MaterialSymbol {
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         text: downloadsContainer.current ? "downloading" : "download"
                                                         iconSize: 18
-                                                        color: Appearance.colors.colTertiary
+                                                        color: downloadsContainer.showsProgress || downloadsContainer.open ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
                                                     }
                                                     StyledText {
                                                         anchors.verticalCenter: parent.verticalCenter
@@ -605,7 +622,7 @@ Scope {
                                                         elide: Text.ElideRight
                                                         text: downloadsContainer.current?.name ?? Translation.tr("Downloads")
                                                         font.pixelSize: Appearance.font.pixelSize.smallie
-                                                        color: Appearance.colors.colOnLayer3
+                                                        color: downloadsContainer.showsProgress || downloadsContainer.open ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
                                                     }
                                                     StyledText {
                                                         anchors.verticalCenter: parent.verticalCenter
@@ -614,21 +631,7 @@ Scope {
                                                         font.pixelSize: Appearance.font.pixelSize.smallie
                                                         font.family: Appearance.font.family.numbers
                                                         font.variableAxes: ({}) // Not Roboto Flex's tuning
-                                                        color: Appearance.colors.colTertiary
-                                                    }
-                                                }
-                                                Rectangle { // How far, as a bar along its foot
-                                                    visible: downloadsContainer.showsProgress
-                                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 12; rightMargin: 12; bottomMargin: 6 }
-                                                    height: 3
-                                                    radius: 1.5
-                                                    color: ColorUtils.transparentize(Appearance.colors.colTertiary, 0.8)
-                                                    Rectangle {
-                                                        width: parent.width * Math.max(0, downloadsContainer.current?.progress ?? 0)
-                                                        height: parent.height
-                                                        radius: 1.5
-                                                        color: Appearance.colors.colTertiary
-                                                        Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                                                        color: Appearance.colors.colPrimary
                                                     }
                                                 }
                                             }
@@ -1263,39 +1266,31 @@ Scope {
 }
     // ─── Inline Components ────────────────────────────────────
     // The toolbar's strips: joined buttons in one rounded box, hairlines between them
-    component Strip: Rectangle {
-        id: strip
-        default property alias content: stripRow.data
-        implicitWidth: stripRow.implicitWidth
-        implicitHeight: 36
-        radius: Appearance.rounding.small
-        color: Appearance.colors.colLayer3
-        Row { id: stripRow; anchors.verticalCenter: parent.verticalCenter }
-        Repeater {
-            model: Math.max(0, stripRow.visibleChildren.length - 1)
-            Rectangle {
-                required property int index
-                x: stripRow.visibleChildren[index + 1]?.x ?? 0
-                anchors.verticalCenter: parent.verticalCenter
-                width: 1
-                height: 18
-                color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.9)
-            }
-        }
+    // The toolbar's strips: joined pieces, 3 px apart, rounded at the row's ends (each piece works out where it is)
+    component Strip: Row {
+        readonly property bool isStripRow: true
+        spacing: 3
     }
-    // A button in a strip: its icon and a name when it has one. On: in the accent, on a wash. A new name fades out
-    // the old one, the button growing or shrinking to fit, then fades in
+    // A button in a strip: its icon and a name when it has one, a piece of the strip's joined row. On: tinted in the
+    // accent. A new name fades out the old one, the button growing or shrinking to fit, then fades in
     component StripButton: RippleButton {
         id: sb
         property string iconName
         property string label: ""
         property bool on: false
         property bool spinning: false
+        // Rounded where it ends its strip: found from its place when it's one of the strip's own pieces, else set
+        readonly property bool _inStrip: parent?.isStripRow === true
+        readonly property var _peers: _inStrip ? parent.visibleChildren : []
+        property bool roundLeft: _inStrip && _peers.indexOf(sb) === 0
+        property bool roundRight: _inStrip && _peers.indexOf(sb) === _peers.length - 1
         implicitWidth: sbRow.implicitWidth + (label === "" ? 18 : 24)
         implicitHeight: 36
-        buttonRadius: Appearance.rounding.small
-        colBackground: on ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.84) : "transparent"
-        colBackgroundHover: on ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.76) : Appearance.colors.colLayer3Hover
+        buttonRadius: Appearance.rounding.joined
+        buttonRadiusLeft: roundLeft ? Appearance.rounding.small : Appearance.rounding.joined
+        buttonRadiusRight: roundRight ? Appearance.rounding.small : Appearance.rounding.joined
+        colBackground: on ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+        colBackgroundHover: on ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Hover
         colRipple: Appearance.colors.colLayer3Active
         contentItem: Item {
             Row {
@@ -1352,12 +1347,27 @@ Scope {
         property bool revealed: false
         signal picked(string value)
         readonly property var currentOption: options.find(o => o.value === current) ?? options[0]
-        implicitWidth: pickerButton.implicitWidth + (revealed ? pickerOptions.implicitWidth + 2 : 0)
+        // Its place in the strip: rounded where it ends it
+        readonly property var _peers: parent?.isStripRow === true ? parent.visibleChildren : []
+        readonly property bool _first: _peers.indexOf(picker) === 0
+        readonly property bool _last: _peers.indexOf(picker) === _peers.length - 1
+        implicitWidth: pickerButton.implicitWidth + (revealed ? pickerOptions.implicitWidth + 3 + 8 : 0)
         implicitHeight: 36
         clip: true
         Behavior on implicitWidth { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Rectangle { // The options' own piece, joined after the button
+            x: pickerButton.implicitWidth + 3
+            width: Math.max(0, picker.width - x); height: 36
+            topLeftRadius: Appearance.rounding.joined; bottomLeftRadius: Appearance.rounding.joined
+            topRightRadius: picker._last ? Appearance.rounding.small : Appearance.rounding.joined
+            bottomRightRadius: topRightRadius
+            color: Appearance.colors.colLayer3
+            visible: width > 0
+        }
         StripButton {
             id: pickerButton
+            roundLeft: picker._first
+            roundRight: picker._last && !picker.revealed && picker.width <= implicitWidth + 1
             iconName: picker.currentOption?.icon ?? ""
             label: picker.currentOption?.label ?? ""
             on: picker.revealed
@@ -1366,7 +1376,7 @@ Scope {
         }
         Row {
             id: pickerOptions
-            x: pickerButton.implicitWidth + 2
+            x: pickerButton.implicitWidth + 3 + 4
             anchors.verticalCenter: parent.verticalCenter
             opacity: picker.revealed ? 1 : 0
             visible: opacity > 0
