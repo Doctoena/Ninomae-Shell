@@ -2,7 +2,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 
-// A small neutral chip in a sheet: an icon and a bit of text (a screenshot's size and source, a clip's date)
+// A small neutral chip in a sheet: an icon and a bit of text (a clip's place, date and size, on its controls)
 Rectangle {
     id: chip
     property string icon
@@ -10,7 +10,7 @@ Rectangle {
     implicitWidth: chipRow.implicitWidth + 16
     implicitHeight: 24
     radius: Appearance.rounding.chip
-    color: Appearance.colors.colLayer2
+    color: Appearance.colors.colLayer4 // On the clip's controls (colLayer3)
     Row {
         id: chipRow
         anchors.centerIn: parent
@@ -20,7 +20,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: chip.text
             font.pixelSize: Appearance.font.pixelSize.smaller
-            color: Appearance.colors.colOnLayer1
+            color: Appearance.colors.colOnLayer4
         }
     }
 }

@@ -11,23 +11,24 @@ import Quickshell.Widgets
  * The game page's Captures: a game's screenshots in a panel growing up out of the launcher (LauncherTopPanel): what the shell's
  * F12 and the overlay saved and the game's own screenshot folders (scripts/game-launcher/find_screenshots.py), newest
  * first, in 16:9 tiles four across as the Clips page's (other shapes cropped to fill them); clicking one
- * opens it large with its details and a filmstrip under it. Keys come from the details page while it's
+ * opens it large with its details joined under it and the others down its right. Keys come from the details page while it's
  * open (handleKey): on the grid the arrows (Home/End) move a ring and Enter opens that one; in the viewer
  * ←/→ (Home/End) step through and Delete, pressed twice, moves it to the Trash; Esc goes back to the grid, then closes.
  * What it found is kept per game for the session (GameLauncherService.screenshotsCache), so it opens
  * filled in and looks again behind that.
  *
- * With an Immich server set (Settings → Game Launcher), they upload there (all of them from the rail, the
- * one open from the viewer's rail button) into the game's album, and that album's photos show here too, by
+ * With an Immich server set (Settings → Game Launcher), they upload there (all of them from the banner, the
+ * one open from the viewer's banner button) into the game's album, and that album's photos show here too, by
  * date among the rest: all but the ones uploaded from here (same file name as one on disk), so each shows
  * once. Those are "immich:<asset id>" in paths, shown from copies scripts/game-launcher/immich_media.py
  * fetches; they can't be trashed from here.
  *
- * A slim rail of icon buttons on the left stays throughout (each names itself on hover): the pages,
- * Screenshots and Clips (ClipsPage.qml: gameplay clips saved with the clip key; Tab flips between them);
- * where the shots are (with some of both); and the actions for what's showing (the grid: folder, Immich
- * album, upload all; a shot: copy, open, upload, Trash; a clip: trim, copy, open, back up, Trash).
- * Each grid ends in a dashed tile saying how to take more (CaptureAddTile).
+ * A banner of the game's art stays across the top throughout (each button names itself on hover): close (back
+ * to the grid while one is open), the game's logo, the pages as joined tabs, Screenshots and Clips (ClipsPage.qml:
+ * gameplay clips saved with the clip key; Tab flips between them), with their counts; on the right where the shots
+ * are (with some of both) and the actions for what's showing (the grid: folder, Immich album, upload all; a shot:
+ * copy, open, upload, Trash; a clip: trim, copy, open, back up, Trash). The grid's tiles are joined, and end in a
+ * tile saying how to take more (CaptureAddTile). An open shot or clip has the others in a column on its right.
  */
 LauncherTopPanel {
     id: root
@@ -72,7 +73,7 @@ LauncherTopPanel {
         finder.running = false;
         finder.running = true;
         fetchImmichAlbum();
-        clipsPage.refresh(); // For the rail's count, before its page is opened
+        clipsPage.refresh(); // For the Clips tab's count, before its page is opened
     }
 
     // ── Sources ──
@@ -333,156 +334,239 @@ LauncherTopPanel {
         return i && i.width > 0 && i.height > 0 ? Math.max(0.5, Math.min(3, i.width / i.height)) : 16 / 9;
     }
 
-    // ── Rail: icon buttons down the left (each says what it is on hover): close (no header: the panel is all
-    //    captures), the pages, where the shots are, the actions for what's showing, then Trash on its own ──
-    Column {
-        id: rail
-        anchors { top: parent.top; topMargin: 14; left: parent.left; leftMargin: 22 }
-        width: 36
-        spacing: 10
+    // ── Banner: the game's art across the top, carrying everything (each button says what it is on hover): close
+    //    (back to the grid while one is open), the game's logo, the pages as joined tabs with their counts, then
+    //    on the right where the shots are, the actions for what's showing, and Trash on its own ──
+    Item {
+        id: banner
+        anchors { top: parent.top; topMargin: 14; left: parent.left; leftMargin: 20; right: parent.right; rightMargin: 20 }
+        height: 64
         readonly property int shotCount: root.localCount + root.remoteCount
         readonly property bool onGrid: root.onShots ? !root.viewing : !clipsPage.viewing
         function counted(name, n) { return n > 0 ? `${name} (${n})` : name; }
 
-        SheetIconButton {
-            grouped: false
-            iconName: "close"
-            tip: Translation.tr("Close")
-            onClicked: root.closeRequested()
+        ArtBanner {
+            anchors.fill: parent
+            game: root.game
+            showCover: false
+            shadeMid: 0.62; shadeEnd: 0.85 // Darker again on the right, under the buttons
         }
-        RailGroup {
-            SheetIconButton { // Also the way back to all of them from the viewer
-                joined: true
-                iconName: "photo_library"; active: root.onShots
-                tip: rail.counted(Translation.tr("Screenshots"), rail.shotCount)
+        SheetIconButton { // Close, or back to the grid
+            id: closeButton
+            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+            grouped: false
+            iconName: banner.onGrid ? "close" : "arrow_back"
+            tip: banner.onGrid ? Translation.tr("Close") : root.onShots ? Translation.tr("All screenshots") : Translation.tr("All clips")
+            onClicked: {
+                if (banner.onGrid) root.closeRequested();
+                else if (root.onShots) root.viewerIndex = -1;
+                else clipsPage.back();
+            }
+        }
+        Image { // The game's logo, else its name
+            id: bannerLogo
+            anchors { left: closeButton.right; leftMargin: 14; verticalCenter: parent.verticalCenter }
+            readonly property string art: GameLauncherService.logoArt(root.game)
+            source: art ? "file://" + art : ""
+            height: 40
+            width: status === Image.Ready ? Math.min(130, Math.round(height * implicitWidth / Math.max(1, implicitHeight))) : 0
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            sourceSize.height: 80
+        }
+        StyledText {
+            id: bannerName
+            visible: bannerLogo.width === 0
+            anchors { left: closeButton.right; leftMargin: 14; verticalCenter: parent.verticalCenter }
+            width: visible ? Math.min(implicitWidth, 200) : 0
+            elide: Text.ElideRight
+            text: root.game?.name ?? ""
+            font.pixelSize: Appearance.font.pixelSize.large; font.weight: Font.DemiBold
+            color: Appearance.colors.colOnLayer0
+        }
+        Row { // The pages
+            anchors { left: bannerLogo.width > 0 ? bannerLogo.right : bannerName.right; leftMargin: 16; verticalCenter: parent.verticalCenter }
+            spacing: 3
+            PageTab { // Also the way back to all of them from the viewer
+                first: true
+                tabIcon: "photo_library"; label: Translation.tr("Screenshots"); count: banner.shotCount
+                on: root.onShots
                 onClicked: { if (root.onShots) root.viewerIndex = -1; else root.page = "shots"; }
             }
-            SheetIconButton {
-                joined: true
-                iconName: "movie"; active: !root.onShots
-                tip: rail.counted(Translation.tr("Clips"), clipsPage.clips.length)
+            PageTab {
+                last: true
+                tabIcon: "movie"; label: Translation.tr("Clips"); count: clipsPage.clips.length
+                on: !root.onShots
                 onClicked: { if (!root.onShots) clipsPage.back(); else root.page = "clips"; }
             }
         }
-        RailGroup { // Where the shots are: only with some of both
-            visible: root.onShots && !root.viewing && root.localCount > 0 && root.remoteCount > 0
-            SheetIconButton {
-                joined: true
-                iconName: "apps"; active: root.filter === "all"
-                tip: rail.counted(Translation.tr("Everywhere"), rail.shotCount)
-                onClicked: root.filter = "all"
-            }
-            SheetIconButton {
-                joined: true
-                iconName: "computer"; active: root.filter === "local"
-                tip: rail.counted(Translation.tr("On this PC"), root.localCount)
-                onClicked: root.filter = "local"
-            }
-            SheetIconButton {
-                joined: true
-                iconName: "cloud"; active: root.filter === "immich"
-                tip: rail.counted(Translation.tr("In Immich"), root.remoteCount)
-                onClicked: root.filter = "immich"
-            }
-        }
-        RailGroup { // The actions for what's showing
-            // ── The grid ──
-            SheetIconButton { // Screenshots: the folder the newest one on disk is in, else where they go (made if missing)
-                joined: true
-                visible: rail.onGrid && (root.onShots ? root.localPaths.length > 0 || root.screenshotFolder !== "" : true)
-                iconName: "folder_open"
-                tip: root.onShots ? Translation.tr("Open screenshots folder") : Translation.tr("Open clips folder")
-                onClicked: {
-                    if (!root.onShots) { clipsPage.openFolder(); return; }
-                    Quickshell.execDetached(["sh", "-c", 'mkdir -p -- "$1" && xdg-open "$1"', "open-folder",
-                        root.localPaths.length > 0 ? root.localPaths[0].replace(/\/[^/]*$/, "") : root.screenshotFolder]);
+        Row {
+            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+            spacing: 10
+            ActionGroup { // Where the shots are: only with some of both
+                visible: root.onShots && !root.viewing && root.localCount > 0 && root.remoteCount > 0
+                SheetIconButton {
+                    joined: true; across: true
+                    iconName: "apps"; active: root.filter === "all"
+                    tip: banner.counted(Translation.tr("Everywhere"), banner.shotCount)
+                    onClicked: root.filter = "all"
+                }
+                SheetIconButton {
+                    joined: true; across: true
+                    iconName: "computer"; active: root.filter === "local"
+                    tip: banner.counted(Translation.tr("On this PC"), root.localCount)
+                    onClicked: root.filter = "local"
+                }
+                SheetIconButton {
+                    joined: true; across: true
+                    iconName: "cloud"; active: root.filter === "immich"
+                    tip: banner.counted(Translation.tr("In Immich"), root.remoteCount)
+                    onClicked: root.filter = "immich"
                 }
             }
-            SheetIconButton {
-                joined: true
-                visible: rail.onGrid && root.onShots && root.immichAlbumId !== "" && GameLauncherService.immichReady
-                iconName: "photo_album"; tip: Translation.tr("Open album in Immich")
-                onClicked: Quickshell.execDetached(["xdg-open", `${GameLauncherService.immichUrl}/albums/${root.immichAlbumId}`])
+            ActionGroup { // The actions for what's showing
+                // ── The grid ──
+                SheetIconButton { // Screenshots: the folder the newest one on disk is in, else where they go (made if missing)
+                    joined: true; across: true
+                    visible: banner.onGrid && (root.onShots ? root.localPaths.length > 0 || root.screenshotFolder !== "" : true)
+                    iconName: "folder_open"
+                    tip: root.onShots ? Translation.tr("Open screenshots folder") : Translation.tr("Open clips folder")
+                    onClicked: {
+                        if (!root.onShots) { clipsPage.openFolder(); return; }
+                        Quickshell.execDetached(["sh", "-c", 'mkdir -p -- "$1" && xdg-open "$1"', "open-folder",
+                            root.localPaths.length > 0 ? root.localPaths[0].replace(/\/[^/]*$/, "") : root.screenshotFolder]);
+                    }
+                }
+                SheetIconButton {
+                    joined: true; across: true
+                    visible: banner.onGrid && root.onShots && root.immichAlbumId !== "" && GameLauncherService.immichReady
+                    iconName: "photo_album"; tip: Translation.tr("Open album in Immich")
+                    onClicked: Quickshell.execDetached(["xdg-open", `${GameLauncherService.immichUrl}/albums/${root.immichAlbumId}`])
+                }
+                // ── A shot ──
+                SheetIconButton {
+                    joined: true; across: true
+                    visible: root.onShots && root.viewing
+                    iconName: root.copied ? "check" : "content_copy"
+                    tip: root.copied ? Translation.tr("Copied") : Translation.tr("Copy image (Ctrl+C)")
+                    onClicked: root.copyCurrent()
+                }
+                SheetIconButton {
+                    joined: true; across: true
+                    visible: root.onShots && root.viewing
+                    iconName: "open_in_new"
+                    tip: root.currentIsRemote ? Translation.tr("Open in Immich") : Translation.tr("Open in image viewer")
+                    onClicked: root.openExternally(root.currentEntry)
+                }
+                // ── A clip ──
+                SheetIconButton {
+                    joined: true; across: true
+                    visible: !root.onShots && clipsPage.viewing
+                    enabled: clipsPage.exportKind === ""
+                    active: clipsPage.trimming
+                    iconName: "content_cut"; tip: clipsPage.trimming ? Translation.tr("Stop trimming (T)") : Translation.tr("Trim (T)")
+                    onClicked: clipsPage.toggleTrim()
+                }
+                SheetIconButton {
+                    joined: true; across: true
+                    visible: !root.onShots && clipsPage.viewing
+                    iconName: clipsPage.copied ? "check" : "content_copy"
+                    tip: clipsPage.copied ? Translation.tr("Copied") : Translation.tr("Copy clip (Ctrl+C)")
+                    onClicked: clipsPage.copyClip(clipsPage.current?.path ?? "")
+                }
+                SheetIconButton {
+                    joined: true; across: true
+                    visible: !root.onShots && clipsPage.viewing
+                    iconName: "open_in_new"; tip: Translation.tr("Open in video app")
+                    onClicked: clipsPage.openExternally()
+                }
+                // ── Immich: on the grid all of them (not the album's own photos: they're there already), else the
+                //    one open. Clips are "backed up" ──
+                SheetIconButton {
+                    joined: true; across: true
+                    readonly property var files: root.onShots ? (root.viewing ? [root.currentEntry] : root.localPaths)
+                        : (clipsPage.viewing ? [clipsPage.current?.path ?? ""] : clipsPage.clips.map(c => c.path))
+                    readonly property string uploadState: GameLauncherService.immichUploadState
+                    visible: GameLauncherService.immichReady && files.length > 0 && !(root.onShots && root.currentIsRemote)
+                    enabled: uploadState !== "uploading"
+                    iconName: ({ uploading: "hourglass_top", done: "check", failed: "error" })[uploadState] ?? "cloud_upload"
+                    tip: uploadState === "uploading" ? Translation.tr("Uploading to Immich…")
+                        : uploadState === "failed" ? Translation.tr("Upload failed")
+                        : banner.onGrid ? (root.onShots ? Translation.tr("Upload all %1 to Immich") : Translation.tr("Back up all %1 to Immich")).arg(files.length)
+                        : (root.onShots ? Translation.tr("Upload to Immich") : Translation.tr("Back up to Immich"))
+                    onClicked: GameLauncherService.uploadToImmich(files, root.game?.name ?? "")
+                }
             }
-            // ── A shot ──
-            SheetIconButton {
-                joined: true
-                visible: root.onShots && root.viewing
-                iconName: root.copied ? "check" : "content_copy"
-                tip: root.copied ? Translation.tr("Copied") : Translation.tr("Copy image (Ctrl+C)")
-                onClicked: root.copyCurrent()
-            }
-            SheetIconButton {
-                joined: true
-                visible: root.onShots && root.viewing
-                iconName: "open_in_new"
-                tip: root.currentIsRemote ? Translation.tr("Open in Immich") : Translation.tr("Open in image viewer")
-                onClicked: root.openExternally(root.currentEntry)
-            }
-            // ── A clip ──
-            SheetIconButton {
-                joined: true
-                visible: !root.onShots && clipsPage.viewing
-                enabled: clipsPage.exportKind === ""
-                active: clipsPage.trimming
-                iconName: "content_cut"; tip: clipsPage.trimming ? Translation.tr("Stop trimming (T)") : Translation.tr("Trim (T)")
-                onClicked: clipsPage.toggleTrim()
-            }
-            SheetIconButton {
-                joined: true
-                visible: !root.onShots && clipsPage.viewing
-                iconName: clipsPage.copied ? "check" : "content_copy"
-                tip: clipsPage.copied ? Translation.tr("Copied") : Translation.tr("Copy clip (Ctrl+C)")
-                onClicked: clipsPage.copyClip(clipsPage.current?.path ?? "")
-            }
-            SheetIconButton {
-                joined: true
-                visible: !root.onShots && clipsPage.viewing
-                iconName: "open_in_new"; tip: Translation.tr("Open in video app")
-                onClicked: clipsPage.openExternally()
-            }
-            // ── Immich: on the grid all of them (not the album's own photos: they're there already), else the
-            //    one open. Clips are "backed up" ──
-            SheetIconButton {
-                joined: true
-                readonly property var files: root.onShots ? (root.viewing ? [root.currentEntry] : root.localPaths)
-                    : (clipsPage.viewing ? [clipsPage.current?.path ?? ""] : clipsPage.clips.map(c => c.path))
-                readonly property string uploadState: GameLauncherService.immichUploadState
-                visible: GameLauncherService.immichReady && files.length > 0 && !(root.onShots && root.currentIsRemote)
-                enabled: uploadState !== "uploading"
-                iconName: ({ uploading: "hourglass_top", done: "check", failed: "error" })[uploadState] ?? "cloud_upload"
-                tip: uploadState === "uploading" ? Translation.tr("Uploading to Immich…")
-                    : uploadState === "failed" ? Translation.tr("Upload failed")
-                    : rail.onGrid ? (root.onShots ? Translation.tr("Upload all %1 to Immich") : Translation.tr("Back up all %1 to Immich")).arg(files.length)
-                    : (root.onShots ? Translation.tr("Upload to Immich") : Translation.tr("Back up to Immich"))
-                onClicked: GameLauncherService.uploadToImmich(files, root.game?.name ?? "")
-            }
-        }
-        RailGroup { // Trash, apart from the rest: the shot or clip open (not an Immich photo), asked twice
-            visible: root.onShots ? root.viewing && !root.currentIsRemote : clipsPage.viewing
-            SheetIconButton {
-                joined: true
-                danger: true
-                active: root.trashArmed
-                iconName: root.trashArmed ? "delete_forever" : "delete"
-                tip: root.trashArmed ? Translation.tr("Click again to move to Trash") : Translation.tr("Move to Trash (Delete)")
-                onClicked: root.requestTrash()
+            ActionGroup { // Trash, apart from the rest: the shot or clip open (not an Immich photo), asked twice
+                visible: root.onShots ? root.viewing && !root.currentIsRemote : clipsPage.viewing
+                SheetIconButton {
+                    joined: true; across: true
+                    danger: true
+                    active: root.trashArmed
+                    iconName: root.trashArmed ? "delete_forever" : "delete"
+                    tip: root.trashArmed ? Translation.tr("Click again to move to Trash") : Translation.tr("Move to Trash (Delete)")
+                    onClicked: root.requestTrash()
+                }
             }
         }
     }
-    // A group of the rail's buttons (each `joined: true`): each its own square, 3 px apart, rounded at the group's ends. With
-    // none of them shown it's 0 high, which the rail's Column skips (not hidden: its buttons would then count as
-    // hidden too, and it'd never come back)
-    component RailGroup: Column {
-        width: 36
+    // A group of the banner's buttons (each `joined: true; across: true`): each its own square, 3 px apart, rounded at
+    // the group's ends. With none of them shown it's 0 wide, which the Row skips (not hidden: its buttons would then
+    // count as hidden too, and it'd never come back)
+    component ActionGroup: Row {
         spacing: 3
+    }
+    // A page of the banner: its icon, name and count (quiet), joined to the other; the open one tinted
+    component PageTab: RippleButton {
+        id: tab
+        property string tabIcon
+        property string label
+        property int count: 0
+        property bool on: false
+        property bool first: false
+        property bool last: false
+        focusPolicy: Qt.NoFocus // The details page keeps the keys
+        implicitWidth: tabRow.implicitWidth + 24
+        implicitHeight: 36
+        buttonRadiusLeft: first ? Appearance.rounding.small : Appearance.rounding.joined
+        buttonRadiusRight: last ? Appearance.rounding.small : Appearance.rounding.joined
+        colBackground: on ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+        colBackgroundHover: on ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
+        contentItem: Item {
+            Row {
+                id: tabRow
+                anchors.centerIn: parent
+                spacing: 6
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: tab.tabIcon; iconSize: 17; fill: tab.on ? 1 : 0
+                    color: tab.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+                }
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: tab.label
+                    font.pixelSize: Appearance.font.pixelSize.smallie; font.weight: Font.DemiBold
+                    color: tab.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+                }
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: tab.count > 0
+                    text: tab.count
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.family: Appearance.font.family.numbers
+                    font.variableAxes: ({}) // Not Roboto Flex's tuning
+                    color: Appearance.colors.colSubtext
+                }
+            }
+        }
     }
 
     // ── Grid: the shots in 16:9 tiles, four across, as the Clips page's (CaptureGrid; shots of another shape
     //    are cropped to fill theirs, the viewer shows them whole) ──
     CaptureGrid {
         id: gallery
-        anchors { top: parent.top; topMargin: 14 - pad; bottom: parent.bottom; left: rail.right; right: parent.right; leftMargin: 14 - pad; rightMargin: 20 - pad }
+        anchors { top: banner.bottom; topMargin: 12 - pad; bottom: parent.bottom; left: parent.left; right: parent.right; leftMargin: 20 - pad; rightMargin: 20 - pad }
         visible: root.onShots && !root.viewing && root.paths.length > 0
         model: root.paths.length > 0 ? root.paths.concat([""]) : [] // Last, how to take more ("")
         delegate: Item {
@@ -499,12 +583,16 @@ LauncherTopPanel {
                 CaptureAddTile {
                     icon: "add_a_photo"
                     text: Translation.tr("Press F12 while playing to take one")
+                    topLeftRadius: gallery.corner(cell.index, "tl"); topRightRadius: gallery.corner(cell.index, "tr")
+                    bottomLeftRadius: gallery.corner(cell.index, "bl"); bottomRightRadius: gallery.corner(cell.index, "br")
                 }
             }
             Component {
                 id: shotTile
                 Tile {
                     entry: cell.modelData
+                    tl: gallery.corner(cell.index, "tl"); tr: gallery.corner(cell.index, "tr")
+                    bl: gallery.corner(cell.index, "bl"); br: gallery.corner(cell.index, "br")
                     current: root.keyboardNav && cell.index === root.gridIndex
                     order: gallery.atYBeginning ? cell.index : 0 // Scrolled to: no wait
                     onHoveredChanged: if (hovered && root.settled) { root.gridIndex = cell.index; root.keyboardNav = false; } // Keys go on from here
@@ -531,7 +619,7 @@ LauncherTopPanel {
 
     SheetEmptyState {
         anchors.centerIn: parent
-        anchors.horizontalCenterOffset: (rail.width + 16) / 2 // In the room beside the rail
+        anchors.verticalCenterOffset: (banner.height + 14) / 2 // In the room under the banner
         visible: root.onShots && !root.viewing && root.paths.length === 0
         icon: root.loading ? "hourglass_empty" : "add_a_photo"
         text: root.loading ? Translation.tr("Looking for screenshots…") : Translation.tr("No screenshots yet")
@@ -542,20 +630,21 @@ LauncherTopPanel {
     ClipsPage {
         id: clipsPage
         settled: root.settled
-        anchors { top: parent.top; bottom: parent.bottom; left: rail.right; leftMargin: -6; right: parent.right }
+        anchors { top: banner.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: !root.onShots
         game: root.game
         active: root.shown && !root.onShots
     }
 
-    // ── Viewer: the shot large, what it is under it, then a filmstrip, beside the rail ──
+    // ── Viewer: the shot large under the banner, what it is joined under it, the others down the right ──
     Item {
         id: stage
-        anchors { top: parent.top; bottom: parent.bottom; left: rail.right; right: parent.right }
+        anchors { top: banner.bottom; topMargin: 12; bottom: parent.bottom; bottomMargin: 16; left: parent.left; leftMargin: 20; right: parent.right; rightMargin: 20 }
     }
     Item {
         id: viewer
-        anchors { top: stage.top; topMargin: 14; bottom: details.top; bottomMargin: 12; left: stage.left; right: stage.right; leftMargin: 14; rightMargin: 20 }
+        anchors { top: stage.top; bottom: stage.bottom; bottomMargin: 36 + 3; left: stage.left
+                  right: filmstrip.visible ? filmstrip.left : stage.right; rightMargin: filmstrip.visible ? 12 : 0 }
         visible: root.viewing
         readonly property string source: root.currentEntry !== "" ? root.sourceFor(root.currentEntry) : ""
         readonly property real aspect: root.aspectOf(root.currentEntry)
@@ -611,13 +700,14 @@ LauncherTopPanel {
 
         ClippingRectangle { // The picture's own rect, fitted from its known shape, so the rounding is on its corners
             id: picture
-            anchors.centerIn: parent
+            anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom } // On its details
             // Eased between shots of different shapes instead of snapping
             width: viewer.shownWidth(root.currentEntry)
             height: Math.round(viewer.shownWidth(root.currentEntry) / viewer.aspect)
             Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
             Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-            radius: Appearance.rounding.normal
+            topLeftRadius: Appearance.rounding.small; topRightRadius: Appearance.rounding.small
+            bottomLeftRadius: Appearance.rounding.joined; bottomRightRadius: Appearance.rounding.joined
             color: Appearance.colors.colLayer1
             Image { // A small copy first (quick to decode), shown while the full size loads
                 anchors.fill: parent
@@ -671,105 +761,130 @@ LauncherTopPanel {
                 color: Appearance.colors.colSubtext
             }
         }
-        SheetNavButton { anchors { left: parent.left; verticalCenter: parent.verticalCenter } iconName: "chevron_left"; enabled: root.viewerIndex > 0; onClicked: root.viewerIndex-- }
-        SheetNavButton { anchors { right: parent.right; verticalCenter: parent.verticalCenter } iconName: "chevron_right"; enabled: root.viewerIndex < root.paths.length - 1; onClicked: root.viewerIndex++ }
+        SheetNavButton { anchors { left: picture.left; leftMargin: 10; verticalCenter: picture.verticalCenter } iconName: "chevron_left"; enabled: root.viewerIndex > 0; onClicked: root.viewerIndex-- }
+        SheetNavButton { anchors { right: picture.right; rightMargin: 10; verticalCenter: picture.verticalCenter } iconName: "chevron_right"; enabled: root.viewerIndex < root.paths.length - 1; onClicked: root.viewerIndex++ }
     }
-    // When, how big, and where it is: a card as wide as the picture (wider only if its text needs it)
-    Rectangle {
+    // When, how big, and where it is: joined pieces under the picture, as wide as it (wider only if the text needs it)
+    Row {
         id: details
-        anchors {
-            bottom: filmstrip.visible ? filmstrip.top : parent.bottom
-            bottomMargin: filmstrip.visible ? 10 - filmstrip.pad : 16
-            horizontalCenter: viewer.horizontalCenter
-        }
-        width: Math.min(viewer.width, Math.max(picture.width, dateText.implicitWidth + chips.implicitWidth + 40))
-        height: 36
-        radius: Appearance.rounding.container
-        color: Appearance.colors.colLayer1
+        anchors.horizontalCenter: viewer.horizontalCenter
+        y: viewer.y + picture.y + picture.height + 3 // Under the picture (inside the viewer: not anchorable from here)
         visible: root.viewing
+        spacing: 3
         readonly property var info: root._info[root.currentEntry] ?? ({})
-        StyledText {
-            id: dateText
-            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-            text: {
-                const t = details.info.time ?? 0;
-                if (!(t > 0)) return "";
-                const d = new Date(t * 1000);
-                const date = d.toLocaleDateString(Qt.locale(), d.getFullYear() === new Date().getFullYear() ? "dddd, MMMM d" : "dddd, MMMM d, yyyy");
-                return `${date} · ${root.timeLabel(t)}`;
+        readonly property real chipsWidth: indexPiece.width + sizePiece.width + wherePiece.width + 3 * (sizePiece.visible ? 3 : 2)
+        width: Math.min(viewer.width, Math.max(picture.width, dateText.implicitWidth + 28 + chipsWidth))
+        Rectangle { // The date fills what the chips leave
+            width: details.width - details.chipsWidth
+            height: 36
+            color: Appearance.colors.colLayer3
+            topLeftRadius: Appearance.rounding.joined; topRightRadius: Appearance.rounding.joined
+            bottomLeftRadius: Appearance.rounding.small; bottomRightRadius: Appearance.rounding.joined
+            StyledText {
+                id: dateText
+                anchors { left: parent.left; leftMargin: 14; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                elide: Text.ElideRight
+                text: {
+                    const t = details.info.time ?? 0;
+                    if (!(t > 0)) return "";
+                    const d = new Date(t * 1000);
+                    const date = d.toLocaleDateString(Qt.locale(), d.getFullYear() === new Date().getFullYear() ? "dddd, MMMM d" : "dddd, MMMM d, yyyy");
+                    return `${date} · ${root.timeLabel(t)}`;
+                }
+                font.pixelSize: Appearance.font.pixelSize.smallie
+                color: Appearance.colors.colOnLayer3
             }
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colOnLayer1
         }
+        InfoPiece { // Which one of them
+            id: indexPiece
+            icon: "photo_library"
+            text: Translation.tr("%1 of %2").arg(root.viewerIndex + 1).arg(root.paths.length)
+        }
+        InfoPiece {
+            id: sizePiece
+            visible: (details.info.width ?? 0) > 0
+            icon: "aspect_ratio"
+            text: `${details.info.width} × ${details.info.height}`
+        }
+        InfoPiece {
+            id: wherePiece
+            last: true
+            icon: details.info.remote ? "cloud" : "computer"
+            text: details.info.remote ? Translation.tr("Immich") : Translation.tr("This PC")
+        }
+    }
+    // A detail under the picture: icon and text, joined to the pieces beside it (last: the group's bottom-right corner)
+    component InfoPiece: Rectangle {
+        id: piece
+        property string icon
+        property string text
+        property bool last: false
+        width: visible ? pieceRow.implicitWidth + 24 : 0
+        height: 36
+        color: Appearance.colors.colLayer3
+        topLeftRadius: Appearance.rounding.joined; topRightRadius: Appearance.rounding.joined
+        bottomLeftRadius: Appearance.rounding.joined; bottomRightRadius: last ? Appearance.rounding.small : Appearance.rounding.joined
         Row {
-            id: chips
-            anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+            id: pieceRow
+            anchors.centerIn: parent
             spacing: 6
-            SheetInfoChip { // Which one of them
-                icon: "photo_library"
-                text: Translation.tr("%1 of %2").arg(root.viewerIndex + 1).arg(root.paths.length)
-            }
-            SheetInfoChip {
-                visible: (details.info.width ?? 0) > 0
-                icon: "aspect_ratio"
-                text: `${details.info.width} × ${details.info.height}`
-            }
-            SheetInfoChip {
-                icon: details.info.remote ? "cloud" : "computer"
-                text: details.info.remote ? Translation.tr("Immich") : Translation.tr("This PC")
+            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: piece.icon; iconSize: 15; color: Appearance.colors.colSubtext }
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: piece.text
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colOnLayer3
             }
         }
     }
+    // The others, down the right as a joined column: the open one ringed, slid to the middle
     ListView {
         id: filmstrip
-        // `pad` bigger than the tiles all round, so the clip doesn't cut the current one's ring;
-        // centred, as wide as its shots up to the panel's width
-        anchors { bottom: parent.bottom; bottomMargin: 16 - pad; horizontalCenter: viewer.horizontalCenter }
-        width: Math.min(viewer.width + 2 * pad, contentWidth + pad * 2)
-        readonly property int pad: 4
-        readonly property int tileHeight: 60
-        height: tileHeight + pad * 2
-        leftMargin: pad; rightMargin: pad
+        anchors { top: stage.top; bottom: stage.bottom; right: stage.right }
+        width: 150
+        readonly property int tileHeight: Math.round(width * 9 / 16)
         visible: root.viewing && root.paths.length > 1 // One shot: nothing to pick between
-        orientation: ListView.Horizontal
-        spacing: 8
+        orientation: ListView.Vertical
+        spacing: 3
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         model: root.paths
-        // The current one slides to the middle
         currentIndex: root.viewerIndex
         highlightFollowsCurrentItem: true
         highlightRangeMode: ListView.ApplyRange
-        preferredHighlightBegin: width / 2 - 50
-        preferredHighlightEnd: width / 2 + 50
+        preferredHighlightBegin: height / 2 - tileHeight
+        preferredHighlightEnd: height / 2 + tileHeight
         highlightMoveDuration: 260
         highlight: Item {}
-        delegate: Item { // Full height with the tile centred: the view puts delegates at y 0, so a y on the tile itself is lost
+        delegate: Tile {
             id: filmItem
             required property string modelData
             required property int index
-            width: Math.round(Math.max(1, Math.min(2, root.aspectOf(modelData))) * filmstrip.tileHeight) // At least square, as the grid's
-            height: filmstrip.height
-            Tile {
-                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                height: filmstrip.tileHeight
-                entry: filmItem.modelData
-                compact: true
-                current: filmItem.index === root.viewerIndex
-                onClicked: root.viewerIndex = filmItem.index
-            }
+            width: filmstrip.width
+            height: filmstrip.tileHeight
+            entry: filmItem.modelData
+            compact: true
+            current: filmItem.index === root.viewerIndex
+            tl: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined; tr: tl
+            bl: index === root.paths.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined; br: bl
+            onClicked: root.viewerIndex = filmItem.index
         }
     }
 
     // ── Pieces ──
     // A rounded shot, decoded about at its own size. Hovered or current: an accent ring and, on the grid, a slight
     // zoom and when it was taken;
-    // a cloud mark when it's from Immich. compact: the filmstrip's (smaller rounding, the others dimmed)
+    // a cloud mark when it's from Immich. compact: the filmstrip's (the others dimmed). Its corners are its group's
+    // (joined: rounded only at the group's own corners); the ring is drawn inside it, clear of the ones beside it
     component Tile: Item {
         id: tile
         property string entry
         property bool compact: false
         property bool current: false
+        property real tl: Appearance.rounding.small
+        property real tr: Appearance.rounding.small
+        property real bl: Appearance.rounding.small
+        property real br: Appearance.rounding.small
         signal clicked()
         signal rightClicked()
         readonly property bool hovered: tileMa.containsMouse
@@ -786,7 +901,7 @@ LauncherTopPanel {
         ClippingRectangle { // Rounded without an offscreen layer per tile
             id: frame
             anchors.fill: parent
-            radius: tile.compact ? Appearance.rounding.small : Appearance.rounding.normal
+            topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
             color: Appearance.colors.colLayer1
             scale: tileMa.pressed ? 0.98 : 1.0
             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -804,7 +919,7 @@ LauncherTopPanel {
             }
             Rectangle { // A faint edge, so dark shots don't melt into the panel
                 anchors.fill: parent
-                radius: frame.radius
+                topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
                 color: "transparent"
                 border.width: 1
                 border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
@@ -846,9 +961,9 @@ LauncherTopPanel {
                 MaterialSymbol { anchors.centerIn: parent; text: "cloud"; iconSize: tile.compact ? 12 : 15; color: Appearance.colors.colOnLayer0 }
             }
         }
-        Rectangle {
-            anchors { fill: parent; margins: -3 }
-            radius: frame.radius + 3
+        Rectangle { // The ring
+            anchors.fill: parent
+            topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
             color: "transparent"
             border.width: 2
             border.color: Appearance.colors.colPrimary

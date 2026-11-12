@@ -13,13 +13,18 @@ RippleButton {
     property bool danger: false // Destructive (Move to Trash): red on hover
     property bool active: false // A mode that's on (Clips' Trim): the accent squircle behind the icon. With danger:
                                 // red instead (Trash armed, waiting for the second click)
-    // In a rail group (Captures): its own 36 px square, joined to the ones above and below (rounded at the
-    // group's ends), on: tinted in the accent. Set by the group
+    // In a group (Captures' banner): its own 36 px square, joined to the ones beside it (rounded at the group's
+    // ends), on: tinted in the accent. Set by the group. across: the group is a Row (else a Column)
     property bool joined: false
+    property bool across: false
     readonly property int _joinIndex: joined ? (parent?.visibleChildren ?? []).indexOf(root) : -1
     readonly property int _joinCount: joined ? (parent?.visibleChildren ?? []).length : 0
-    buttonRadiusTop: joined ? (_joinIndex === 0 ? Appearance.rounding.small : Appearance.rounding.joined) : -1
-    buttonRadiusBottom: joined ? (_joinIndex === _joinCount - 1 ? Appearance.rounding.small : Appearance.rounding.joined) : -1
+    readonly property real _startRadius: _joinIndex === 0 ? Appearance.rounding.small : Appearance.rounding.joined
+    readonly property real _endRadius: _joinIndex === _joinCount - 1 ? Appearance.rounding.small : Appearance.rounding.joined
+    buttonRadiusTop: joined && !across ? _startRadius : -1
+    buttonRadiusBottom: joined && !across ? _endRadius : -1
+    buttonRadiusLeft: joined && across ? _startRadius : -1
+    buttonRadiusRight: joined && across ? _endRadius : -1
     // A click doesn't take the keyboard: the details page keeps it, and passes keys on to the panels
     // (they sit outside it), so ←/→, Delete and Esc keep working after pressing one of these
     focusPolicy: Qt.NoFocus

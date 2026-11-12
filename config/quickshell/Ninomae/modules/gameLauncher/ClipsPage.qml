@@ -10,15 +10,15 @@ import Quickshell.Widgets
 
 /**
  * The Screenshots sheet's Clips page: the game's saved gameplay clips (services/GameClips.qml puts them
- * in <clips folder>/<game>/), newest first in a grid of 16:9 tiles (CaptureGrid) with their length; clicking one plays
- * it in the sheet. scripts/clips/list_clips.py lists them and makes the thumbnails (cached).
+ * in <clips folder>/<game>/), newest first in a grid of joined 16:9 tiles (CaptureGrid) with their length; clicking one plays
+ * it in the sheet, its controls joined under it and the other clips down the right. scripts/clips/list_clips.py lists them and makes the thumbnails (cached).
  * Keys (from ScreenshotsPanel.handleKey): on the grid the arrows move a ring and Enter plays; in the player
  * Space plays/pauses, ←/→ jump 5 s, Page Up/Down go to the previous/next clip, Esc goes back to the grid.
  * Delete (twice) is the panel's: ScreenshotsPanel.requestTrash asks before trashCurrent.
  *
- * Trim (T, or the rail's scissors): [ and ] mark where it starts and ends at the playhead, it loops
+ * Trim (T, or the banner's scissors): [ and ] mark where it starts and ends at the playhead, it loops
  * in that part, and Save makes it a new clip (scripts/clips/export_clip.py; the original is kept).
- * Copy (Ctrl+C, the rail's button, or right-click on the grid) puts the clip on the clipboard as a
+ * Copy (Ctrl+C, the banner's button, or right-click on the grid) puts the clip on the clipboard as a
  * file, to paste into Discord or a file manager, as the screenshots' copy does.
  */
 Item {
@@ -155,7 +155,7 @@ Item {
     }
 
     // ── Copy: the clip as a file (text/uri-list), what file managers put on the clipboard ──
-    property string copiedPath: "" // Its tick (rail) or "Copied" badge (grid) for a moment
+    property string copiedPath: "" // Its tick (banner) or "Copied" badge (grid) for a moment
     readonly property bool copied: copiedPath !== "" && copiedPath === (current?.path ?? "")
     Timer { id: copiedTimer; interval: 1500; onTriggered: root.copiedPath = "" }
     function copyClip(path) {
@@ -237,7 +237,7 @@ Item {
     // ── Grid ──
     CaptureGrid { // As the Screenshots page's
         id: grid
-        anchors { fill: parent; topMargin: 14 - pad; leftMargin: 20 - pad; rightMargin: 20 - pad }
+        anchors { fill: parent; topMargin: 12 - pad; leftMargin: 20 - pad; rightMargin: 20 - pad }
         visible: !root.viewing && root.clips.length > 0
         model: root.clips.length > 0 ? root.clips.concat([null]) : [] // Last, how to save more (null)
         delegate: Item {
@@ -251,12 +251,18 @@ Item {
             }
             Component {
                 id: howToTile
-                CaptureAddTile { icon: "movie"; text: root.howTo }
+                CaptureAddTile {
+                    icon: "videocam"; text: root.howTo
+                    topLeftRadius: grid.corner(cell.index, "tl"); topRightRadius: grid.corner(cell.index, "tr")
+                    bottomLeftRadius: grid.corner(cell.index, "bl"); bottomRightRadius: grid.corner(cell.index, "br")
+                }
             }
             Component {
                 id: clipTile
                 ClipTile {
                     clipData: cell.modelData
+                    tl: grid.corner(cell.index, "tl"); tr: grid.corner(cell.index, "tr")
+                    bl: grid.corner(cell.index, "bl"); br: grid.corner(cell.index, "br")
                     order: grid.atYBeginning ? cell.index : 0
                     current: root.keyboardNav && cell.index === root.gridIndex
                     onHoveredChanged: if (hovered && root.settled) { root.gridIndex = cell.index; root.keyboardNav = false; }
@@ -289,19 +295,21 @@ Item {
         hint: root.loading ? "" : root.howTo
     }
 
-    // ── Player ──
+    // ── Player: the video, its controls joined under it, the other clips down the right ──
     Item {
         id: player
-        anchors { top: parent.top; topMargin: 14; bottom: controls.top; bottomMargin: 12; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
+        anchors { top: parent.top; topMargin: 12; bottom: controls.top; bottomMargin: 3; left: parent.left; leftMargin: 20
+                  right: clipList.visible ? clipList.left : parent.right; rightMargin: clipList.visible ? 12 : 20 }
         visible: root.viewing
         readonly property real aspect: (root.current?.width ?? 0) > 0 && (root.current?.height ?? 0) > 0
             ? Math.max(0.5, Math.min(3, root.current.width / root.current.height)) : 16 / 9
         ClippingRectangle {
             id: screen
-            anchors.centerIn: parent
+            anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom } // On its controls
             width: Math.round(Math.min(parent.width, parent.height * player.aspect))
             height: Math.round(width / player.aspect)
-            radius: Appearance.rounding.normal
+            topLeftRadius: Appearance.rounding.small; topRightRadius: Appearance.rounding.small
+            bottomLeftRadius: Appearance.rounding.joined; bottomRightRadius: Appearance.rounding.joined
             color: "black"
             Image { // Its thumbnail until the first frame is up
                 anchors.fill: parent
@@ -343,39 +351,42 @@ Item {
             }
         }
         SheetNavButton {
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+            anchors { left: screen.left; leftMargin: 10; verticalCenter: screen.verticalCenter }
             iconName: "chevron_left"; enabled: root.playerIndex > 0
             onClicked: root.playerIndex--
         }
         SheetNavButton {
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            anchors { right: screen.right; rightMargin: 10; verticalCenter: screen.verticalCenter }
             iconName: "chevron_right"; enabled: root.playerIndex < root.clips.length - 1
             onClicked: root.playerIndex++
         }
     }
-    // Play/pause, where it is, and what it is: a card as wide as the video
+    // Play/pause, where it is, and what it is: a piece joined under the video, as wide as it
     Rectangle {
         id: controls
-        anchors { bottom: parent.bottom; bottomMargin: 16; horizontalCenter: parent.horizontalCenter }
-        width: Math.max(screen.width, 560)
+        anchors { bottom: parent.bottom; bottomMargin: 16; horizontalCenter: player.horizontalCenter }
+        width: Math.min(player.width, Math.max(screen.width, 560))
         height: 44
-        radius: Appearance.rounding.container
-        color: Appearance.colors.colLayer1
+        color: Appearance.colors.colLayer3
+        topLeftRadius: Appearance.rounding.joined; topRightRadius: Appearance.rounding.joined
+        bottomLeftRadius: Appearance.rounding.small; bottomRightRadius: Appearance.rounding.small
         visible: root.viewing
         RippleButton {
             id: playButton
             anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
-            implicitWidth: 32; implicitHeight: 32
+            implicitWidth: 34; implicitHeight: 34
             buttonRadius: Appearance.rounding.segment
             focusPolicy: Qt.NoFocus
-            colBackground: "transparent"
+            colBackground: Appearance.colors.colLayer3Accent
+            colBackgroundHover: Appearance.colors.colLayer3AccentHover
+            colRipple: Appearance.colors.colLayer3Active
             onClicked: root.togglePlay()
             contentItem: Item {
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: root.video.playbackState === MediaPlayer.PlayingState ? "pause" : "play_arrow"
                     fill: 1; iconSize: 22
-                    color: Appearance.colors.colOnLayer1
+                    color: Appearance.colors.colPrimary
                 }
             }
         }
@@ -455,7 +466,7 @@ Item {
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 110; height: 6; radius: 3
-                    color: Appearance.colors.colLayer2
+                    color: Appearance.colors.colLayer4
                     Rectangle {
                         width: parent.width * root.exportProgress; height: parent.height; radius: 3
                         color: Appearance.colors.colPrimary
@@ -530,29 +541,67 @@ Item {
         }
     }
 
+    // The other clips, down the right as a joined column: the one playing ringed, slid to the middle
+    ListView {
+        id: clipList
+        anchors { top: parent.top; topMargin: 12; bottom: parent.bottom; bottomMargin: 16; right: parent.right; rightMargin: 20 }
+        width: 150
+        readonly property int tileHeight: Math.round(width * 9 / 16)
+        visible: root.viewing && root.clips.length > 1
+        spacing: 3
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        model: root.viewing ? root.clips : [] // Built only while one plays
+        currentIndex: root.playerIndex
+        highlightFollowsCurrentItem: true
+        highlightRangeMode: ListView.ApplyRange
+        preferredHighlightBegin: height / 2 - tileHeight
+        preferredHighlightEnd: height / 2 + tileHeight
+        highlightMoveDuration: 260
+        highlight: Item {}
+        delegate: ClipTile {
+            required property var modelData
+            required property int index
+            width: clipList.width
+            height: clipList.tileHeight
+            clipData: modelData
+            compact: true
+            current: index === root.playerIndex
+            tl: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined; tr: tl
+            bl: index === root.clips.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined; br: bl
+            onClicked: root.playerIndex = index
+        }
+    }
+
     // ── Pieces ──
     // A clip's tile: its thumbnail, how long it is, and when on hover. Hovered or current: the accent ring
-    // and a slight zoom, as the screenshot tiles
+    // and a slight zoom, as the screenshot tiles. compact: the player's column (no date, the others dimmed). Its
+    // corners are its group's (joined); the ring is drawn inside it, clear of the ones beside it
     component ClipTile: Item {
         id: tile
         property var clipData
         property bool current: false
+        property bool compact: false
         property int order: 0
+        property real tl: Appearance.rounding.small
+        property real tr: Appearance.rounding.small
+        property real bl: Appearance.rounding.small
+        property real br: Appearance.rounding.small
         signal clicked()
         signal rightClicked()
         readonly property bool hovered: tileMa.containsMouse
-        property real appear: 0
+        property real appear: compact ? 1 : 0
         opacity: appear
         transform: Translate { y: (1 - tile.appear) * 12 }
         SequentialAnimation {
-            running: true
+            running: !tile.compact
             PauseAnimation { duration: Math.min(tile.order, 10) * 40 }
             NumberAnimation { target: tile; property: "appear"; to: 1; duration: 320; easing.type: Easing.OutCubic }
         }
         ClippingRectangle {
             id: frame
             anchors.fill: parent
-            radius: Appearance.rounding.normal
+            topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
             color: Appearance.colors.colLayer1
             scale: tileMa.pressed ? 0.98 : 1.0
             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -563,14 +612,14 @@ Item {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 sourceSize.width: 480
-                opacity: status === Image.Ready ? 1 : 0
+                opacity: status !== Image.Ready ? 0 : tile.compact && !tile.current && !tile.hovered ? 0.5 : 1
                 Behavior on opacity { NumberAnimation { duration: 180 } }
-                scale: tile.hovered || tile.current ? 1.04 : 1.0
+                scale: !tile.compact && (tile.hovered || tile.current) ? 1.04 : 1.0
                 Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
             }
             Rectangle { // A faint edge, so dark clips don't melt into the panel
                 anchors.fill: parent
-                radius: frame.radius
+                topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
                 color: "transparent"
                 border.width: 1
                 border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
@@ -583,6 +632,7 @@ Item {
                 color: Appearance.colors.colSubtext
             }
             Rectangle { // When it was saved, along the bottom while hovered (or the keyboard ring is on it)
+                visible: !tile.compact
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                 height: 44
                 opacity: tile.hovered || tile.current ? 1 : 0
@@ -618,9 +668,9 @@ Item {
                 }
             }
         }
-        Rectangle {
-            anchors { fill: parent; margins: -3 }
-            radius: frame.radius + 3
+        Rectangle { // The ring
+            anchors.fill: parent
+            topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
             color: "transparent"
             border.width: 2
             border.color: Appearance.colors.colPrimary
@@ -637,6 +687,7 @@ Item {
         }
         CopiedBadge {
             anchors { top: parent.top; right: parent.right; margins: 8 }
+            visible: !tile.compact
             shown: root.copiedPath !== "" && root.copiedPath === tile.clipData?.path
         }
     }
@@ -691,9 +742,9 @@ Item {
         implicitHeight: 28
         buttonRadius: Appearance.rounding.chip
         opacity: enabled ? 1 : 0.5
-        colBackground: accent ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
-        colBackgroundHover: accent ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer2Hover
-        colRipple: accent ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer2Active
+        colBackground: accent ? Appearance.colors.colPrimary : Appearance.colors.colLayer4 // On the controls (colLayer3)
+        colBackgroundHover: accent ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer4Hover
+        colRipple: accent ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer4Active
         contentItem: Item {
             Row {
                 id: cbRow
@@ -702,14 +753,14 @@ Item {
                 MaterialSymbol {
                     anchors.verticalCenter: parent.verticalCenter
                     text: cb.chipIcon; iconSize: 15
-                    color: cb.accent ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
+                    color: cb.accent ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer4
                 }
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     text: cb.label
                     font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
                     font.features: { "tnum": 1 }
-                    color: cb.accent ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
+                    color: cb.accent ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer4
                 }
             }
         }
