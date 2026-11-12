@@ -669,8 +669,8 @@ Item {
     }
     Row { // Game actions, laid out under the Play button (slot reserved in sidebarContent)
         id: topLeftButtons
-        x: sidebarContent.x + actionRowSlot.x
-        y: sidebarContent.y + actionRowSlot.y
+        x: Math.round(sidebarContent.x + actionRowSlot.x)
+        y: Math.round(sidebarContent.y + actionRowSlot.y)
         spacing: 3; z: 11
         ToggleIcon {
             buttonRadiusBottomLeft: Appearance.rounding.normal // The group's corner
@@ -717,7 +717,7 @@ Item {
         // --- More: less-used actions in a small labelled menu ---
         RippleButton {
             id: moreBtn
-            width: root._stripCell; height: actionRowSlot.height; padding: 0
+            width: root._stripLastCell; height: actionRowSlot.height; padding: 0
             buttonRadius: Appearance.rounding.joined
             buttonRadiusBottomRight: Appearance.rounding.normal // The group's corner
             colBackground: moreMenu.open ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
@@ -1501,7 +1501,11 @@ Item {
             }
         }
     }
-    readonly property real _stripCell: (actionRowSlot.width - 12) / 5 // Five, 3 px apart
+    // Five, 3 px apart, each a whole number of pixels (a fractional width put the icons between pixels, a touch off
+    // centre). The last (More) takes the pixels left over, so the row still ends level with Play (split between
+    // the ends instead, an odd width put those two icons half a pixel off)
+    readonly property int _stripCell: Math.floor((actionRowSlot.width - 12) / 5)
+    readonly property int _stripLastCell: Math.round(actionRowSlot.width) - 12 - 4 * _stripCell
     // For the Captures row: how many screenshots (find_screenshots.py, newest first, its folder on the first line)
     // and clips (a last "clips" line) the game has
     property int _peekCount: 0
@@ -1749,6 +1753,7 @@ Item {
             id: cellIcon
             anchors.centerIn: parent
             text: cell.iconName; iconSize: 20
+            font.hintingPreference: Font.PreferNoHinting // Full hinting snapped the outlines to the pixel grid: they looked squashed
             fill: cell.on ? 1 : 0
             color: cell.on ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
             Behavior on fill { NumberAnimation { duration: 200 } }
