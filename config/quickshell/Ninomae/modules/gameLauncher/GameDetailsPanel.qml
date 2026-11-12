@@ -130,7 +130,10 @@ Item {
             GameLauncherService.fetchMetadata(game);
             GameLauncherService.loadNews(game); // For the News row: its newest headline and how many are new (cached an hour)
             GameLauncherService.loadAchievements(game); // For the Achievements row's count (cached a day)
-        } else if (game?.id?.startsWith("lutris_")) GameLauncherService.fetchLutrisMetadata(game);
+        } else if (game?.id?.startsWith("lutris_")) {
+            GameLauncherService.fetchLutrisMetadata(game);
+            root._loadSteamRows(); // With a Steam id from a cached entry: at once (else when it arrives)
+        }
         capturesPeek.running = true;
         root._measureSize();
         root.arrived();
@@ -182,9 +185,10 @@ Item {
         const btns = root._sidebarButtons();
         const idx = root._currentSidebarIndex();
         if (event.key === Qt.Key_Escape) {
-            if (moreMenu.open || tagMenuPopup.open) {
+            if (moreMenu.open || tagMenuPopup.open || webMenu.open) {
                 moreMenu.open = false;
                 tagMenuPopup.open = false;
+                webMenu.open = false;
             } else {
                 root.backPressed();
             }
@@ -356,6 +360,25 @@ Item {
         return names[r] ?? (r ? r.charAt(0).toUpperCase() + r.slice(1) : "");
     }
     readonly property bool _runsNatively: game?.runner === "linux" || !!game?.flatpakId
+    // A Lutris game's Steam app id, from its lutris.net entry: with one, its menu has Steam's News, Achievements
+    // and ProtonDB rows (the lookups take the id, not the store)
+    readonly property string _lutrisSteamId: {
+        const _ = GameLauncherService.metadataCacheRevision;
+        return (game?.id ?? "").startsWith("lutris_") ? GameLauncherService.steamAppId(game) : "";
+    }
+    on_LutrisSteamIdChanged: if (_arrived) _loadSteamRows()
+    function _loadSteamRows() {
+        if (root._lutrisSteamId === "") return;
+        GameLauncherService.loadNews(game);
+        GameLauncherService.loadAchievements(game);
+    }
+    // A Lutris game's files: a Flatpak's data folder (its game folder is often empty), else its game folder.
+    // The Files row opens it and says where it is: "Flatpak data" (its path is long, all app id), else the path, ~ for home
+    readonly property string _filesDir: game?.flatpakId ? `${Quickshell.env("HOME")}/.var/app/${game.flatpakId}` : (game?.gameDir ?? "")
+    readonly property string _filesDirShort: {
+        const home = Quickshell.env("HOME");
+        return game?.flatpakId ? Translation.tr("Flatpak data") : _filesDir.startsWith(home + "/") ? "~" + _filesDir.substring(home.length) : _filesDir;
+    }
     // ─── Facts (top-right): joined chips of what changes: how it runs (Lutris), an update since you last played,
     // ProtonDB, hours, players. Not the install status: the Play button says it. Hovered, the rest (_extraStats:
     // last played, size, where it's from) joins under them as rows at the same width, and the ⓘ turns on ───
@@ -581,7 +604,8 @@ Item {
         if (game.gameDir) {
             _installSizeFor = key; _installSize = "…";
             sizeProc.modsDir = GameLauncherService.steamPaths(game)?.mods ?? "";
-            sizeProc.command = ["du", "-sb", game.gameDir, ...(sizeProc.modsDir ? [sizeProc.modsDir] : [])];
+            sizeProc.command = ["du", "-sb", game.gameDir, ...(sizeProc.modsDir ? [sizeProc.modsDir] : []),
+                                ...(game.flatpakId ? [root._filesDir] : [])]; // A Flatpak's data
             sizeProc.running = true;
         } else if (_sizeFromSteam) {
             _installSizeFor = key; _installSize = "…";
@@ -600,7 +624,7 @@ Item {
                     const b = parseInt(line);
                     if (tab < 0 || isNaN(b)) continue;
                     if (sizeProc.modsDir !== "" && line.substring(tab + 1) === sizeProc.modsDir) mods = b;
-                    else game = b;
+                    else game = (isNaN(game) ? 0 : game) + b; // The game folder and a Flatpak's data
                 }
                 root._installSize = isNaN(game) ? ""
                     : root._fmtBytes(game + mods) + (mods > 0 ? "  ·  " + root._fmtBytes(mods) + " " + Translation.tr("mods") : "");
@@ -736,9 +760,9 @@ Item {
     // The ⋯, tags and install-where menus and the info pane: one at a time
     function _sideMenuOpened(menu) {
         root.metadataPaneOpen = false;
-        for (const m of [moreMenu, tagMenuPopup, libraryMenu, launchMenu]) if (m && m !== menu) m.open = false; // (m: not made yet at start-up)
+        for (const m of [moreMenu, tagMenuPopup, libraryMenu, launchMenu, webMenu]) if (m && m !== menu) m.open = false; // (m: not made yet at start-up)
     }
-    onMetadataPaneOpenChanged: if (metadataPaneOpen) { moreMenu.open = false; tagMenuPopup.open = false; libraryMenu.open = false; launchMenu.open = false; }
+    onMetadataPaneOpenChanged: if (metadataPaneOpen) { moreMenu.open = false; tagMenuPopup.open = false; libraryMenu.open = false; launchMenu.open = false; webMenu.open = false; }
     SideDrawer {
         id: moreMenu
         paneW: 260 // Same as the tags menu; room for Uninstall's confirm note
@@ -751,7 +775,8 @@ Item {
             spacing: 3 // Joined, as the info drawer's pieces
             MoreItem {
                 iconName: "folder_open"; label: Translation.tr("Open game folder")
-                visible: game && (game.gameDir || "") !== ""
+                // Not when the menu has a Files row (Lutris games without a Steam id)
+                visible: game && (game.gameDir || "") !== "" && !(game.id.startsWith("lutris_") && root._lutrisSteamId === "")
                 onTriggered: Quickshell.execDetached(["xdg-open", game.gameDir])
             }
             MoreItem {
@@ -921,6 +946,59 @@ Item {
                     scale: 0.8
                     // Off: Play asks again. On: the next pick is remembered (until then, Play still asks)
                     onClicked: if (!checked) root.setLaunchDefault(-1)
+                }
+            }
+        }
+    }
+    // ── Lutris's rows: what each does, and Web's menu of the game's pages ──
+    readonly property var _webLinks: {
+        if (!(game?.id ?? "").startsWith("lutris_")) return [];
+        const name = encodeURIComponent(game.name || "");
+        const steamId = root._lutrisSteamId;
+        const links = [{ icon: "public", label: "Lutris.net", url: "https://lutris.net/games/" + game.id.substring(7) + "/" }];
+        if (steamId !== "") links.push({ icon: "storefront", label: Translation.tr("Steam store"), url: "https://store.steampowered.com/app/" + steamId });
+        links.push({ icon: "devices", label: "PCGamingWiki", url: "https://www.pcgamingwiki.com/w/index.php?search=" + name });
+        // ProtonDB is about running Windows games, and with a Steam id it has its own row
+        if (!root._runsNatively && steamId === "") links.push({ icon: "science", label: "ProtonDB", url: "https://www.protondb.com/search?q=" + name });
+        return links;
+    }
+    property Item _webRow: null // The Web row, for its menu to open level with it
+    property real _webRowCenter: 0
+    function _lutrisAction(type, row) {
+        switch (type) {
+        case "files":
+            Quickshell.execDetached(["xdg-open", root._filesDir]);
+            break;
+        case "lutris_app":
+            Quickshell.execDetached(["lutris"]);
+            break;
+        case "protondb":
+            Quickshell.execDetached(["xdg-open", "https://www.protondb.com/app/" + root._lutrisSteamId]);
+            break;
+        case "web":
+            root._webRow = row;
+            root._webRowCenter = row.mapToItem(root, 0, row.height / 2).y;
+            webMenu.open = !webMenu.open;
+            break;
+        }
+    }
+    SideDrawer {
+        id: webMenu
+        paneW: 260
+        paneH: webCol.implicitHeight + 24
+        anchorCenterY: root._webRowCenter
+        opener: root._webRow; exclusive: true
+        Column {
+            id: webCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+            spacing: 3 // Joined, as the info drawer's pieces
+            Repeater {
+                model: root._webLinks
+                MoreItem {
+                    required property var modelData
+                    iconName: modelData.icon
+                    label: modelData.label
+                    onTriggered: { webMenu.open = false; Quickshell.execDetached(["xdg-open", modelData.url]); }
                 }
             }
         }
@@ -1318,21 +1396,23 @@ Item {
                 { icon: "emoji_events",         label: qsTr("Achievements"), type: "achievements" },
                 { icon: "science",              label: qsTr("ProtonDB"),     url: "https://www.protondb.com/app/" }
         ]
+        // Lutris: with a Steam id, Steam's rows (News, Captures, Achievements once it has any, ProtonDB for Wine);
+        // without, Captures, its files and Lutris. Both end in Web: the game's pages, in a side menu
         readonly property var _lutrisActions: {
-            const _ = GameLauncherService.metadataCacheRevision;
-            const meta = game ? GameLauncherService.getMetadata(game.id) : null;
-            const hasSteamId = meta && meta.steamId;
-            const actions = [
-                { icon: "perm_media",     label: qsTr("Captures"),      type: "screenshots" },
-                { icon: "sports_esports", label: qsTr("Open Lutris"),   type: "lutris_app" },
-                { icon: "public",         label: qsTr("Lutris page"),   type: "lutris_page" },
-            ];
-            if (hasSteamId)
-                actions.push({ icon: "storefront", label: qsTr("Steam Store"), type: "steam_store" });
-            // ProtonDB is about running Windows games: not for native Linux / Flatpak ones
-            if (!root._runsNatively)
-                actions.push({ icon: "science", label: qsTr("ProtonDB"), type: "protondb" });
-            actions.push({ icon: "devices", label: qsTr("PCGamingWiki"),  type: "pcgamingwiki" });
+            const steamId = root._lutrisSteamId;
+            const actions = [];
+            if (steamId !== "") {
+                actions.push({ icon: "newspaper", label: qsTr("News"), type: "news" });
+                actions.push({ icon: "perm_media", label: qsTr("Captures"), type: "screenshots" });
+                if (GameLauncherService.achievementsFor === (game?.id ?? "") && (GameLauncherService.achievements?.total ?? 0) > 0)
+                    actions.push({ icon: "emoji_events", label: qsTr("Achievements"), type: "achievements" });
+                if (!root._runsNatively) actions.push({ icon: "science", label: qsTr("ProtonDB"), type: "protondb" });
+            } else {
+                actions.push({ icon: "perm_media", label: qsTr("Captures"), type: "screenshots" });
+                if (root._filesDir !== "") actions.push({ icon: "folder_open", label: qsTr("Files"), type: "files" });
+                actions.push({ icon: "sports_esports", label: qsTr("Lutris"), type: "lutris_app" });
+            }
+            actions.push({ icon: "public", label: qsTr("Web"), type: "web" });
             return actions;
         }
         ColumnLayout { // The menu: joined rows, each saying what's inside
@@ -1351,7 +1431,7 @@ Item {
                     required property var modelData
                     required property int index
                     Layout.fillWidth: true
-                    Layout.preferredHeight: subtitle !== "" || sidebarContent._isSteam ? 50 : 40 // Steam's four rows all the same
+                    Layout.preferredHeight: subtitle !== "" || sidebarContent._isSteam || sidebarContent._isLutris ? 50 : 40 // Each menu's rows all the same
                     buttonRadius: Appearance.rounding.joined
                     buttonRadiusTopLeft: index === 0 ? Appearance.rounding.normal : Appearance.rounding.joined
                     buttonRadiusTopRight: buttonRadiusTopLeft
@@ -1364,8 +1444,9 @@ Item {
                     colRipple: Appearance.colors.colLayer3Active
                     // Its panel is open: tinted, with the icon and label in the accent (accent = active)
                     readonly property bool panelOpen: root.openPanel !== "" && root.openPanel === modelData.type
+                        || modelData.type === "web" && webMenu.open
                     readonly property bool lit: hovered || activeFocus
-                    readonly property bool isLink: !root.panelTypes.includes(modelData.type)
+                    readonly property bool isLink: !root.panelTypes.includes(modelData.type) && modelData.type !== "web"
                     buttonColor: panelOpen ? Appearance.colors.colLayer3Accent
                         : lit ? colBackgroundHover : colBackground
                     // News: how many posts are new since its panel was last opened, and the newest one's title
@@ -1376,13 +1457,20 @@ Item {
                     readonly property var achieved: modelData.type === "achievements" && GameLauncherService.achievementsFor === (game?.id ?? "")
                         && (GameLauncherService.achievements?.total ?? 0) > 0 ? GameLauncherService.achievements : null
                     readonly property string tier: modelData.label === "ProtonDB" ? (game?.protondbTier ?? "") : ""
+                    // Lutris: its files' size and folder, how it runs and the time Lutris tracked, which pages
+                    readonly property string lutrisLine: !sidebarContent._isLutris ? ""
+                        : modelData.type === "files" ? [root._installSize === "…" ? "" : root._installSize, root._filesDirShort].filter(t => t !== "").join("  ·  ")
+                        : modelData.type === "lutris_app" ? [root._runnerLabel, (game?.playtime ?? 0) > 0
+                            ? Translation.tr("%1 tracked").arg(game.playtime >= 60 ? Math.floor(game.playtime / 60) + " h" : game.playtime + " min") : ""].filter(t => t !== "").join("  ·  ")
+                        : modelData.type === "web" ? root._webLinks.map(l => l.label).join("  ·  ")
+                        : ""
                     // The line under the name: what's inside
                     readonly property string subtitle: headline !== "" ? headline
                         : modelData.type === "screenshots" ? (root._peekCount === 0 ? Translation.tr("None yet")
                             : root._peekCount === 1 ? Translation.tr("1 capture") : Translation.tr("%1 captures").arg(root._peekCount))
                         : achieved ? Translation.tr("%1 of %2 unlocked").arg(achieved.unlocked).arg(achieved.total)
                         : tier !== "" ? Translation.tr("Rated %1").arg(tier.charAt(0).toUpperCase() + tier.slice(1))
-                        : ""
+                        : lutrisLine
                     contentItem: Item {
                         implicitHeight: actionBtn.Layout.preferredHeight
                         Rectangle { // The icon in a square: accent for a panel here, grey for the browser. Its panel open (the
@@ -1467,33 +1555,7 @@ Item {
                             const appid = game.id.substring(6);
                             Quickshell.execDetached(["xdg-open", modelData.url + appid]);
                         } else if (sidebarContent._isLutris) {
-                            const slug = game.id.substring(7);
-                            const gameName = encodeURIComponent(game.name || "");
-                            const meta = root._currentMetadata;
-                            const steamId = meta?.steamId || null;
-                            switch (modelData.type) {
-                            case "lutris_app":
-                                Quickshell.execDetached(["lutris"]);
-                                break;
-                            case "lutris_page":
-                                Quickshell.execDetached(["xdg-open", "https://lutris.net/games/" + slug + "/"]);
-                                break;
-                            case "protondb":
-                                if (steamId)
-                                    Quickshell.execDetached(["xdg-open", "https://www.protondb.com/app/" + steamId]);
-                                else
-                                    Quickshell.execDetached(["xdg-open", "https://www.protondb.com/search?q=" + gameName]);
-                                break;
-                            case "steam_store":
-                                if (steamId)
-                                    Quickshell.execDetached(["xdg-open", "https://store.steampowered.com/app/" + steamId]);
-                                else
-                                    Quickshell.execDetached(["xdg-open", "https://store.steampowered.com/search/?term=" + gameName]);
-                                break;
-                            case "pcgamingwiki":
-                                Quickshell.execDetached(["xdg-open", "https://www.pcgamingwiki.com/w/index.php?search=" + gameName]);
-                                break;
-                            }
+                            root._lutrisAction(modelData.type, actionBtn);
                         }
                     }
                     Keys.onPressed: event => { if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { clicked(); event.accepted = true; } }
@@ -1531,7 +1593,7 @@ Item {
     }
     // ─── Info drawer: a SideDrawer centred on the menu, opened by hovering its reveal tab ───
     // The ⋯ and tags menus cover the tab, but hover still reaches it underneath: ignore it while they're open
-    readonly property bool _otherSideMenuOpen: moreMenu.open || tagMenuPopup.open
+    readonly property bool _otherSideMenuOpen: moreMenu.open || tagMenuPopup.open || webMenu.open
     function _syncInfoHover() {
         if (infoTabHover.hovered || infoPaneHover.hovered) { metadataCloseTimer.stop(); root.metadataPaneOpen = true; }
         else metadataCloseTimer.restart();

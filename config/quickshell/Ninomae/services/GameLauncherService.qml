@@ -570,14 +570,23 @@ Singleton {
     property string achievementsFor: ""
     property bool achievementsLoading: false
     property string _achievementsText: "" // The last JSON, to skip rebuilding the list when nothing changed
+    // A game's Steam app id: a Steam game's own, a Lutris game's from its lutris.net entry (fetchLutrisMetadata),
+    // else "". News and Achievements work for any game that has one
+    function steamAppId(game) {
+        const id = game?.id ?? "";
+        if (id.startsWith("steam_")) return id.substring(6);
+        if (id.startsWith("lutris_")) return String(root.metadataCache[id]?.steamId ?? "");
+        return "";
+    }
     function loadAchievements(game) {
-        if (!game?.id?.startsWith("steam_")) return;
+        const appid = steamAppId(game);
+        if (appid === "") return;
         if (root.achievementsFor !== game.id) {
             root.achievementsFor = game.id;
             root.achievements = null;
         }
         root.achievementsLoading = root.achievements === null;
-        _query(["python3", "-I", _helper("steam_achievements.py"), game.id.substring(6), root.cacheDir], game.id, (text, gameId) => {
+        _query(["python3", "-I", _helper("steam_achievements.py"), appid, root.cacheDir], game.id, (text, gameId) => {
             if (gameId !== root.achievementsFor) return;
             root.achievementsLoading = false;
             if (text === root._achievementsText && root.achievements !== null) return;
@@ -611,7 +620,8 @@ Singleton {
         return root.news.filter(p => p.date > seen).length;
     }
     function loadNews(game) {
-        if (!game?.id?.startsWith("steam_")) return;
+        const appid = steamAppId(game);
+        if (appid === "") return;
         if (root.newsFor !== game.id) {
             root.newsFor = game.id;
             root.news = [];
@@ -619,7 +629,7 @@ Singleton {
             root._newsText = "";
         }
         root.newsLoading = root.news.length === 0;
-        _query(["python3", "-I", _helper("steam_news.py"), game.id.substring(6), root.cacheDir], game.id, (text, gameId) => {
+        _query(["python3", "-I", _helper("steam_news.py"), appid, root.cacheDir], game.id, (text, gameId) => {
             if (gameId !== root.newsFor) return;
             root.newsLoading = false;
             if (text === root._newsText) return;
