@@ -8,12 +8,13 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
 
-// Library statistics: a banner of the art of what you've played most lately (else of all time) with the hours you've played (and the
-// installed size, the last two weeks and the library's ProtonDB on a card over it), then four cards that
-// scroll inside the launcher's short, wide panel: Recently played as covers, Most played, Storage (what's
-// downloading, every install, the drives' free room, what uninstalled games left) and Captures (the
-// library's newest screenshot or clip large, the next four under it, opening their game's Captures).
-// Every game opens its details.
+// Library statistics: a banner of the art of what you've played most lately (else of all time) with the hours you've
+// played, the games played and the average as chips, and the installed size, the last two weeks and the library's
+// ProtonDB as joined chips on the right. Then four cards, each led by a headline on art with the card's title as chips
+// over it and its list joined under: Recently played (the most played lately, then the latest as covers), Most played
+// (the top game's share of all your time, then the next ranked), Storage (the drive sliced by game, then what's
+// downloading, every install, what uninstalled games left) and Captures (the library's newest screenshot or clip large,
+// the next four under it, opening their game's Captures). Every game opens its details.
 Item {
     id: root
     signal backPressed()
@@ -187,10 +188,33 @@ Item {
     property var _recentRows: []
     property var _mostRows: []
     property var _storageRows: [] // Downloads ({ appid, game }, with size when installed) first, then the installs ({ game, size })
+    // Recently played's headline: the most played in the last two weeks, else the latest. Its covers are the rest
+    readonly property var _recentHero: _stats?.lately ?? _stats?.recent?.[0] ?? null
     on_StatsChanged: {
-        if (_recentRows !== (_stats?.recent ?? _recentRows)) _recentRows = _stats.recent;
-        if (_mostRows !== (_stats?.mostPlayed ?? _mostRows)) _mostRows = _stats.mostPlayed;
+        // Lists without their headline's game: new arrays only when their rows change (see _recompute's keep)
+        const same = (a, b, key) => a.length === b.length && a.every((r, i) => key(r) === key(b[i]));
+        const heroId = _recentHero?.game.id;
+        const recent = (_stats?.recent ?? []).filter(r => r.game.id !== heroId);
+        if (!same(recent, _recentRows, r => `${r.game.id}:${r.last}:${r.recentMin}:${r.sessionMin}`)) _recentRows = recent;
+        const most = (_stats?.mostPlayed ?? []).slice(1); // The first is the headline
+        if (!same(most, _mostRows, r => `${r.game.id}:${r.minutes}`)) _mostRows = most;
         _syncStorage();
+    }
+    // The drive bar's slices: the four biggest installs, then the rest as one. Each row's bar takes its slice's colour
+    readonly property var _driveSlices: {
+        const b = _stats?.biggest ?? [];
+        const s = b.slice(0, 4).map((r, i) => ({ slice: i, size: r.size }));
+        const rest = b.slice(4).reduce((t, r) => t + r.size, 0);
+        return rest > 0 ? s.concat([{ slice: 4, size: rest }]) : s;
+    }
+    readonly property var _sliceOf: { // Game id: its slice
+        const m = {};
+        (_stats?.biggest ?? []).forEach((r, i) => m[r.game.id] = Math.min(i, 4));
+        return m;
+    }
+    function _sliceColor(i) {
+        const c = Appearance.colors, p = c.colPrimary, t = Appearance.m3colors.m3tertiary;
+        return [p, ColorUtils.mix(p, t, 0.5), t, ColorUtils.mix(p, Appearance.m3colors.m3secondaryContainer, 0.45), c.colSubtext][Math.min(i, 4)];
     }
     on_DownloadsChanged: _syncStorage()
     property var _storageFor: [null, null] // The two lists _storageRows was made from
@@ -279,12 +303,9 @@ Item {
             ArtBanner {
                 id: banner
                 anchors.fill: parent
-                coverInset: 36 + 10 // The back button, then the cover
+                showCover: false // The game is Recently played's headline: here, only its art
                 // The most played in the last two weeks (else of all time). Not "top": an Item's own
-                readonly property var topGame: root._stats?.lately ?? root._stats?.mostPlayed?.[0] ?? null
-                readonly property bool lately: (root._stats?.lately ?? null) !== null
-                game: topGame?.game ?? null
-                coverIcon: "insights"
+                game: (root._stats?.lately ?? root._stats?.mostPlayed?.[0])?.game ?? null
                 shadeMid: 0.72; shadeEnd: 0.55 // Lighter on the right: the numbers there carry their own card
                 opacity: root.animationReady ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
@@ -292,6 +313,7 @@ Item {
                 HoverHandler { cursorShape: banner.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
 
                 RippleButton { // Back, on the art: solid, as the numbers' chips
+                    id: backButton
                     anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
                     implicitWidth: 36; implicitHeight: 36; padding: 0
                     buttonRadius: Appearance.rounding.small
@@ -303,37 +325,44 @@ Item {
                     StyledToolTip { text: Translation.tr("Back") }
                 }
 
-                Column { // How much you've played, and what most of it was
-                    anchors { left: banner.coverItem.right; leftMargin: 16; right: facts.left; rightMargin: 28; verticalCenter: parent.verticalCenter }
-                    spacing: 2
+                Item { // How much you've played, big, then the games played and the average as joined chips
+                    anchors { left: backButton.right; leftMargin: 16; right: facts.left; rightMargin: 16; top: parent.top; bottom: parent.bottom }
+                    clip: true // Narrow: the chips go under the facts' edge, never over them
                     Row {
-                        spacing: 8
-                        StyledText {
-                            anchors.baseline: playedWord.baseline
-                            text: root._formatTime(root._stats?.totalMin ?? 0)
-                            font.pixelSize: Appearance.font.pixelSize.title; font.weight: Font.DemiBold
-                            font.family: Appearance.font.family.numbers
-                            font.variableAxes: ({}) // Not Roboto Flex's tuning (its light wght would win over font.weight)
-                            color: Appearance.colors.colOnLayer0
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 18
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 8
+                            StyledText { // Sets the row's height ("played" sits on its baseline)
+                                id: hoursText
+                                text: root._formatTime(root._stats?.totalMin ?? 0)
+                                font.pixelSize: Appearance.font.pixelSize.hugeass; font.weight: Font.Medium
+                                font.family: Appearance.font.family.numbers
+                                font.variableAxes: ({}) // Not Roboto Flex's tuning (its light wght would win over font.weight)
+                                color: Appearance.colors.colOnLayer0
+                            }
+                            StyledText {
+                                anchors.baseline: hoursText.baseline
+                                text: Translation.tr("played")
+                                font.pixelSize: Appearance.font.pixelSize.normal
+                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.2)
+                            }
                         }
-                        StyledText {
-                            id: playedWord
-                            text: Translation.tr("played")
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.2)
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 3
+                            BannerChip {
+                                first: true
+                                icon: "sports_esports"
+                                text: Translation.tr("%1 of %2 played").arg(root._thousands(root._stats?.played ?? 0)).arg(root._thousands(root._stats?.total ?? 0))
+                            }
+                            BannerChip {
+                                last: true
+                                icon: "avg_time"
+                                text: Translation.tr("avg %1").arg(root._formatTime(root._stats?.averageMin ?? 0))
+                            }
                         }
-                    }
-                    StyledText {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: [Translation.tr("%1 of %2 games played").arg(root._thousands(root._stats?.played ?? 0)).arg(root._thousands(root._stats?.total ?? 0)),
-                               Translation.tr("avg %1").arg(root._formatTime(root._stats?.averageMin ?? 0)),
-                               !banner.topGame ? ""
-                                 : banner.lately ? Translation.tr("lately %1, %2").arg(banner.topGame.game.name).arg(root._formatTime(banner.topGame.recentMin))
-                                 : Translation.tr("most %1").arg(banner.topGame.game.name)]
-                            .filter(t => t !== "").join("  ·  ")
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.3)
                     }
                 }
 
@@ -390,17 +419,31 @@ Item {
             spacing: 10
             visible: root._stats !== null
 
-            Card { // The latest games, as their covers
+            Card { // What you've played most lately on its art, then the latest games as their covers
                 order: 1
-                weight: 1.3
+                weight: 1.15
                 iconName: "history"
                 title: Translation.tr("Recently played")
                 caption: Translation.tr("Last 2 weeks") // What the times under the covers count
+                Headline {
+                    // The most played in the last two weeks, else just the latest
+                    readonly property var row: root._recentHero
+                    readonly property bool lately: (root._stats?.lately ?? null) !== null
+                    visible: !!row
+                    solo: true
+                    game: row?.game ?? null
+                    name: row?.game?.name ?? ""
+                    line: !row ? "" : lately ? Translation.tr("%1 of your last 2 weeks").arg(root._formatTime(row.recentMin))
+                        : root._ago(row.last) + (row.sessionMin > 0 ? "  ·  " + root._formatTime(row.sessionMin) : "")
+                    share: lately ? row.recentMin / Math.max(1, root._stats.recentTotalMin) : -1
+                    chip: share >= 0 ? Math.round(share * 100) + "%" : ""
+                }
                 StatList {
                     id: recentList
                     visible: count > 0
+                    Layout.topMargin: 5
                     orientation: ListView.Horizontal
-                    spacing: 10
+                    spacing: 8
                     snapMode: ListView.SnapToItem // Scrolled a cover at a time: none left cut off
                     // As many whole covers as fit at about 2:3, widened a little to fill the card exactly
                     readonly property int fits: Math.max(1, Math.floor((width + spacing) / ((height - 40) * 2 / 3 + spacing)))
@@ -416,13 +459,23 @@ Item {
                             : modelData.sessionMin > 0 ? "  ·  " + root._formatTime(modelData.sessionMin) : "")
                     }
                 }
-                Empty { visible: recentList.count === 0; text: Translation.tr("Nothing played yet") }
+                Empty { visible: recentList.count === 0 && !root._recentHero; text: Translation.tr("Nothing played yet") }
             }
 
-            Card {
+            Card { // The most played on its art with its share of all your time, then the next ones ranked
                 order: 2
                 iconName: "emoji_events"
                 title: Translation.tr("Most played")
+                Headline {
+                    readonly property var row: root._stats?.mostPlayed?.[0] ?? null
+                    visible: !!row
+                    solo: mostList.count === 0
+                    game: row?.game ?? null
+                    name: row?.game?.name ?? ""
+                    share: row ? row.minutes / Math.max(1, root._stats.totalMin) : -1
+                    line: !row ? "" : Translation.tr("%1  ·  %2% of all your time").arg(root._formatTime(row.minutes)).arg(Math.round(share * 100))
+                    chip: "1"
+                }
                 StatList {
                     id: mostList
                     visible: count > 0
@@ -431,13 +484,14 @@ Item {
                         required property var modelData
                         required property int index
                         width: ListView.view.width
+                        last: index === ListView.view.count - 1
                         game: modelData.game
-                        rank: index + 1
+                        rank: index + 2 // The first is the headline
                         trailing: root._formatTime(modelData.minutes)
                         fraction: modelData.minutes / root._stats.maxMinutes
                     }
                 }
-                Empty { visible: mostList.count === 0; text: Translation.tr("Nothing played yet") }
+                Empty { visible: !root._stats?.mostPlayed?.length; text: Translation.tr("Nothing played yet") }
             }
 
             // What's downloading, then every install, biggest first; or (Review) what uninstalled games left behind
@@ -446,6 +500,59 @@ Item {
                 iconName: "hard_drive"
                 title: root._showLeftovers ? Translation.tr("Left behind") : Translation.tr("Storage")
                 caption: !root._showLeftovers && root._freeBytes >= 0 ? Translation.tr("%1 free").arg(root._formatBytes(root._freeBytes)) : ""
+                Headline { // The drive: what the games take and what's free, one bar of it sliced by game, on the biggest's art
+                    id: drive
+                    visible: (root._stats?.biggest?.length ?? 0) > 0
+                    solo: false
+                    clickable: false
+                    game: root._stats?.biggest?.[0]?.game ?? null
+                    shadeMid: 0.82; shadeEnd: 0.72 // The bar runs the whole width
+                    readonly property real games: root._stats?.diskTotal ?? 0
+                    readonly property real whole: Math.max(1, games + Math.max(0, root._freeBytes))
+                    Column {
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 12 }
+                        spacing: 8
+                        Row {
+                            spacing: 6
+                            StyledText {
+                                id: gamesSize
+                                text: root._formatBytes(drive.games)
+                                font.pixelSize: Appearance.font.pixelSize.larger; font.weight: Font.Medium
+                                font.family: Appearance.font.family.numbers
+                                font.variableAxes: ({}) // Not Roboto Flex's tuning
+                                color: Appearance.colors.colOnLayer0
+                            }
+                            StyledText {
+                                anchors.baseline: gamesSize.baseline
+                                text: root._freeBytes >= 0 ? Translation.tr("of games  ·  %1 free").arg(root._formatBytes(root._freeBytes)) : Translation.tr("of games")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.3)
+                            }
+                        }
+                        Item { // Sized here, the Row only fills it
+                            id: driveBar
+                            width: parent.width; height: 10
+                            Rectangle { anchors.fill: parent; radius: 5; color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88) }
+                            Row {
+                                height: parent.height
+                                spacing: 2
+                                Repeater {
+                                    model: root._driveSlices
+                                    Rectangle {
+                                        required property var modelData
+                                        required property int index
+                                        height: driveBar.height
+                                        width: Math.max(4, driveBar.width * modelData.size / drive.whole) * (root.animationReady ? 1 : 0)
+                                        color: root._sliceColor(modelData.slice)
+                                        topLeftRadius: index === 0 ? 5 : 2; bottomLeftRadius: topLeftRadius
+                                        topRightRadius: 2; bottomRightRadius: 2
+                                        Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 StatList {
                     id: storageList
                     visible: !root._showLeftovers && count > 0
@@ -453,8 +560,12 @@ Item {
                     model: root._showLeftovers ? [] : root._storageRows
                     delegate: GameRow {
                         required property var modelData
+                        required property int index
                         readonly property var item: modelData.appid ? root._downloadItem(modelData.appid) : null // Live
                         width: ListView.view.width
+                        last: index === ListView.view.count - 1 && !leftoversButton.visible
+                        // Its slice of the drive's colour (a download not yet installed: the accent)
+                        barColor: modelData.size ? root._sliceColor(root._sliceOf[modelData.game.id] ?? 4) : Appearance.colors.colPrimary
                         game: modelData.game
                         // Installed and updating: its size, the update under the name (with what's left of it)
                         subtitle: !item ? "" : modelData.size ? root._downloadText(item) + "  ·  " + Translation.tr("%1 left").arg(root._formatBytes(item.toDownload))
@@ -464,14 +575,16 @@ Item {
                     }
                 }
                 Empty { visible: storageList.count === 0 && !root._showLeftovers; text: Translation.tr("No install sizes found") }
-                RippleButton { // "Left by N uninstalled games · size  Review"
+                RippleButton { // "Left by N uninstalled games · size  Review": the group's last piece
+                    id: leftoversButton
                     Layout.fillWidth: true
                     implicitHeight: 36
                     visible: !root._showLeftovers && root._leftovers.length > 0
-                    buttonRadius: Appearance.rounding.container
-                    colBackground: Appearance.colors.colLayer4
-                    colBackgroundHover: Appearance.colors.colLayer4Hover
-                    colRipple: Appearance.colors.colLayer4Active
+                    buttonRadiusTop: Appearance.rounding.joined
+                    buttonRadiusBottom: Appearance.rounding.small
+                    colBackground: Appearance.colors.colLayer3
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    colRipple: Appearance.colors.colLayer3Active
                     onClicked: root._showLeftovers = true
                     contentItem: RowLayout {
                         anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
@@ -488,38 +601,47 @@ Item {
                     }
                 }
                 // ── Review: one row per game, with what it left and a delete (click twice) ──
-                RowLayout {
+                Rectangle { // A joined piece under the drive, as the rows under it
                     Layout.fillWidth: true
+                    implicitHeight: 40
                     visible: root._showLeftovers
-                    spacing: 6
-                    RippleButton {
-                        implicitWidth: 30; implicitHeight: 30
-                        buttonRadius: Appearance.rounding.segment
-                        colBackgroundHover: Appearance.colors.colLayer2Hover
-                        onClicked: root._showLeftovers = false
-                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "arrow_back"; iconSize: 16; color: Appearance.colors.colOnLayer2 }
-                        StyledToolTip { text: Translation.tr("Back to storage") }
-                    }
-                    StyledText {
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtext
-                        text: Translation.tr("Saves not in Steam Cloud go too")
-                    }
-                    DeleteButton {
-                        label: armed ? Translation.tr("Delete all?") : Translation.tr("Delete all")
-                        onConfirmed: root._removeLeftovers(root._leftovers.map(e => e.appid))
+                    radius: Appearance.rounding.joined
+                    color: Appearance.colors.colLayer3
+                    RowLayout {
+                        anchors { fill: parent; leftMargin: 5; rightMargin: 6 }
+                        spacing: 6
+                        RippleButton {
+                            implicitWidth: 30; implicitHeight: 30
+                            buttonRadius: Appearance.rounding.segment
+                            colBackgroundHover: Appearance.colors.colLayer3Hover
+                            onClicked: root._showLeftovers = false
+                            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "arrow_back"; iconSize: 16; color: Appearance.colors.colOnLayer3 }
+                            StyledToolTip { text: Translation.tr("Back to storage") }
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colSubtext
+                            text: Translation.tr("Saves not in Steam Cloud go too")
+                        }
+                        DeleteButton {
+                            label: armed ? Translation.tr("Delete all?") : Translation.tr("Delete all")
+                            onConfirmed: root._removeLeftovers(root._leftovers.map(e => e.appid))
+                        }
                     }
                 }
                 StatList {
                     visible: root._showLeftovers
                     model: root._leftovers
                     delegate: RowLayout {
+                        id: leftoverRow
                         required property var modelData
+                        required property int index
                         width: ListView.view.width
                         spacing: 4
                         GameRow {
+                            last: leftoverRow.index === leftoverRow.ListView.view.count - 1
                             game: root._leftoverGame(modelData)
                             subtitle: Translation.tr("Last used %1").arg(root._ago(modelData.modified * 1000).toLowerCase())
                             trailing: root._formatBytes(modelData.size)
@@ -546,11 +668,13 @@ Item {
                     readonly property var latest: root._captures?.latest ?? []
                     readonly property int gap: 6
                     readonly property real stripHeight: latest.length > 1 ? Math.round((width - 3 * gap) / 4 * 9 / 16) : 0
-                    CaptureThumb {
+                    CaptureThumb { // The card's title rides on its top; joined to the strip under it
                         anchors { left: parent.left; right: parent.right; top: parent.top; bottom: strip.top
                                   bottomMargin: capturesArea.stripHeight > 0 ? capturesArea.gap : 0 }
                         capture: capturesArea.latest[0] ?? ({})
                         large: true
+                        bottomLeftRadius: capturesArea.stripHeight > 0 ? Appearance.rounding.joined : Appearance.rounding.small
+                        bottomRightRadius: bottomLeftRadius
                     }
                     Row {
                         id: strip
@@ -561,9 +685,14 @@ Item {
                             model: capturesArea.latest.slice(1, 5)
                             CaptureThumb {
                                 required property var modelData
+                                required property int index
                                 width: (capturesArea.width - 3 * capturesArea.gap) / 4
                                 height: strip.height
                                 capture: modelData
+                                // Joined: round only at the group's bottom corners
+                                topLeftRadius: Appearance.rounding.joined; topRightRadius: Appearance.rounding.joined
+                                bottomLeftRadius: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined
+                                bottomRightRadius: index === capturesArea.latest.slice(1, 5).length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
                             }
                         }
                     }
@@ -584,12 +713,11 @@ Item {
         Layout.fillWidth: true
         Layout.preferredWidth: 100 * weight
         radius: Appearance.rounding.normal
-        color: Appearance.colors.colLayer2
+        color: Appearance.colors.colLayer1 // Under its joined pieces (colLayer3)
         opacity: root.animationReady ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 260 + order * 50; easing.type: Easing.OutCubic } }
     }
 
-    // One of the banner's numbers: a tinted squircle, a small label and the value (extra content under them)
     // A number on the banner: a chip of the joined row, its icon in an accent square, a small name over the value
     // (bright, in the numbers' font) and a quieter note beside it. Anything added goes under them (ProtonDB's bar)
     component BannerFact: Rectangle {
@@ -658,7 +786,7 @@ Item {
         property string detail
         readonly property string art: GameLauncherService.localArt(game, "boxArt")
         padding: 0
-        buttonRadius: Appearance.rounding.normal
+        buttonRadius: Appearance.rounding.small
         colBackground: "transparent"
         colBackgroundHover: "transparent"
         colRipple: "transparent"
@@ -668,7 +796,7 @@ Item {
                 id: posterArt
                 anchors { left: parent.left; right: parent.right; top: parent.top }
                 height: parent.height - 40
-                radius: Appearance.rounding.normal
+                radius: Appearance.rounding.small
                 color: Appearance.colors.colLayer4
                 Image {
                     anchors.fill: parent
@@ -724,7 +852,7 @@ Item {
         property bool large: false
         readonly property var game: capture?.kind ? root._captureGame(capture) : null
         readonly property bool lit: thumbHover.hovered && !!thumb.game
-        radius: large ? Appearance.rounding.normal : Appearance.rounding.small
+        radius: Appearance.rounding.small
         color: Appearance.colors.colLayer4
         Image {
             anchors.fill: parent
@@ -778,9 +906,10 @@ Item {
             text: "play_circle"; iconSize: 16; fill: 1
             color: "white"
         }
-        Rectangle { // Hover edge (the clip's own radius: its parent here is its content item)
+        Rectangle { // Hover edge (the clip's own corners: its parent here is its content item)
             anchors.fill: parent
-            radius: thumb.radius
+            topLeftRadius: thumb.topLeftRadius; topRightRadius: thumb.topRightRadius
+            bottomLeftRadius: thumb.bottomLeftRadius; bottomRightRadius: thumb.bottomRightRadius
             color: "transparent"
             border.width: thumb.lit ? 2 : 1
             border.color: thumb.lit ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9)
@@ -799,47 +928,160 @@ Item {
         animateAppearance: false // Rows would pop in again whenever a list changes
     }
 
-    // A titled card holding one list
+    // A card: its pieces joined in a column (a headline on art first), the title and caption as chips over its top
     component Card: Surface {
         id: card
         property string iconName
         property string title
-        property string caption // Small, on the right of the title
+        property string caption // Small, on the right
         default property alias content: cardCol.data
         Layout.fillHeight: true
         ColumnLayout {
             id: cardCol
             anchors { fill: parent; margins: 8 }
-            spacing: 6
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 2
-                Layout.leftMargin: 4
-                spacing: 10
-                Rectangle { // The icon in a tinted square, as everywhere else
-                    implicitWidth: 28; implicitHeight: 28; radius: 8
+            spacing: 3
+        }
+        Rectangle { // The title: icon in a tinted square, the name
+            x: 16; y: 16
+            width: titleRow.implicitWidth + 16; height: 32
+            radius: Appearance.rounding.small - 1
+            color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.22)
+            Row {
+                id: titleRow
+                x: 4
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+                Rectangle {
+                    width: 24; height: 24; radius: 7
                     color: Appearance.colors.colLayer3Accent
-                    MaterialSymbol { anchors.centerIn: parent; text: card.iconName; iconSize: 16; color: Appearance.colors.colPrimary }
+                    MaterialSymbol { anchors.centerIn: parent; text: card.iconName; iconSize: 15; color: Appearance.colors.colPrimary }
                 }
                 StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
                     text: card.title
-                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.pixelSize: Appearance.font.pixelSize.smallie
                     font.weight: Font.DemiBold
-                    color: Appearance.colors.colOnLayer2
+                    color: Appearance.colors.colOnLayer0
                 }
-                Item { Layout.fillWidth: true }
-                StyledText {
-                    visible: card.caption.length > 0
-                    Layout.rightMargin: 6
-                    text: card.caption
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colSubtext
-                }
+            }
+        }
+        Rectangle { // The caption
+            visible: card.caption.length > 0
+            anchors { right: parent.right; rightMargin: 16; top: parent.top; topMargin: 16 }
+            width: captionText.implicitWidth + 20; height: 32
+            radius: Appearance.rounding.small - 1
+            color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.22)
+            StyledText {
+                id: captionText
+                anchors.centerIn: parent
+                text: card.caption
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.15)
             }
         }
     }
 
-    // A game: box art, name (+ subtitle or a bar), value on the right. Opens its details
+    // A list's headline: a game on its art (the card's title chips over its top), its name and a line at the bottom
+    // left, a value in an accent chip on the right (a share, the rank) and the share as a bar along the bottom.
+    // Opens the game. Anything added goes over the art (Storage's drive)
+    component Headline: ArtBanner {
+        id: headline
+        property string name
+        property string line
+        property string chip: ""
+        property real share: -1 // < 0: no bar
+        property bool solo: false // Nothing joined under it: rounded at the bottom too
+        property bool clickable: true
+        Layout.fillWidth: true
+        Layout.preferredHeight: 106
+        showCover: false
+        shadeMid: 0.5; shadeEnd: 0.15 // The text is on the left: the art shows on the right
+        topLeftRadius: Appearance.rounding.small; topRightRadius: Appearance.rounding.small
+        bottomLeftRadius: solo ? Appearance.rounding.small : Appearance.rounding.joined
+        bottomRightRadius: bottomLeftRadius
+        TapHandler { enabled: headline.clickable && !!headline.game; onTapped: root.gameSelected(headline.game) }
+        HoverHandler { cursorShape: headline.clickable && headline.game ? Qt.PointingHandCursor : Qt.ArrowCursor }
+        Column {
+            visible: headline.name !== ""
+            anchors { left: parent.left; leftMargin: 12; right: headChip.left; rightMargin: 12; bottom: parent.bottom; bottomMargin: headline.share >= 0 ? 16 : 12 }
+            spacing: 1
+            StyledText {
+                width: parent.width
+                elide: Text.ElideRight
+                text: headline.name
+                font.pixelSize: Appearance.font.pixelSize.large; font.weight: Font.DemiBold
+                color: Appearance.colors.colOnLayer0
+            }
+            StyledText {
+                width: parent.width
+                elide: Text.ElideRight
+                text: headline.line
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.22)
+            }
+        }
+        Rectangle { // Under the card's caption chip
+            id: headChip
+            visible: headline.chip !== ""
+            anchors { right: parent.right; rightMargin: 10; top: parent.top; topMargin: 46 }
+            width: Math.max(28, headChipText.implicitWidth + 16); height: 28
+            radius: 8
+            color: Appearance.colors.colLayer3Accent
+            StyledText {
+                id: headChipText
+                anchors.centerIn: parent
+                text: headline.chip
+                font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Bold
+                font.family: Appearance.font.family.numbers
+                font.variableAxes: ({}) // Not Roboto Flex's tuning
+                color: Appearance.colors.colPrimary
+            }
+        }
+        Item { // The share
+            visible: headline.share >= 0
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 12; rightMargin: 12; bottomMargin: 7 }
+            height: 4
+            Rectangle { anchors.fill: parent; radius: 2; color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.85) }
+            Rectangle {
+                width: parent.width * Math.max(0.02, Math.min(1, headline.share)) * (root.animationReady ? 1 : 0)
+                height: parent.height
+                radius: 2
+                color: Appearance.colors.colPrimary
+                Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+            }
+        }
+    }
+
+    // A chip of the banner's joined pair: icon and text
+    component BannerChip: Rectangle {
+        id: bchip
+        property string icon
+        property string text
+        property bool first: false
+        property bool last: false
+        width: bchipRow.implicitWidth + 20; height: 30
+        color: Appearance.colors.colLayer3
+        topLeftRadius: first ? Appearance.rounding.small - 2 : Appearance.rounding.joined
+        bottomLeftRadius: topLeftRadius
+        topRightRadius: last ? Appearance.rounding.small - 2 : Appearance.rounding.joined
+        bottomRightRadius: topRightRadius
+        Row {
+            id: bchipRow
+            x: 10
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 6
+            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: bchip.icon; iconSize: 15; color: Appearance.colors.colPrimary }
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: bchip.text
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colOnLayer3
+            }
+        }
+    }
+
+    // A game: box art, name (+ subtitle or a bar), value on the right. Opens its details. A joined piece under
+    // its card's headline: rounded only at the group's bottom (last)
     component GameRow: RippleButton {
         id: row
         property var game
@@ -847,11 +1089,15 @@ Item {
         property string subtitle
         property string trailing
         property real fraction: -1 // < 0: no bar
+        property color barColor: Appearance.colors.colPrimary
+        property bool last: false
         Layout.fillWidth: true
-        implicitHeight: 46
-        buttonRadius: Appearance.rounding.container
-        colBackgroundHover: Appearance.colors.colLayer2Hover
-        colRipple: Appearance.colors.colLayer2Active
+        implicitHeight: 44
+        buttonRadiusTop: Appearance.rounding.joined
+        buttonRadiusBottom: last ? Appearance.rounding.small : Appearance.rounding.joined
+        colBackground: Appearance.colors.colLayer3
+        colBackgroundHover: Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
         onClicked: if (row.game && !row.game._placeholder) root.gameSelected(row.game)
         contentItem: RowLayout {
             anchors { fill: parent; leftMargin: 6; rightMargin: 10 }
@@ -867,7 +1113,7 @@ Item {
                 color: Appearance.colors.colSubtext
             }
             Item {
-                implicitWidth: 28; implicitHeight: 38
+                implicitWidth: 26; implicitHeight: 34
                 Rectangle {
                     anchors.fill: parent
                     radius: Appearance.rounding.chip
@@ -878,15 +1124,16 @@ Item {
                 ClippingRectangle { // Rounded without an offscreen layer per row
                     anchors.fill: parent
                     radius: Appearance.rounding.chip
-                    color: "transparent"
+                    color: thumb.box ? "transparent" : Appearance.colors.colLayer4
                     visible: thumb.status === Image.Ready
                     Image {
                         id: thumb
                         anchors.fill: parent
-                        // Your own cover if you set one (as the grid), else the game's
-                        readonly property string art: GameLauncherService.localArt(row.game, "boxArt")
+                        // Your own cover if you set one (as the grid), else the game's, else its logo or icon (fitted)
+                        readonly property string box: GameLauncherService.localArt(row.game, "boxArt")
+                        readonly property string art: box || GameLauncherService.logoArt(row.game)
                         source: art ? "file://" + art : ""
-                        fillMode: Image.PreserveAspectCrop
+                        fillMode: box ? Image.PreserveAspectCrop : Image.PreserveAspectFit
                         asynchronous: true
                         sourceSize: Qt.size(56, 76)
                     }
@@ -921,7 +1168,7 @@ Item {
                         width: parent.width * Math.max(0.03, Math.min(1, row.fraction)) * (root.animationReady ? 1 : 0)
                         height: parent.height
                         radius: 2
-                        color: Appearance.colors.colPrimary
+                        color: row.barColor
                         Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     }
                 }
