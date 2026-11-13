@@ -12,9 +12,9 @@ import Quickshell.Widgets
  * icon; the chosen one tinted), under "News" and All / Updates. The selected one on the right, laid out
  * from blocks (scripts/game-launcher/steam_news.py). It opens on its picture as a banner (the game's
  * art without one), its title, date and author on it; click it for the whole picture. The post is a
- * ListView, so its images load as they scroll into view rather than all at once (some posts have dozens). Compact to suit the sheet's
- * short height: images that can span the article become banners like Steam's own headers (cropped from
- * the centre; click for the whole one).
+ * ListView, so its images load as they scroll into view rather than all at once (some posts have
+ * dozens). Compact to suit the sheet's short height: images that can span the article become banners
+ * like Steam's own headers (cropped from the centre; click for the whole one).
  * Posts newer than the last visit are marked New (seen once the sheet closes, which also clears the
  * News button's count), and All / Updates over the list narrows it to patch notes. The post on Steam and
  * close sit in the banner's corner.
