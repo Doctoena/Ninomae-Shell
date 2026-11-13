@@ -496,11 +496,14 @@ Scope {
                         id: logo
                         anchors.fill: parent
                         source: root.logoSource
+                        // Cropped to what shows, so the logo itself sits centred (Warframe's has 22 px of nothing
+                        // above it and 64 below). In the file's own pixels: no sourceSize (logos are small)
+                        sourceClipRect: GameLauncherService.logoClip(root.logoSource)
                         fillMode: Image.PreserveAspectFit
                         horizontalAlignment: Image.AlignLeft
                         verticalAlignment: Image.AlignVCenter
                         asynchronous: true
-                        sourceSize.height: Math.ceil(height * Screen.devicePixelRatio)
+                        mipmap: true // Drawn well below its size
                         visible: status === Image.Ready
                     }
                     StyledText {

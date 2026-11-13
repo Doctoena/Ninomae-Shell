@@ -1796,6 +1796,25 @@ Singleton {
     }
     // The details page's banner art, else "" (a banner then shows the cover, blurred)
     function bannerArt(game) { return localArt(game, "heroArt") || (game?.derivedHeroArt ?? ""); }
+    // A logo's visible part, for laying it out by what shows (logos often sit in a bigger transparent canvas):
+    // a rect in its own pixels for Image.sourceClipRect, or undefined (no transparency, or not measured yet:
+    // asked for here, once per file, and logoBounds changes when it's known). scripts/game-launcher/image_bounds.py
+    property var logoBounds: ({})
+    function logoClip(path) {
+        if (!path) return undefined;
+        const known = root.logoBounds[path];
+        if (known !== undefined) return known ?? undefined;
+        Qt.callLater(() => { // Not while a binding is reading it
+            if (root.logoBounds[path] !== undefined) return;
+            root.logoBounds = Object.assign({}, root.logoBounds, { [path]: null }); // Asked
+            _query([Quickshell.env("HOME") + "/.local/state/quickshell/.venv/bin/python", "-I", _helper("image_bounds.py"), path], path, text => {
+                const n = text.trim().split(/\s+/).map(Number);
+                const b = n.length === 4 && n.every(x => x >= 0) && n[2] > 0 && n[3] > 0 ? Qt.rect(n[0], n[1], n[2], n[3]) : null;
+                if (b) root.logoBounds = Object.assign({}, root.logoBounds, { [path]: b });
+            });
+        });
+        return undefined;
+    }
     // The game's logo: a custom one, else the scan's (Steam's logo.png, in "icon"), else ""
     function logoArt(game) { return localArt(game, "logo") || localArt(game, "icon"); }
     function setCustomHeroArt(gameId, filePath) { _setCustomArtField(gameId, "heroArt", filePath); }
