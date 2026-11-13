@@ -1505,15 +1505,16 @@ Singleton {
         if (seen === undefined || !((game?.buildId ?? 0) > 0) || game.buildId === seen) return false;
         return game.lastPlayed > 0 && game.lastUpdated * 1000 > game.lastPlayed + 3600000; // Never played: nothing to have missed
     }
+    // Steam games' builds, and a Flatpak's deploy time (one added by hand or run by Lutris: detect_games.sh)
     function markBuildSeen(game) { // Played it, or opened its News (clearing its download does this for several)
-        if (!game?.id?.startsWith("steam_") || !(game.buildId > 0) || root.seenBuilds[game.id] === game.buildId) return;
+        if (!game?.id || !(game.buildId > 0) || root.seenBuilds[game.id] === game.buildId) return;
         _seenBuildsStore.commit(Object.assign({}, root.seenBuilds, { [game.id]: game.buildId }));
     }
     function _noteNewBuilds() { // Installed games not seen before: their build as it is now
         if (!_seenBuildsStore.loadedOnce) return;
         const add = {};
         for (const g of root.games)
-            if (g.id.startsWith("steam_") && g.buildId > 0 && root.seenBuilds[g.id] === undefined) add[g.id] = g.buildId;
+            if (g.buildId > 0 && root.seenBuilds[g.id] === undefined) add[g.id] = g.buildId;
         if (Object.keys(add).length > 0) _seenBuildsStore.commit(Object.assign({}, root.seenBuilds, add));
     }
     onGamesChanged: _noteNewBuilds()

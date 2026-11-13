@@ -115,6 +115,16 @@ add_game() {
     local runner="${14:-}"      # Lutris: linux, wine, dosbox…
     local flatpak_id="${15:-}"  # Games started with `flatpak run <id>` (their data lives in ~/.var/app/<id>)
     local last_updated="${16:-0}" # Steam: when the installed copy was last updated (s), for "Updated since you last played"
+    # A Flatpak (added by hand, or run by Lutris): when its current version was deployed is its build and its
+    # last update, so it gets "Updated since you last played" too
+    if [[ -n "$flatpak_id" && "$build_id" == 0 ]]; then
+        local _fp_root _deployed
+        for _fp_root in "$HOME/.local/share/flatpak" /var/lib/flatpak; do
+            _deployed=$(stat -c %Y "$_fp_root/app/$flatpak_id/current/active/deploy" 2>/dev/null) || continue
+            build_id=$_deployed; last_updated=$_deployed
+            break
+        done
+    fi
 
     # Skip if name is empty or contains "Soundtrack"
     local _lname="${name,,}"  # lowercase for matching

@@ -350,10 +350,12 @@ Item {
             bottomLeftRadius: Appearance.rounding.normal
         }
     }
-    // What a Lutris game runs with, for the stats pill and the info drawer
+    // What a Lutris game runs with (a game added by hand: only that it's a Flatpak), for the stats pill and the info drawer
     readonly property string _runnerLabel: {
-        if (!(game?.id?.startsWith("lutris_") ?? false)) return "";
+        const id = game?.id ?? "";
+        if (!id.startsWith("lutris_") && !id.startsWith("custom_")) return "";
         if (game.flatpakId) return "Flatpak";
+        if (id.startsWith("custom_")) return "";
         const names = { "linux": "Native Linux", "wine": "Wine", "steam": "Steam", "dosbox": "DOSBox",
                         "libretro": "RetroArch", "scummvm": "ScummVM", "web": "Browser", "flatpak": "Flatpak" };
         const r = game.runner || "";
@@ -400,22 +402,29 @@ Item {
         // Players in it right now (Steam's count; not for games it doesn't count)
         const players = GameLauncherService.playerCount(game); // Re-read as the counts come in (the binding sees playerCounts)
         if (players > 0)
-            out.push({ icon: "group", value: String(players).replace(/\B(?=(\d{3})+(?!\d))/g, ","), name: Translation.tr("playing") });
+            out.push({ icon: "group", value: _thousands(players), name: Translation.tr("playing") });
+        // Lutris: how many have it on lutris.net, in the same spot
+        const lutrisUsers = game.id.startsWith("lutris_") ? (root._currentMetadata?.userCount ?? 0) : 0;
+        if (lutrisUsers > 0)
+            out.push({ icon: "group", value: _thousands(lutrisUsers), name: Translation.tr("on Lutris") });
         return out;
     }
+    function _thousands(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
     property bool factsOpen: false
     Timer { id: factsCloseTimer; interval: 250; onTriggered: root.factsOpen = factsHover.hovered }
     // The chips stretch to the rows' width when the rows need more, so the two always line up
     readonly property real _factsWidth: Math.max(_chipsNeed, _extrasNeed)
-    readonly property real _chipsNeed: { // The chips' own widths, the ⓘ and the gaps
-        let w = root._extraStats.length > 0 ? 38 : -3;
-        for (let i = 0; i < chipsRepeater.count; i++) w += (chipsRepeater.itemAt(i)?.implicitWidth ?? 0) + 3;
-        return w;
-    }
-    readonly property real _extrasNeed: { // The widest row's own width (label, value), not the width it's given
-        let w = 0;
-        for (let i = 0; i < extrasRepeater.count; i++) w = Math.max(w, extrasRepeater.itemAt(i)?.implicitWidth ?? 0);
-        return w;
+    // Measured when a chip or row comes, goes or changes size (a binding over itemAt() missed rows made
+    // again: with no chips, the tab stayed as narrow as the ⓘ). callLater runs it once for many
+    property real _chipsNeed: 0 // The chips' own widths, the ⓘ and the gaps
+    property real _extrasNeed: 0 // The widest row's own width (label, value), not the width it's given
+    function _measureFacts() {
+        let c = root._extraStats.length > 0 ? 38 : -3;
+        for (let i = 0; i < chipsRepeater.count; i++) c += (chipsRepeater.itemAt(i)?.implicitWidth ?? 0) + 3;
+        let e = 0;
+        for (let i = 0; i < extrasRepeater.count; i++) e = Math.max(e, extrasRepeater.itemAt(i)?.implicitWidth ?? 0);
+        root._chipsNeed = c;
+        root._extrasNeed = e;
     }
     // The facts hang from the art's top edge in a tab of the page's colour (as the bar's drawers hang from the bar):
     // curved in where it meets the edge, hugging the chips, and growing down with the rows
@@ -470,10 +479,13 @@ Item {
             Repeater {
                 id: chipsRepeater
                 model: root._pillFacts
+                onItemAdded: Qt.callLater(root._measureFacts)
+                onItemRemoved: Qt.callLater(root._measureFacts)
                 Rectangle {
                     required property var modelData
                     required property int index
                     implicitWidth: factChip.implicitWidth + 26
+                    onImplicitWidthChanged: Qt.callLater(root._measureFacts)
                     width: implicitWidth + factsRow._stretch
                     height: 38
                     color: Appearance.colors.colLayer3
@@ -545,10 +557,13 @@ Item {
                 Repeater {
                     id: extrasRepeater
                     model: root._extraStats
+                    onItemAdded: Qt.callLater(root._measureFacts)
+                    onItemRemoved: Qt.callLater(root._measureFacts) // (Its count also decides the ⓘ)
                     Rectangle {
                         required property var modelData
                         required property int index
                         implicitWidth: 52 + extraLabel.implicitWidth + 24 + extraValue.implicitWidth + 14
+                        onImplicitWidthChanged: Qt.callLater(root._measureFacts)
                         width: root._factsWidth
                         height: 46
                         color: Appearance.colors.colLayer3
@@ -601,10 +616,10 @@ Item {
     function _measureSize() {
         const key = _sizeKey;
         if (!game || _installSizeFor === key) return;
-        if (game.gameDir) {
+        if (game.gameDir || game.flatpakId) { // (A Flatpak added by hand has no game folder, only its data)
             _installSizeFor = key; _installSize = "…";
             sizeProc.modsDir = GameLauncherService.steamPaths(game)?.mods ?? "";
-            sizeProc.command = ["du", "-sb", game.gameDir, ...(sizeProc.modsDir ? [sizeProc.modsDir] : []),
+            sizeProc.command = ["du", "-sb", ...(game.gameDir ? [game.gameDir] : []), ...(sizeProc.modsDir ? [sizeProc.modsDir] : []),
                                 ...(game.flatpakId ? [root._filesDir] : [])]; // A Flatpak's data
             sizeProc.running = true;
         } else if (_sizeFromSteam) {
@@ -645,7 +660,7 @@ Item {
         const rows = [];
         if (root._lastPlayedText !== "")
             rows.push({ icon: "history", label: Translation.tr("Last played"), value: root._lastPlayedText });
-        if (game.gameDir || root._sizeFromSteam)
+        if (game.gameDir || game.flatpakId || root._sizeFromSteam)
             rows.push({ icon: "hard_drive", label: root._sizeFromSteam ? Translation.tr("Download size") : Translation.tr("Install size"),
                         value: root._installSize || "…" });
         const src = game.id.startsWith("steam_") ? "Steam" : game.id.startsWith("lutris_") ? "Lutris"
@@ -775,8 +790,8 @@ Item {
             spacing: 3 // Joined, as the info drawer's pieces
             MoreItem {
                 iconName: "folder_open"; label: Translation.tr("Open game folder")
-                // Not when the menu has a Files row (Lutris games without a Steam id)
-                visible: game && (game.gameDir || "") !== "" && !(game.id.startsWith("lutris_") && root._lutrisSteamId === "")
+                // Not when the menu has a Files row (Lutris games without a Steam id, games added by hand)
+                visible: (game?.gameDir ?? "") !== "" && (game.id.startsWith("steam_") || root._lutrisSteamId !== "")
                 onTriggered: Quickshell.execDetached(["xdg-open", game.gameDir])
             }
             MoreItem {
@@ -950,10 +965,17 @@ Item {
             }
         }
     }
-    // ── Lutris's rows: what each does, and Web's menu of the game's pages ──
+    // ── Lutris's and added games' rows: what each does, and Web's menu of the game's pages ──
     readonly property var _webLinks: {
-        if (!(game?.id ?? "").startsWith("lutris_")) return [];
-        const name = encodeURIComponent(game.name || "");
+        const id = game?.id ?? "";
+        const name = encodeURIComponent(game?.name || "");
+        if (id.startsWith("custom_")) { // Added by you: a Flatpak's Flathub page, and the wiki
+            const links = [];
+            if (game.flatpakId) links.push({ icon: "storefront", label: "Flathub", url: "https://flathub.org/apps/" + game.flatpakId });
+            links.push({ icon: "devices", label: "PCGamingWiki", url: "https://www.pcgamingwiki.com/w/index.php?search=" + name });
+            return links;
+        }
+        if (!id.startsWith("lutris_")) return [];
         const steamId = root._lutrisSteamId;
         const links = [{ icon: "public", label: "Lutris.net", url: "https://lutris.net/games/" + game.id.substring(7) + "/" }];
         if (steamId !== "") links.push({ icon: "storefront", label: Translation.tr("Steam store"), url: "https://store.steampowered.com/app/" + steamId });
@@ -964,7 +986,7 @@ Item {
     }
     property Item _webRow: null // The Web row, for its menu to open level with it
     property real _webRowCenter: 0
-    function _lutrisAction(type, row) {
+    function _menuAction(type, row) {
         switch (type) {
         case "files":
             Quickshell.execDetached(["xdg-open", root._filesDir]);
@@ -1390,6 +1412,14 @@ Item {
         }
         readonly property bool _isSteam: game?.id?.startsWith("steam_") ?? false
         readonly property bool _isLutris: game?.id?.startsWith("lutris_") ?? false
+        readonly property bool _isCustom: game?.id?.startsWith("custom_") ?? false
+        // Added by you: as a Lutris game without a Steam id, less Lutris (Files counts a Flatpak's data)
+        readonly property var _customActions: {
+            const actions = [{ icon: "perm_media", label: qsTr("Captures"), type: "screenshots" }];
+            if (root._filesDir !== "") actions.push({ icon: "folder_open", label: qsTr("Files"), type: "files" });
+            actions.push({ icon: "public", label: qsTr("Web"), type: "web" });
+            return actions;
+        }
         readonly property var _steamActions: [ // The panels, then the browser link
                 { icon: "newspaper",            label: qsTr("News"),         type: "news" },
                 { icon: "perm_media",           label: qsTr("Captures"),     type: "screenshots" },
@@ -1424,6 +1454,7 @@ Item {
                 id: sidebarRepeater
                 model: sidebarContent._isSteam ? sidebarContent._steamActions
                      : sidebarContent._isLutris ? sidebarContent._lutrisActions
+                     : sidebarContent._isCustom ? sidebarContent._customActions
                      : []
                 onCountChanged: Qt.callLater(root._refreshSidebarButtons)
                 RippleButton {
@@ -1431,7 +1462,7 @@ Item {
                     required property var modelData
                     required property int index
                     Layout.fillWidth: true
-                    Layout.preferredHeight: subtitle !== "" || sidebarContent._isSteam || sidebarContent._isLutris ? 50 : 40 // Each menu's rows all the same
+                    Layout.preferredHeight: 50 // Every row the same, with a line under its name or not
                     buttonRadius: Appearance.rounding.joined
                     buttonRadiusTopLeft: index === 0 ? Appearance.rounding.normal : Appearance.rounding.joined
                     buttonRadiusTopRight: buttonRadiusTopLeft
@@ -1457,8 +1488,8 @@ Item {
                     readonly property var achieved: modelData.type === "achievements" && GameLauncherService.achievementsFor === (game?.id ?? "")
                         && (GameLauncherService.achievements?.total ?? 0) > 0 ? GameLauncherService.achievements : null
                     readonly property string tier: modelData.label === "ProtonDB" ? (game?.protondbTier ?? "") : ""
-                    // Lutris: its files' size and folder, how it runs and the time Lutris tracked, which pages
-                    readonly property string lutrisLine: !sidebarContent._isLutris ? ""
+                    // Lutris and added games: its files' size and folder, how it runs and the time Lutris tracked, which pages
+                    readonly property string menuLine: sidebarContent._isSteam ? ""
                         : modelData.type === "files" ? [root._installSize === "…" ? "" : root._installSize, root._filesDirShort].filter(t => t !== "").join("  ·  ")
                         : modelData.type === "lutris_app" ? [root._runnerLabel, (game?.playtime ?? 0) > 0
                             ? Translation.tr("%1 tracked").arg(game.playtime >= 60 ? Math.floor(game.playtime / 60) + " h" : game.playtime + " min") : ""].filter(t => t !== "").join("  ·  ")
@@ -1470,7 +1501,7 @@ Item {
                             : root._peekCount === 1 ? Translation.tr("1 capture") : Translation.tr("%1 captures").arg(root._peekCount))
                         : achieved ? Translation.tr("%1 of %2 unlocked").arg(achieved.unlocked).arg(achieved.total)
                         : tier !== "" ? Translation.tr("Rated %1").arg(tier.charAt(0).toUpperCase() + tier.slice(1))
-                        : lutrisLine
+                        : menuLine
                     contentItem: Item {
                         implicitHeight: actionBtn.Layout.preferredHeight
                         Rectangle { // The icon in a square: accent for a panel here, grey for the browser. Its panel open (the
@@ -1554,8 +1585,8 @@ Item {
                         if (sidebarContent._isSteam) {
                             const appid = game.id.substring(6);
                             Quickshell.execDetached(["xdg-open", modelData.url + appid]);
-                        } else if (sidebarContent._isLutris) {
-                            root._lutrisAction(modelData.type, actionBtn);
+                        } else {
+                            root._menuAction(modelData.type, actionBtn); // Lutris and added games
                         }
                     }
                     Keys.onPressed: event => { if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { clicked(); event.accepted = true; } }
@@ -1685,7 +1716,6 @@ Item {
                 InfoRow { iconName: "category"; label: Translation.tr("Genres"); value: _metaCol._lutris ? (_metaCol.meta?.genres ?? []).join(", ") : "" }
                 InfoRow { iconName: "devices"; label: Translation.tr("Platforms"); value: _metaCol._lutris ? (_metaCol.meta?.platforms ?? []).join(", ") : "" }
                 InfoRow { iconName: root._runsNatively ? "terminal" : "wine_bar"; label: Translation.tr("Runs on"); value: root._runnerLabel }
-                InfoRow { iconName: "group"; label: Translation.tr("Lutris players"); value: _metaCol._lutris && (_metaCol.meta?.userCount ?? 0) > 0 ? Number(_metaCol.meta.userCount).toLocaleString(Qt.locale(), "f", 0) : "" }
                 InfoPiece { // A line about it, last
                     visible: (_metaCol.meta?.description ?? "") !== ""
                     implicitHeight: aboutText.implicitHeight + 24
