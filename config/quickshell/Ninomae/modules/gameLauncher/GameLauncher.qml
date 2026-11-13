@@ -366,7 +366,9 @@ Scope {
                 anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom }
                 // The screen, not the window: the window sizes itself from this, which made a binding loop
                 implicitWidth: Math.min((root.screen?.width ?? 1920) - 48, Math.round(1800 * root.scaleFactor))
-                property real targetHeight: (root.showingDetails || root.showingStats) ? Math.round(420 * root.scaleFactor) : Math.round(354 * root.scaleFactor) + 16 // +16: hover room inside each tile slot (GameGridItem), so tiles keep their full size
+                // Where the height ends up (targetHeight eases to it)
+                readonly property real restingHeight: (root.showingDetails || root.showingStats) ? Math.round(420 * root.scaleFactor) : Math.round(354 * root.scaleFactor) + 16 // +16: hover room inside each tile slot (GameGridItem), so tiles keep their full size
+                property real targetHeight: restingHeight
                 implicitHeight: targetHeight
                 Behavior on targetHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 opacity: 1 - root.drawerOffsetScale
@@ -1243,6 +1245,7 @@ Scope {
                             sourceComponent: GameStatsPanel {
                                 anchors.fill: parent
                                 shown: root.showingStats
+                                growBy: Math.max(0, animatedContainer.restingHeight - animatedContainer.targetHeight)
                                 onBackPressed: root.showingStats = false
                                 onGameSelected: function(game) {
                                     root.showingStats = false;

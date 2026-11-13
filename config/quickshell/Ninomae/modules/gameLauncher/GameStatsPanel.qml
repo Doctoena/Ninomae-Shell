@@ -24,6 +24,9 @@ Item {
     // Built ahead by the launcher (hidden): the scripts read again each time it's shown, so it's never stale, and
     // a result the same as last time changes nothing
     property bool shown: true
+    // How much taller the page is still getting as the drawer eases open: covers are laid out for where it ends,
+    // so they don't resize (and change how many fit) every frame on the way
+    property real growBy: 0
     onShownChanged: if (shown) refresh()
     function refresh() { _readDiskSizes(); leftoversProc.running = true; capturesProc.running = true; librariesProc.running = true; }
     Component.onCompleted: { _animTimer.start(); refresh(); _recompute(); _syncDownloads(); }
@@ -445,14 +448,16 @@ Item {
                     orientation: ListView.Horizontal
                     spacing: 8
                     snapMode: ListView.SnapToItem // Scrolled a cover at a time: none left cut off
-                    // As many whole covers as fit at about 2:3, widened a little to fill the card exactly
-                    readonly property int fits: Math.max(1, Math.floor((width + spacing) / ((height - 40) * 2 / 3 + spacing)))
+                    // As many whole covers as fit at about 2:3, widened a little to fill the card exactly. At the height
+                    // it ends at (the list clips them until it gets there)
+                    readonly property real restingHeight: height + root.growBy
+                    readonly property int fits: Math.max(1, Math.floor((width + spacing) / ((restingHeight - 40) * 2 / 3 + spacing)))
                     readonly property real posterWidth: Math.floor((width - spacing * (fits - 1)) / fits)
                     model: root._recentRows
                     delegate: PosterTile {
                         required property var modelData
                         width: recentList.posterWidth
-                        height: ListView.view.height
+                        height: recentList.restingHeight
                         game: modelData.game
                         // Under the name: when, and the time in the last two weeks (else the last session)
                         detail: root._ago(modelData.last) + (modelData.recentMin > 0 ? "  ·  " + root._formatTime(modelData.recentMin)
