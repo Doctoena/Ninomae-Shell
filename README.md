@@ -48,12 +48,28 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <table>
 <tr>
 <td width="50%" align="center">
-<img src="assets/readme/launcher-grid.jpg" alt="Game launcher grid with cover art for the installed games"><br>
-<sub><b>Game launcher</b> · Steam and Lutris games with cover art</sub>
+<img src="assets/readme/launcher-grid-2.jpg" alt="Game launcher: a toolbar with All launchers, Recent, Tags, search and Stats over a row of cover art, one game marked Updated"><br>
+<sub><b>Game launcher</b> · Steam, Lutris and games you add, a ▶ on hover to start one</sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/readme/launcher.jpg" alt="Warframe's page in the launcher with Play, news, ProtonDB rating and hours played"><br>
-<sub><b>Game page</b> · news, captures, ProtonDB and playtime</sub>
+<img src="assets/readme/launcher-2.jpg" alt="Warframe's page in the launcher: Play with the hours and when you last played, News, Captures, Achievements and ProtonDB saying what's in each, and the ProtonDB rating, hours and players now over the art"><br>
+<sub><b>Game page</b> · news, captures, achievements and ProtonDB, each saying what's in it</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+<img src="assets/readme/launch-options.jpg" alt="Launch options over Warframe's page: GameMode, MangoHud and gamescope as tiles with MangoHud's layouts under them, then Wayland, HDR and NTSYNC, the Proton version and updates, and the launch line with Save"><br>
+<sub><b>Launch options</b> · GameMode, MangoHud, gamescope and Proton's switches, written into Steam</sub>
+</td>
+<td width="50%" align="center">
+<img src="assets/readme/news.jpg" alt="Warframe's news: the posts as a list with their pictures, and the chosen one open with its picture as the banner and its text under it"><br>
+<sub><b>News</b> · a game's announcements and patch notes, new posts marked</sub>
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+<img src="assets/readme/stats.jpg" alt="Launcher stats: hours played over everything, then cards for recently played, most played, storage and captures, each led by a game's art"><br>
+<sub><b>Stats</b> · your hours, what you've played lately and most, what's taking the space, your captures</sub>
 </td>
 </tr>
 </table>
@@ -89,8 +105,8 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 </tr>
 <tr>
 <td width="50%" align="center">
-<img src="assets/readme/crosshair.jpg" alt="Settings on the Crosshair page: colour picker, outline and line sizes, and a live preview on dark and light"><br>
-<sub><b>Crosshair</b> · built part by part, previewed live</sub>
+<img src="assets/readme/crosshair-2.jpg" alt="Settings on the Crosshair page: a big preview with Dark, Light and Wallpaper, five styles to start from, colour swatches, and the parts as rows with the inner lines open"><br>
+<sub><b>Crosshair</b> · start from a style, tune each part, previewed live</sub>
 </td>
 <td width="50%" align="center">
 <img src="assets/readme/cursor-accent.jpg" alt="The cursor in four accents: lavender, teal, coral and grey"><br>
@@ -98,7 +114,11 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 </td>
 </tr>
 <tr>
-<td colspan="2" align="center">
+<td width="50%" align="center">
+<img src="assets/readme/control-centre.jpg" alt="The control centre on its Sound page: output and mic volume, the output and input devices, and the advanced mixer, with Wi-Fi, Bluetooth and Display down the side"><br>
+<sub><b>Control centre</b> · sound, Wi-Fi, Bluetooth and display in one window</sub>
+</td>
+<td width="50%" align="center">
 <img src="assets/readme/polkit.jpg" alt="The password prompt dropping from the bar: a shield, what is asking and why, the password field with your picture, Cancel and Authenticate"><br>
 <sub><b>Password prompt</b> · says what's asking and why, warns about Caps Lock</sub>
 </td>
