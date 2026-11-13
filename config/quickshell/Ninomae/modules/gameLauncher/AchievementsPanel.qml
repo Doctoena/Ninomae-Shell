@@ -180,6 +180,7 @@ LauncherTopPanel {
                     required property var modelData
                     label: modelData.label
                     on: root.filter === modelData.key
+                    overArt: true // On the banner: a tint would be lost in the art
                     onPicked: root.filter = modelData.key
                 }
             }

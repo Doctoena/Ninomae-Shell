@@ -25,7 +25,8 @@ import Quickshell.Widgets
 LauncherTopPanel {
     id: root
     panelWidth: 1100
-    panelHeight: 440
+    panelHeight: empty ? 200 : 440 // Empty: just its one line, not a tall empty panel
+    Behavior on panelHeight { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
     signal openGame(var game)
 
     onShownChanged: if (shown) keys.forceActiveFocus()
