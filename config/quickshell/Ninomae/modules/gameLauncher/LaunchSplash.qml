@@ -92,10 +92,7 @@ Scope {
         return coverSource;
     }
     readonly property bool heroIsCover: heroSource !== "" && heroSource === coverSource
-    readonly property string logoSource: {
-        if ((_customArt.logo ?? "").startsWith("/")) return _customArt.logo;
-        return (game?.icon ?? "").startsWith("/") ? game.icon : "";
-    }
+    readonly property string logoSource: GameLauncherService.logoArt(game) // A custom logo, else Steam's
 
     function _stopAll() {
         watcher.running = false;

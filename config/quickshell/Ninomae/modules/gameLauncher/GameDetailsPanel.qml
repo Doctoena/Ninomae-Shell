@@ -307,12 +307,17 @@ Item {
         id: logoImage
         readonly property bool shown: status === Image.Ready && root.animationReady && root._bannerSettled
         anchors.centerIn: parent
-        readonly property real aspectRatio: sourceSize.width > 0 ? sourceSize.width / sourceSize.height : 1.0
+        // Its shape by what shows (cropped to its visible part, GameLauncherService.logoClip), else the whole file's.
+        // Not its implicit size: that follows the size it's given here, a binding loop
+        readonly property var clip: GameLauncherService.logoClip(root._logoSource)
+        readonly property real aspectRatio: clip ? clip.width / clip.height : sourceSize.height > 0 ? sourceSize.width / sourceSize.height : 1.0
         width: Math.min(parent.width * 0.5, 650)
         height: aspectRatio > 2.5 ? Math.min(parent.height * 0.35, 160)
              : aspectRatio > 1.5  ? Math.min(parent.height * 0.45, 200)
              :                      Math.min(parent.height * 0.5, 250)
         source: root._logoSource
+        sourceClipRect: clip // Centred by what shows, not its canvas
+        mipmap: true
         cache: false
         fillMode: Image.PreserveAspectFit; asynchronous: true
         visible: status === Image.Ready

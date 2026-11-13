@@ -183,9 +183,12 @@ ClippingRectangle {
             anchors.fill: parent
             visible: root.logoShown
             source: root.logo
+            // Cropped to what shows (GameLauncherService.logoClip, in the file's own pixels: so no sourceSize;
+            // logos are small), so it sits centred rather than its transparent canvas
+            sourceClipRect: GameLauncherService.logoClip(root.logo)
             fillMode: Image.PreserveAspectFit
             asynchronous: true
-            sourceSize.height: 192 // Fixed: twice the most it's shown at
+            mipmap: true
         }
         MaterialSymbol {
             anchors.centerIn: parent
