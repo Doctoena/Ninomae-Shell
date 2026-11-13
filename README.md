@@ -99,7 +99,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 <sub><b>Settings</b> · every option, applied live</sub>
 </td>
 <td width="50%" align="center">
-<img src="assets/readme/power-menu.jpg" alt="Power menu: your wallpaper and picture up top with the uptime and battery, then lock, sleep, reboot and shut down, with log out, tasks and firmware under them"><br>
+<img src="assets/readme/power-menu-2.jpg" alt="Power menu dropping from the bar: a greeting with your picture, the date, weather, uptime and battery, then lock, sleep, reboot and shut down with their keys, and log out, tasks and firmware under them"><br>
 <sub><b>Power menu</b> · a countdown before anything closes your apps</sub>
 </td>
 </tr>
