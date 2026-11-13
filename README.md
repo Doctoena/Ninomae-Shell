@@ -26,7 +26,7 @@ gameplay clips and live settings. Change the wallpaper and everything follows.
 |  |  |
 |---|---|
 | 🎨 **Wallpaper theming** | One wallpaper recolours the shell, borders, cursor, folder icons, terminal, Steam, Discord, VS Code and the login screen. Video wallpapers work too. |
-| 🎮 **Game launcher** | Steam and Lutris games with cover art, launch progress, captures and per-game launch options. |
+| 🎮 **Game launcher** | Steam, Lutris and games you add, with cover art, news, captures, stats and per-game launch options. |
 | 🎬 **Gameplay clips** | Press `` ` `` in a game to save the last minute, with game audio, voice chat and your mic. |
 | 🎯 **Crosshair** | Your own crosshair over the games you pick, drawn part by part with a live preview. |
 | 🕹️ **In-game overlay** | `Super+Shift+G` in a game: clips, screenshots, FPS, performance and each app's volume without leaving it. |
@@ -204,7 +204,7 @@ Turned it down? Run `themes/steam/install-theme.sh` any time.
 | **Bar** | Always on top | Click the clock, battery, media or tray icons to open their drawers |
 | **Sidebar** | `Super+O` | Quick toggles, notifications and system stats. Click CPU or RAM to see the apps using the most, and end one |
 | **Overview** | `Super+E` | Launch apps and search |
-| **Game launcher** | `Super+Shift+O` | Your Steam and Lutris games |
+| **Game launcher** | `Super+Shift+O` | Your Steam, Lutris and added games |
 | **In-game overlay** | `Super+Shift+G` | Only while a game runs: clips, screenshots, the crosshair, performance and sound |
 | **Screenshot** | `Super+Shift+A` | A region, window or the whole screen: save and copy, draw on it, search the web for it or copy its text |
 | **Settings** | `Super+I` | Every option, applied live. Also your own shortcuts and window rules |
@@ -292,13 +292,17 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
 
 ## Gaming
 
-- **Game launcher.** Your games with cover art. Steam and SteamGridDB API keys are optional and get
-  better art. Add them in **Settings → Games**. They're kept in your keyring, not in this folder.
+- **Game launcher.** Your games with cover art: Steam's, Lutris's and any app you add (**Add a game**,
+  a Flatpak too). Hover a cover for its hours and a ▶ that starts it, and a game that updated since you
+  last played says so. Steam and SteamGridDB API keys are optional and get better art. Add them in
+  **Settings → Games**. They're kept in your keyring, not in this folder.
+- **News and stats.** A game's page shows its announcements and patch notes, new ones marked. **Stats**
+  on the toolbar shows your hours, what you've played lately and most, and what's taking the space.
 - **Launching.** A drawer under the bar shows what Steam is doing (updating, compiling shaders…)
   until the game opens.
-- **Launch options.** On a game's page, **… → Launch options** turns GameMode, MangoHud and
-  gamescope (with its resolution and refresh rate) on or off, and picks the Proton version and how
-  the game updates. Steam uses the same settings.
+- **Launch options.** On a game's page, **… → Launch options** turns GameMode, MangoHud (with its
+  layout) and gamescope (resolution, refresh rate and FSR) on or off, as well as Proton's Wayland, HDR
+  and NTSYNC, and picks the Proton version and how the game updates. Steam uses the same settings.
 - **Customize.** **… → Customize** changes a game's background, cover and logo (from SteamGridDB or
   a file) and its particle effect, with a preview: hover one to see it before you pick it.
 - **Clips.** While a game runs, `` ` `` saves the last minute to `~/Videos/Clips/<game>/`. Nothing
@@ -313,8 +317,9 @@ the version closest to its shape, and the pickers show the pair as one wallpaper
   skips 5 s, `Ctrl+C` copies) and what came in while you played. Turn it off in **Settings → In game**.
 - **GE-Proton.** **Settings → Games** installs the latest GE-Proton in one click (checked before it's
   unpacked) and removes old versions no game uses.
-- **Crosshair.** Design one in **Settings → Crosshair**, then turn it on per game with the crosshair
-  button under Play on its page. `Super+G` shows or hides it.
+- **Crosshair.** Design one in **Settings → Crosshair** (start from a style, pick a colour, then tune
+  each part), then turn it on per game with the crosshair button under Play on its page. `Super+G` shows
+  or hides it.
 - **Captures.** `F12` takes a screenshot in any game, Steam's too (the Ninomae Steam plugin turns
   Steam's own key off). They're saved to
   `~/Pictures/Screenshots/Games/<game>`, and each game's page shows them with the game's own folder and its
