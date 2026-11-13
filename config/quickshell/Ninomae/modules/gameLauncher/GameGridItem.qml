@@ -1,4 +1,3 @@
-import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -6,8 +5,6 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
 import Quickshell.Widgets
 Item {
     id: root
@@ -17,31 +14,8 @@ Item {
     property bool _debouncedHover: false
     property bool showHoverEffect: _debouncedHover || activeFocus
 
-    // The ▶ on hover: for an installed game that isn't running
+    // The ▶ on hover: for an installed game that isn't running (GameLauncherService.quickLaunch)
     readonly property bool _canPlay: stateBadge._state === "installed" && !stateBadge._playing
-    function _launch(option) {
-        GameLauncherService.launchGame(game, option);
-        GlobalStates.gameLauncherOpen = false;
-    }
-    function play() {
-        const entry = (Config.options.gameLauncher.launchDefaults ?? []).find(e => e.startsWith(game.id + ":"));
-        if (entry) _launch(parseInt(entry.slice(entry.lastIndexOf(":") + 1)));
-        else if (game.id.startsWith("steam_")) {
-            launchChoicesProc.command = ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_launch_options.py"), game.id.substring(6)];
-            launchChoicesProc.running = true;
-        } else _launch(-1);
-    }
-    Process {
-        id: launchChoicesProc
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let choices = [];
-                try { choices = JSON.parse(text); } catch (e) {}
-                if (choices.length > 1) root.gameLaunched(root.game); // Its page asks which
-                else root._launch(-1);
-            }
-        }
-    }
 
     // Debounce hover to prevent rapid-fire animation starts when sweeping across tiles
     Timer {
@@ -233,7 +207,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.play()
+                    onClicked: GameLauncherService.quickLaunch(root.game, () => root.gameLaunched(root.game)) // Asks on its page
                 }
                 StyledToolTip { text: Translation.tr("Play"); extraVisibleCondition: playMouse.containsMouse }
             }

@@ -1372,6 +1372,28 @@ Singleton {
     // option: which of a Steam game's launch options (its index, scripts/game-launcher/steam_launch_options.py),
     // picked on its page, so Steam starts that one without asking; -1 for its usual command
     property var lastLaunchOption: ({}) // id → the option last launched, for the splash's Retry
+    // The way to start a game without asking ("Always start this way" on its page), -1 for none
+    function launchDefaultFor(gameId) {
+        const entry = (Config.options.gameLauncher.launchDefaults ?? []).find(e => e.startsWith(gameId + ":"));
+        return entry ? parseInt(entry.slice(entry.lastIndexOf(":") + 1)) : -1;
+    }
+    // The grid's ▶: starts it as the page's Play would, closing the launcher. A Steam game with more than one
+    // way to start and none chosen calls onAsk instead (its page asks which). A second click while its launch
+    // options are read does nothing
+    property string _quickLaunchFor: ""
+    function quickLaunch(game, onAsk) {
+        const go = option => { root.launchGame(game, option); GlobalStates.gameLauncherOpen = false; };
+        const option = launchDefaultFor(game.id);
+        if (option >= 0 || !game.id.startsWith("steam_")) { go(option); return; }
+        if (root._quickLaunchFor === game.id) return;
+        root._quickLaunchFor = game.id;
+        _query(["python3", "-I", _helper("steam_launch_options.py"), game.id.substring(6)], game.id, text => {
+            root._quickLaunchFor = "";
+            let choices = [];
+            try { choices = JSON.parse(text); } catch (e) {}
+            if (choices.length > 1) onAsk(); else go(-1);
+        });
+    }
     function launchGame(game, option = -1) {
         if (game.launchCommand) {
             root.markBuildSeen(game); // Playing it is seeing the update

@@ -887,8 +887,7 @@ Item {
     // The way to start it that Play uses without asking ("Always start this way" in launchMenu), -1 to ask
     readonly property var _launchDefaults: Config.options.gameLauncher.launchDefaults ?? []
     readonly property int launchDefault: {
-        const entry = _launchDefaults.find(e => e.startsWith((game?.id ?? "\u0000") + ":"));
-        const option = entry ? parseInt(entry.slice(entry.lastIndexOf(":") + 1)) : -1;
+        const option = game?.id ? GameLauncherService.launchDefaultFor(game.id) : -1;
         return option >= 0 && option < launchChoices.length ? option : -1;
     }
     function setLaunchDefault(option) { // -1 to ask again
