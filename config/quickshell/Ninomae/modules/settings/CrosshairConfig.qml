@@ -29,7 +29,7 @@ Item {
         Layout.fillWidth: true
         Layout.preferredWidth: 1 // Even columns
     }
-    component Opacity: Num {
+    component OpacityNum: Num {
         text: Translation.tr("Opacity")
         suffix: "%"
         from: 10; to: 100; stepSize: 10
@@ -297,7 +297,7 @@ Item {
                 PartRow {
                     part: "outline"; iconName: "border_outer"; title: Translation.tr("Outline"); first: true
                     Num { key: "outlineThickness"; text: Translation.tr("Thickness"); from: 1; to: 4 }
-                    Opacity { key: "outlineOpacity" }
+                    OpacityNum { key: "outlineOpacity" }
                 }
                 PartRow {
                     part: "lines"; iconName: "add"; title: Translation.tr("Inner lines")
@@ -305,7 +305,7 @@ Item {
                     Num { key: "verticalLength"; text: Translation.tr("Vertical length"); tooltip: Translation.tr("0 uses the same length"); from: 0; to: 30 }
                     Num { key: "thickness"; text: Translation.tr("Thickness"); from: 1; to: 10 }
                     Num { key: "gap"; text: Translation.tr("Gap from the centre"); from: 0; to: 30 }
-                    Opacity { key: "lineOpacity" }
+                    OpacityNum { key: "lineOpacity" }
                     ConfigSwitch {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -319,7 +319,7 @@ Item {
                     Num { key: "outerLength"; text: Translation.tr("Length"); from: 1; to: 30 }
                     Num { key: "outerThickness"; text: Translation.tr("Thickness"); from: 1; to: 10 }
                     Num { key: "outerGap"; text: Translation.tr("Gap from the centre"); from: 0; to: 40 }
-                    Opacity { key: "outerOpacity" }
+                    OpacityNum { key: "outerOpacity" }
                     ConfigSwitch { // Also here when the inner lines are off: it shapes these too
                         visible: !page.opts.lines
                         Layout.fillWidth: true
@@ -332,13 +332,13 @@ Item {
                 PartRow {
                     part: "dot"; iconName: "fiber_manual_record"; title: Translation.tr("Centre dot")
                     Num { key: "dotSize"; text: Translation.tr("Size"); from: 1; to: 10 }
-                    Opacity { key: "dotOpacity" }
+                    OpacityNum { key: "dotOpacity" }
                 }
                 PartRow {
                     part: "circle"; iconName: "radio_button_unchecked"; title: Translation.tr("Circle"); last: true
                     Num { key: "circleRadius"; text: Translation.tr("Size"); from: 3; to: 40 }
                     Num { key: "circleThickness"; text: Translation.tr("Thickness"); from: 1; to: 6 }
-                    Opacity { key: "circleOpacity" }
+                    OpacityNum { key: "circleOpacity" }
                 }
             }
         }

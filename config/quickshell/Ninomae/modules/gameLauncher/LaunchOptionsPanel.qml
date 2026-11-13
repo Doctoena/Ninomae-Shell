@@ -486,7 +486,8 @@ LauncherTopPanel {
                     first: true; joinedBelow: protonMenus.visible
                 }
                 Tile {
-                    tool: "hdr"; iconName: "hdr_on"; title: "HDR"; compact: true
+                    // Not hdr_on: that's a wide "HDR" wordmark, a smudge at tile size
+                    tool: "hdr"; iconName: "contrast"; title: "HDR"; compact: true
                     // Switching it on brings Wayland
                     description: root.toolsOn.wayland ? Translation.tr("In games that have it") : Translation.tr("Turns Wayland on with it")
                     joinedBelow: protonMenus.visible
