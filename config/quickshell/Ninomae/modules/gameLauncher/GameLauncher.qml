@@ -93,7 +93,7 @@ Scope {
             readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.screen)
             property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
             readonly property real scaleFactor: root.screen ? Math.pow(root.screen.height / 1080.0, 0.4) : 1.0
-            readonly property real tileSize: Math.round(160 * scaleFactor)
+            readonly property real tileSize: Math.round(176 * scaleFactor) // 176 × 264 at 1080p: a 2:3 cover
             readonly property real tileSpacing: Math.round(20 * scaleFactor)
             screen: modelData
 
@@ -366,7 +366,7 @@ Scope {
                 anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom }
                 // The screen, not the window: the window sizes itself from this, which made a binding loop
                 implicitWidth: Math.min((root.screen?.width ?? 1920) - 48, Math.round(1800 * root.scaleFactor))
-                property real targetHeight: (root.showingDetails || root.showingStats) ? Math.round(420 * root.scaleFactor) : Math.round(340 * root.scaleFactor) + 16 // +16: hover room inside each tile slot (GameGridItem), so tiles keep their full size
+                property real targetHeight: (root.showingDetails || root.showingStats) ? Math.round(420 * root.scaleFactor) : Math.round(354 * root.scaleFactor) + 16 // +16: hover room inside each tile slot (GameGridItem), so tiles keep their full size
                 implicitHeight: targetHeight
                 Behavior on targetHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 opacity: 1 - root.drawerOffsetScale

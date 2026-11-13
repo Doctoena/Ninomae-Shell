@@ -1,3 +1,4 @@
+import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -5,14 +6,42 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
 import Quickshell.Widgets
 Item {
     id: root
     required property var game
     signal gameLaunched(var game)
-    property bool hovered: mouseArea.containsMouse || favMouseArea.containsMouse || stateHoverHandler.hovered
+    property bool hovered: mouseArea.containsMouse || favMouseArea.containsMouse || stateHoverHandler.hovered || playMouse.containsMouse
     property bool _debouncedHover: false
     property bool showHoverEffect: _debouncedHover || activeFocus
+
+    // The ▶ on hover: for an installed game that isn't running
+    readonly property bool _canPlay: stateBadge._state === "installed" && !stateBadge._playing
+    function _launch(option) {
+        GameLauncherService.launchGame(game, option);
+        GlobalStates.gameLauncherOpen = false;
+    }
+    function play() {
+        const entry = (Config.options.gameLauncher.launchDefaults ?? []).find(e => e.startsWith(game.id + ":"));
+        if (entry) _launch(parseInt(entry.slice(entry.lastIndexOf(":") + 1)));
+        else if (game.id.startsWith("steam_")) {
+            launchChoicesProc.command = ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/steam_launch_options.py"), game.id.substring(6)];
+            launchChoicesProc.running = true;
+        } else _launch(-1);
+    }
+    Process {
+        id: launchChoicesProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let choices = [];
+                try { choices = JSON.parse(text); } catch (e) {}
+                if (choices.length > 1) root.gameLaunched(root.game); // Its page asks which
+                else root._launch(-1);
+            }
+        }
+    }
 
     // Debounce hover to prevent rapid-fire animation starts when sweeping across tiles
     Timer {
@@ -30,14 +59,13 @@ Item {
         }
     }
 
-    // Hover: the tile lifts with a soft dark shadow and a crisp lavender ring just outside it.
+    // Hover: the tile lifts with a soft dark shadow and a crisp lavender ring just outside it. Not scaled: that
+    // resampled the art, a little soft while hovered.
     // (Replaces a lavender drop-shadow haze that bled onto neighbouring tiles.)
     Item {
         id: hoverWrap
         // Room inside the slot so the lifted tile and its ring aren't clipped by the list
         anchors { fill: parent; topMargin: 12; bottomMargin: 4 }
-        scale: root.showHoverEffect ? 1.02 : 1.0
-        Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
         transform: Translate {
             y: root.showHoverEffect ? -4 : 0
             Behavior on y { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
@@ -137,46 +165,77 @@ Item {
                 GradientStop { position: 1.0; color: ColorUtils.transparentize("#000000", 0.55) }
             }
         }
-        // Floating name pill: readable on any cover art, matches the shell's pill style
-        Rectangle {
+        // On hover, joined pieces: the name and its hours (New: never played), and ▶, which starts it
+        RowLayout {
             id: hoverInfoBar
-            readonly property real inset: 8
+            readonly property real inset: 7
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: inset; rightMargin: inset }
             anchors.bottomMargin: root.showHoverEffect ? inset : -height
             height: 36
-            radius: Appearance.rounding.container
-            color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.1)
+            spacing: 3
             z: 4
             opacity: root.showHoverEffect ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             Behavior on anchors.bottomMargin { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-            RowLayout {
-                anchors { fill: parent; leftMargin: 14; rightMargin: 4 }
-                spacing: 6
-                StyledText {
-                    id: nameText
-                    Layout.fillWidth: true
-                    text: game.name || ""
-                    color: Appearance.colors.colOnLayer0
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                }
-                Rectangle {
-                    implicitWidth: 28
-                    implicitHeight: 28
-                    radius: Appearance.rounding.segment
-                    color: Appearance.colors.colPrimary
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        anchors.horizontalCenterOffset: 1
-                        text: "play_arrow"
-                        iconSize: 18
-                        fill: 1
-                        color: Appearance.colors.colOnPrimary
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: Appearance.colors.colLayer3
+                topLeftRadius: Appearance.rounding.small
+                bottomLeftRadius: Appearance.rounding.small
+                topRightRadius: playPiece.visible ? Appearance.rounding.joined : Appearance.rounding.small
+                bottomRightRadius: topRightRadius
+                RowLayout {
+                    anchors { fill: parent; leftMargin: 10; rightMargin: 8 }
+                    spacing: 5
+                    StyledText {
+                        Layout.fillWidth: true // Up to its own width: elides when the hours need the room
+                        Layout.maximumWidth: implicitWidth
+                        text: game.name || ""
+                        color: Appearance.colors.colOnLayer3
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+                    StyledText {
+                        readonly property int minutes: game?.playtime ?? 0
+                        text: minutes >= 60 ? Math.floor(minutes / 60) + " h" : minutes > 0 ? "< 1 h" : Translation.tr("New")
+                        color: minutes > 0 ? Appearance.colors.colSubtext : Appearance.colors.colPrimary
+                        font.pixelSize: Appearance.font.pixelSize.smaller - 1
+                        font.family: Appearance.font.family.numbers
+                        font.variableAxes: ({}) // Not Roboto Flex's tuning
                     }
                 }
+            }
+            Rectangle {
+                id: playPiece
+                visible: root._canPlay
+                Layout.preferredWidth: 36
+                Layout.fillHeight: true
+                color: playMouse.pressed ? Appearance.colors.colPrimaryActive
+                    : playMouse.containsMouse ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary
+                Behavior on color { ColorAnimation { duration: 120 } }
+                topLeftRadius: Appearance.rounding.joined
+                bottomLeftRadius: Appearance.rounding.joined
+                topRightRadius: Appearance.rounding.small
+                bottomRightRadius: Appearance.rounding.small
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: 1
+                    text: "play_arrow"
+                    iconSize: 20
+                    fill: 1
+                    color: Appearance.colors.colOnPrimary
+                }
+                MouseArea {
+                    id: playMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.play()
+                }
+                StyledToolTip { text: Translation.tr("Play"); extraVisibleCondition: playMouse.containsMouse }
             }
         }
         Rectangle { // State badge: playing now, an update waiting, a download running, or mods downloading
