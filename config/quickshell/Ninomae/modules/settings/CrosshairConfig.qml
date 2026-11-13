@@ -59,6 +59,15 @@ Item {
 
     // The part whose settings are open
     property string openPart: "lines"
+    // Settings search: a result in one of the parts opens it (true: it was a part)
+    function openSection(title) {
+        const part = { [Translation.tr("Outline")]: "outline", [Translation.tr("Inner lines")]: "lines",
+                       [Translation.tr("Outer lines")]: "outerLines", [Translation.tr("Centre dot")]: "dot",
+                       [Translation.tr("Circle")]: "circle" }[title];
+        if (!part) return false;
+        page.openPart = part;
+        return true;
+    }
     // The preview's backdrop and zoom
     property string backdrop: "dark"
     property int zoom: 3

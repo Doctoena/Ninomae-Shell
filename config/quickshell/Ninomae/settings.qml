@@ -115,10 +115,10 @@ ApplicationWindow {
         selectedResult = 0;
         resultsList.contentY = 0;
     }
-    property var pendingJump: null // { label, keybind }: found and highlighted once its page has loaded
+    property var pendingJump: null // { label, section, keybind }: found and highlighted once its page has loaded
     function openResult(result) {
         if (!result) return;
-        root.pendingJump = { label: result.label, keybind: result.keybind, tries: 0 };
+        root.pendingJump = { label: result.label, section: result.section ?? "", keybind: result.keybind, tries: 0, opened: false };
         if (root.currentPage !== result.page) root.currentPage = result.page; // The page loads, then jumpTimer runs
         else jumpTimer.restart();
         headerBar.searchField.text = "";
@@ -136,7 +136,14 @@ ApplicationWindow {
                 root.pendingJump = null;
                 return;
             }
-            const target = root.findItem(page, jump.label);
+            // A page whose sections fold (the crosshair's parts) opens the result's first, then it's found a
+            // moment later. Within its section: two options can share a name ("Gap from the centre")
+            if (!jump.opened) { // The result's section, or the result when it's a section itself
+                jump.opened = true;
+                if (page.openSection?.(jump.section || jump.label)) { restart(); return; }
+            }
+            const scope = jump.section ? root.findItem(page, jump.section) : null;
+            const target = (scope ? root.findItem(scope, jump.label) : null) ?? root.findItem(page, jump.label);
             if (!target && ++jump.tries < 10) { restart(); return; } // Not built yet (monitors, keyring): try again
             root.pendingJump = null;
             if (target) root.reveal(target);

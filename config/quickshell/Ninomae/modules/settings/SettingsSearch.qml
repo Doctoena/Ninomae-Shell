@@ -93,7 +93,7 @@ Item {
                 const other = root.score([e.words ? Translation.tr(e.words) : "", section, pageName].join(" "), q);
                 if (other >= 0) s = 3 + other;
             }
-            if (s >= 0) scored.push({ s, page: e.page, label, where: section ? `${pageName} › ${section}` : pageName, keybind: false });
+            if (s >= 0) scored.push({ s, page: e.page, label, section, where: section ? `${pageName} › ${section}` : pageName, keybind: false });
         }
         // Keybinds, by what they do
         const keybindsPage = root.pages.findIndex(p => p.component.endsWith("KeybindsConfig.qml"));
