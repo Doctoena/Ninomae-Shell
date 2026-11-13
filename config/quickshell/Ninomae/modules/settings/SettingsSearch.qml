@@ -38,10 +38,10 @@ Item {
         let sectionNext = false; // Just inside a ContentSection: its title is the section's name
         let tooltipNext = false; // Just inside a StyledToolTip: its text describes the entry before
         let owner = ""; // The type of the last block opened: whose `text:` a line sets
-        const settingTypes = /^(ConfigSwitch|ConfigSpinBox|ConfigComboBox|ConfigChoiceRow|SettingRow|PrefixRow|RowText|ContentSection|ContentSubsection|StyledSecretField|StyledTextField)$/
+        const settingTypes = /^(ConfigSwitch|ConfigSpinBox|ConfigComboBox|ConfigChoiceRow|SettingRow|PrefixRow|RowText|ContentSection|ContentSubsection|StyledSecretField|StyledTextField|PartRow|Num)$/
         const tr = /(\w+)\s*:\s*Translation\.tr\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*\)/g;
         for (const line of source.split("\n")) {
-            if (/\bContentSection\s*\{/.test(line)) sectionNext = true;
+            if (/\b(ContentSection|PartRow)\s*\{/.test(line)) sectionNext = true; // PartRow: the crosshair's parts
             if (/\bStyledToolTip\s*\{/.test(line)) tooltipNext = true;
             const opened = line.match(/\b([A-Z]\w*)\s*\{/);
             if (opened) owner = opened[1];
