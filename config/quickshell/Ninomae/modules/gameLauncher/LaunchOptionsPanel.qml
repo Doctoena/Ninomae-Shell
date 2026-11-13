@@ -10,12 +10,12 @@ import Quickshell.Io
 /**
  * A Steam game's launch options, in a panel growing up out of the launcher (LauncherTopPanel). Written into
  * Steam's own settings by scripts/game-launcher/launch_options.py, so Steam's Launch Options box shows the same.
- * On top, an art banner (ArtBanner, the game's logo) with how saving works, the Proton and Updates menus
- * (Updates once it's installed: the mode lives in the game's appmanifest) and close. Under it on the left, the
- * tools: GameMode, MangoHud and gamescope switch their word in front of %command% (MangoHud with a layout, as
- * MANGOHUD_CONFIG=preset=N; gamescope with its screen, refresh rate, mode and FSR upscaling, and any other
- * flags). On the right, the whole line as Steam holds it, and Proton's switches (Wayland, HDR, NTSYNC), each
- * a variable in front of it.
+ * On top, an art banner (ArtBanner, the game's logo) with how saving works, and close. Under it, rows of tiles
+ * (on = accent): the tools, GameMode, MangoHud and gamescope, each switching its word in front of %command%,
+ * with the settings of those on joined under them (MangoHud's layout, as MANGOHUD_CONFIG=preset=N; gamescope's
+ * screen, refresh rate, mode, FSR upscaling and any other flags). Then Proton's switches (Wayland, HDR, NTSYNC,
+ * a variable each), with the Proton version and Updates (once it's installed: the mode lives in the game's
+ * appmanifest) joined under them. The footer: the whole line as Steam has it, Undo and Save.
  * With the shell's Millennium plugin in Steam (themes/steam/ninomae-plugin) every change goes straight to
  * Steam as it's made (typing, after a pause), and Undo puts back what it was on opening. Without it Steam
  * rewrites its settings when it quits, so there's a Save, which closes and restarts Steam while it's open.
@@ -290,18 +290,17 @@ LauncherTopPanel {
         text: root.status.startsWith("error:") ? root.status.substring(6) : Translation.tr("Reading Steam's settings…")
     }
 
-    // ── Banner: the game, how saving works (and how it's going), Proton and Updates, close ──
+    // ── Banner: the game, how saving works (and how it's going), close ──
     ArtBanner {
         id: banner
         visible: root.loaded
         game: root.game
         showLogo: true
         coverIcon: "tune"
-        shadeMid: 0.8; shadeEnd: 0.7 // The menus sit on its right
         anchors { top: parent.top; topMargin: 12; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20 }
         height: 96
         Column {
-            anchors { left: banner.coverItem.right; leftMargin: 18; right: bannerMenus.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
+            anchors { left: banner.coverItem.right; leftMargin: 18; right: closeButton.left; rightMargin: 18; verticalCenter: parent.verticalCenter }
             spacing: 3
             StyledText {
                 text: Translation.tr("Launch options")
@@ -333,29 +332,6 @@ LauncherTopPanel {
                 }
             }
         }
-        RowLayout {
-            id: bannerMenus
-            anchors { right: closeButton.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
-            spacing: 10
-            SettingMenu {
-                visible: root.hasProton
-                Layout.preferredWidth: 200
-                label: Translation.tr("Proton")
-                options: root.protonOptions
-                value: root.proton
-                // A tool Steam has mapped that isn't installed any more: named, so it isn't shown as the default
-                fallbackText: root.proton
-                onSelected: v => root.proton = v
-            }
-            SettingMenu {
-                visible: root.autoUpdate >= 0
-                Layout.preferredWidth: 200
-                label: Translation.tr("Updates")
-                options: root.updateOptions
-                value: root.autoUpdate
-                onSelected: v => root.autoUpdate = v
-            }
-        }
         SheetIconButton { // As far in from the right edge as the logo is from the left
             id: closeButton
             anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
@@ -368,49 +344,93 @@ LauncherTopPanel {
         }
     }
 
-    // ── Left: the tools (scrolls when gamescope's controls and MangoHud's layouts are both out) ──
+    // What a tile says while it's on: MangoHud's layout, gamescope's size, refresh and FSR
+    readonly property var mangohudPresets: [
+        { value: "", label: Translation.tr("Default") },
+        { value: "1", label: Translation.tr("FPS only") },
+        { value: "2", label: Translation.tr("Horizontal") },
+        { value: "3", label: Translation.tr("Extended") },
+        { value: "4", label: Translation.tr("Detailed") }
+    ]
+    readonly property string mangohudSetting: mangohudPreset === "custom" ? Translation.tr("Your own settings")
+        : Translation.tr("%1 layout").arg(mangohudPresets.find(p => p.value === mangohudPreset)?.label ?? "")
+    readonly property string scopeSetting: {
+        const parts = [];
+        if (scope.W && scope.H) parts.push(`${scope.W} × ${scope.H}`);
+        if (scope.r) parts.push(`${scope.r} Hz`);
+        if (fsrLevel) parts.push("FSR " + (fsrLevels.find(l => l.value === fsrLevel)?.label ?? ""));
+        return parts.length ? parts.join("  ·  ") : Translation.tr("At the game's own size");
+    }
+    readonly property int _outer: Appearance.rounding.small
+    readonly property int _join: Appearance.rounding.joined
+
+    // ── The tools, then Proton: rows of tiles (on = accent), what's on opening joined under them. Scrolls when
+    //    gamescope's controls are out ──
     Flickable {
-        id: toolsScroll
+        id: body
         visible: root.loaded
-        anchors { top: banner.bottom; topMargin: 14; left: parent.left; leftMargin: 20; bottom: parent.bottom; bottomMargin: 16 }
-        width: 500
-        contentHeight: toolsColumn.implicitHeight
+        anchors { top: banner.bottom; topMargin: 14; left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 20; bottom: footer.top; bottomMargin: 12 }
+        contentHeight: bodyColumn.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         interactive: contentHeight > height
         ColumnLayout {
-            id: toolsColumn
-            width: toolsScroll.width
-            spacing: 3 // Rows join into a group, as Settings'
+            id: bodyColumn
+            width: body.width
+            spacing: 3 // Joined, as the rest of the launcher's pieces
             SectionLabel { Layout.bottomMargin: 5; text: Translation.tr("Tools") }
-            ToolCard {
-                tool: "gamemode"; iconName: "speed"; title: "GameMode"; pkg: "gamemode"
-                description: Translation.tr("Tunes the CPU and GPU for games while it runs")
-            }
-            ToolCard {
-                tool: "mangohud"; iconName: "monitoring"; title: "MangoHud"; pkg: "mangohud"
-                description: Translation.tr("FPS, frame times and temperatures over the game")
-                // What it shows, while it's on
-                extra: Segmented {
-                    value: root.mangohudPreset
-                    options: [
-                        { value: "", label: Translation.tr("Default") },
-                        { value: "1", label: Translation.tr("FPS only") },
-                        { value: "2", label: Translation.tr("Horizontal") },
-                        { value: "3", label: Translation.tr("Extended") },
-                        { value: "4", label: Translation.tr("Detailed") }
-                    ]
-                    onPicked: v => root.setMangohudPreset(v)
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 3
+                Tile {
+                    tool: "gamemode"; iconName: "speed"; title: "GameMode"; pkg: "gamemode"
+                    description: Translation.tr("Tunes the CPU and GPU while it runs")
+                    first: true; joinedBelow: toolSettings.visible
+                }
+                Tile {
+                    tool: "mangohud"; iconName: "monitoring"; title: "MangoHud"; pkg: "mangohud"
+                    description: Translation.tr("FPS, frame times and temperatures")
+                    setting: root.mangohudSetting
+                    joinedBelow: toolSettings.visible
+                }
+                Tile {
+                    tool: "gamescope"; iconName: "fit_screen"; title: "gamescope"; pkg: "gamescope"
+                    description: Translation.tr("A set size and refresh rate, and upscaling")
+                    setting: root.scopeSetting
+                    last: true; joinedBelow: toolSettings.visible
                 }
             }
-            ToolCard {
-                tool: "gamescope"; iconName: "fit_screen"; title: "gamescope"; pkg: "gamescope"
-                description: Translation.tr("A set resolution and refresh rate, and upscaling")
-                // Its controls, while it's on
-                extra: ColumnLayout {
+            Rectangle { // The settings of the tools that are on, joined under them
+                id: toolSettings
+                visible: root.toolsOn.mangohud || root.toolsOn.gamescope
+                Layout.fillWidth: true
+                implicitHeight: settingsColumn.implicitHeight + 20
+                color: Appearance.colors.colLayer3
+                topLeftRadius: root._join; topRightRadius: root._join
+                bottomLeftRadius: root._outer; bottomRightRadius: root._outer
+                ColumnLayout {
+                    id: settingsColumn
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10; leftMargin: 14 }
                     spacing: 8
-                    RowLayout {
-                        spacing: 8
+                    SettingRow {
+                        visible: root.toolsOn.mangohud
+                        label: Translation.tr("MangoHud layout")
+                        Segmented {
+                            Layout.fillWidth: true
+                            value: root.mangohudPreset
+                            options: root.mangohudPresets
+                            onPicked: v => root.setMangohudPreset(v)
+                        }
+                    }
+                    Rectangle { // Between the two
+                        visible: root.toolsOn.mangohud && root.toolsOn.gamescope
+                        Layout.fillWidth: true
+                        implicitHeight: 1
+                        color: Appearance.colors.colLayer4
+                    }
+                    SettingRow {
+                        visible: root.toolsOn.gamescope
+                        label: "gamescope"
                         StyledComboBox {
                             Layout.fillWidth: true; Layout.preferredWidth: 4; minimumWidth: 0
                             options: root.sizeOptions
@@ -432,91 +452,113 @@ LauncherTopPanel {
                             onSelected: v => root.setScope({ mode: v })
                         }
                     }
-                    Segmented { // FSR upscaling
-                        Layout.fillWidth: true
-                        value: root.fsrLevel
-                        options: root.fsrLevels
-                        onPicked: v => root.setFsr(v)
+                    SettingRow {
+                        visible: root.toolsOn.gamescope
+                        label: Translation.tr("FSR")
+                        Segmented {
+                            Layout.fillWidth: true
+                            value: root.fsrLevel
+                            options: root.fsrLevels
+                            onPicked: v => root.setFsr(v)
+                        }
                     }
-                    OptionBox { // Any other flags, as typed
-                        Layout.fillWidth: true
-                        implicitHeight: 36
-                        followWhileTyping: false
-                        text: root.scope.rest.join(" ")
-                        placeholder: Translation.tr("Other gamescope flags")
-                        onEdited: t => root.setScope({ rest: t.trim().split(/\s+/).filter(x => x) })
+                    SettingRow {
+                        visible: root.toolsOn.gamescope
+                        label: Translation.tr("Other flags")
+                        OptionBox { // Any other flags, as typed
+                            Layout.fillWidth: true
+                            implicitHeight: 34
+                            followWhileTyping: false
+                            text: root.scope.rest.join(" ")
+                            placeholder: Translation.tr("Other gamescope flags")
+                            onEdited: t => root.setScope({ rest: t.trim().split(/\s+/).filter(x => x) })
+                        }
                     }
+                }
+            }
+            SectionLabel { Layout.topMargin: 14; Layout.bottomMargin: 5; text: Translation.tr("Proton (for games it runs)") }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 3
+                Tile {
+                    tool: "wayland"; iconName: "web_asset"; title: Translation.tr("Wayland"); compact: true
+                    description: Translation.tr("Not through Xwayland")
+                    first: true; joinedBelow: protonMenus.visible
+                }
+                Tile {
+                    tool: "hdr"; iconName: "hdr_on"; title: "HDR"; compact: true
+                    // Switching it on brings Wayland
+                    description: root.toolsOn.wayland ? Translation.tr("In games that have it") : Translation.tr("Turns Wayland on with it")
+                    joinedBelow: protonMenus.visible
+                }
+                Tile {
+                    tool: "ntsync"; iconName: "sync"; title: "NTSYNC"; compact: true
+                    description: Translation.tr("Faster game threads, through the kernel")
+                    missing: Translation.tr("Needs the kernel's ntsync module")
+                    last: true; joinedBelow: protonMenus.visible
+                }
+            }
+            RowLayout { // Which Proton, and when Steam updates it (once it's installed: the mode lives in its appmanifest)
+                id: protonMenus
+                visible: root.hasProton || root.autoUpdate >= 0
+                Layout.fillWidth: true
+                spacing: 3
+                MenuPiece {
+                    visible: root.hasProton
+                    iconName: "wine_bar"; label: Translation.tr("Version")
+                    leftEnd: true; rightEnd: !updatesPiece.visible
+                    options: root.protonOptions
+                    value: root.proton
+                    // A tool Steam has mapped that isn't installed any more: named, so it isn't shown as the default
+                    fallbackText: root.proton
+                    onSelected: v => root.proton = v
+                }
+                MenuPiece {
+                    id: updatesPiece
+                    visible: root.autoUpdate >= 0
+                    iconName: "update"; label: Translation.tr("Updates")
+                    leftEnd: !root.hasProton; rightEnd: true
+                    options: root.updateOptions
+                    value: root.autoUpdate
+                    onSelected: v => root.autoUpdate = v
                 }
             }
         }
     }
 
-    // ── Right: the whole line, and Proton's switches ──
-    ColumnLayout {
-        visible: root.loaded
-        anchors { top: banner.bottom; topMargin: 14; left: toolsScroll.right; leftMargin: 20; right: parent.right; rightMargin: 20 }
-        spacing: 3 // Rows join into a group, as Settings'
-        SectionLabel { Layout.bottomMargin: 5; text: Translation.tr("Launch line") }
-        Rectangle { // The whole line, and what it means, in a card of its own
-            Layout.fillWidth: true
-            implicitHeight: launchLine.implicitHeight + 16
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer3
-            ColumnLayout {
-                id: launchLine
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
-                spacing: 8
-                OptionBox {
-                    Layout.fillWidth: true
-                    text: root.options
-                    placeholder: "gamemoderun %command% -novid"
-                    onEdited: t => root.options = t
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 6; Layout.rightMargin: 6; Layout.bottomMargin: 2
-                    wrapMode: Text.Wrap
-                    textFormat: Text.StyledText
-                    text: Translation.tr("As Steam has it. <tt>%command%</tt> is the game: words before it run it, words after it go to the game.")
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colSubtext
-                }
-            }
-        }
-        SectionLabel { Layout.topMargin: 14; Layout.bottomMargin: 5; text: Translation.tr("Proton (for games it runs)") }
-        ToolCard {
-            tool: "wayland"; iconName: "web_asset"; title: Translation.tr("Wayland")
-            description: Translation.tr("Draws straight on Wayland, not through Xwayland")
-        }
-        ToolCard {
-            tool: "hdr"; iconName: "hdr_on"; title: "HDR"
-            description: Translation.tr("HDR in games that have it (with Wayland)")
-        }
-        ToolCard {
-            tool: "ntsync"; iconName: "sync"; title: "NTSYNC"
-            description: Translation.tr("Faster game threads, through the kernel")
-            missing: Translation.tr("Needs the kernel's ntsync module")
-        }
-    }
-
-    // ── Under the right side: Undo, and Save without the plugin (the tools keep the left down to the bottom) ──
+    // ── Footer: the whole line as Steam has it, then Undo and Save, joined ──
     RowLayout {
         id: footer
         visible: root.loaded
-        anchors { left: toolsScroll.right; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20; bottomMargin: 16 }
-        height: 32
-        spacing: 6
-        Item { Layout.fillWidth: true }
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20; bottomMargin: 16 }
+        height: 42
+        spacing: 3
+        OptionBox {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            icon: "terminal"
+            color: Appearance.colors.colLayer3
+            topLeftRadius: root._outer; bottomLeftRadius: root._outer
+            topRightRadius: undoButton.visible || saveButton.visible ? root._join : root._outer
+            bottomRightRadius: topRightRadius
+            text: root.options
+            placeholder: "gamemoderun %command% -novid"
+            tip: Translation.tr("What Steam runs. %command% is the game: words before it run it, words after it go to the game")
+            onEdited: t => root.options = t
+        }
         FooterButton {
+            id: undoButton
             visible: root.live ? root.canUndo : root.changed && !root.busy
+            last: !saveButton.visible
             symbol: "undo"; label: root.live ? Translation.tr("Undo") : Translation.tr("Revert")
             onClicked: root.live ? root.undo() : root.revert()
         }
         FooterButton {
             id: saveButton
             visible: !root.live
-            primary: true
-            enabled: root.changed && !root.busy
+            last: true
+            dim: !primary
+            primary: root.changed && !root.busy // Lit once there's something to save (save() ignores it otherwise)
             symbol: root.restartNeeded ? "restart_alt" : "save"
             label: root.restartNeeded ? Translation.tr("Save & restart Steam") : Translation.tr("Save")
             onClicked: root.save()
@@ -530,111 +572,148 @@ LauncherTopPanel {
         color: Appearance.colors.colSubtext
     }
 
-    // A footer button: neutral, or accent (Save)
+    // A footer piece, joined to the line before it: neutral, or accent (primary: Save, once there's something to save).
+    // Not disabled for nothing to save, which would drop its background and leave the footer's end bare
     component FooterButton: RippleButton {
         id: fb
         property string symbol
         property string label
         property bool primary: false
-        implicitHeight: 32
-        implicitWidth: fbRow.implicitWidth + 24
-        buttonRadius: Appearance.rounding.segment
-        colBackground: primary && enabled ? Appearance.colors.colPrimary : Appearance.colors.colLayer1
-        colBackgroundHover: primary ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer1Hover
-        colRipple: primary ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer1Active
-        readonly property color fg: primary ? (enabled ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext) : Appearance.colors.colOnLayer1
+        property bool last: false
+        Layout.fillHeight: true
+        implicitWidth: fbRow.implicitWidth + 28
+        buttonRadiusTopLeft: root._join; buttonRadiusBottomLeft: root._join
+        buttonRadiusTopRight: last ? root._outer : root._join; buttonRadiusBottomRight: buttonRadiusTopRight
+        property bool dim: false // Nothing to do yet: its words in the subtext
+        colBackground: primary ? Appearance.colors.colPrimary : Appearance.colors.colLayer3
+        colBackgroundHover: primary ? Appearance.colors.colPrimaryHover : dim ? colBackground : Appearance.colors.colLayer3Hover
+        colRipple: primary ? Appearance.colors.colPrimaryActive : dim ? "transparent" : Appearance.colors.colLayer3Active
+        pointingHandCursor: !dim
+        readonly property color fg: primary ? Appearance.colors.colOnPrimary : dim ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer3
         contentItem: Row {
             id: fbRow
-            anchors.centerIn: parent; spacing: 5
-            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: fb.symbol; iconSize: 16; color: fb.fg }
-            StyledText { anchors.verticalCenter: parent.verticalCenter; text: fb.label; color: fb.fg; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.Medium }
+            anchors.centerIn: parent; spacing: 6
+            MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: fb.symbol; iconSize: 17; color: fb.fg }
+            StyledText { anchors.verticalCenter: parent.verticalCenter; text: fb.label; color: fb.fg; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.DemiBold }
         }
     }
 
-    // A tool or switch: what it does, and a switch for its word in front of %command%. Missing: how to get it.
-    // `extra` shows under it while it's on (MangoHud's layouts, gamescope's controls)
-    component ToolCard: Rectangle {
-        id: card
+    // A tool or Proton switch as a tile: its word in front of %command%, switched by a click anywhere on it. On: tinted
+    // in the accent, saying what's set (setting); missing: how to get it. Tiles in a row join, and join what's under
+    // them (joinedBelow)
+    component Tile: RippleButton {
+        id: tile
         property string tool
         property string iconName
         property string title
         property string description
+        property string setting: "" // While it's on, in place of the description
         property string pkg: "" // A program to install (the tools); Proton's switches need none
         property string missing: pkg ? Translation.tr("Not installed: <tt>sudo dnf install %1</tt>").arg(pkg) : ""
-        property Component extra: null
+        property bool first: false
+        property bool last: false
+        property bool joinedBelow: false
+        property bool compact: false
         readonly property bool isOn: root.toolsOn[tool]
         readonly property bool available: pkg ? (root.info?.tools?.[tool] ?? false) : tool === "ntsync" ? (root.info?.ntsync ?? false) : true
         readonly property bool usable: available || isOn // Can always be switched off
         Layout.fillWidth: true
-        implicitHeight: cardColumn.implicitHeight + 20
-        // Cards next to each other join into a group (rounded at its ends), as Settings' rows
-        readonly property bool settingsRow: true
-        GroupCorners { id: corners; item: card }
-        topLeftRadius: corners.top
-        topRightRadius: corners.top
-        bottomLeftRadius: corners.bottom
-        bottomRightRadius: corners.bottom
-        color: cardMa.containsMouse && usable ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
-        Behavior on color { ColorAnimation { duration: 120 } }
-        Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-        clip: true
-        MouseArea {
-            id: cardMa
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: card.usable ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: if (card.usable) root.toggle(card.tool)
-        }
-        ColumnLayout {
-            id: cardColumn
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
-            spacing: 10
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                Rectangle {
-                    implicitWidth: 34; implicitHeight: 34
-                    radius: 9
-                    // On: an accent-tinted square (as the game page's facts); off: a neutral one
-                    color: card.isOn ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer4
-                    Behavior on color { ColorAnimation { duration: 120 } }
-                    opacity: card.usable ? 1 : 0.5
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: card.iconName
-                        iconSize: 19
-                        fill: card.isOn ? 1 : 0
-                        color: card.isOn ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
-                    }
-                }
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 1
-                    StyledText {
-                        text: card.title
-                        font.weight: Font.DemiBold
-                        color: card.usable ? Appearance.colors.colOnLayer3 : Appearance.colors.colSubtext
-                    }
-                    StyledText {
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        textFormat: Text.StyledText
-                        text: card.available ? card.description : card.missing
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtext
-                    }
-                }
-                StyledSwitch {
-                    checked: card.isOn
-                    enabled: card.usable
-                    onClicked: root.toggle(card.tool)
+        Layout.preferredWidth: 1 // Even widths
+        implicitHeight: compact ? 56 : 64
+        padding: 0
+        pointingHandCursor: usable
+        buttonRadiusTopLeft: first ? root._outer : root._join
+        buttonRadiusTopRight: last ? root._outer : root._join
+        buttonRadiusBottomLeft: joinedBelow ? root._join : buttonRadiusTopLeft
+        buttonRadiusBottomRight: joinedBelow ? root._join : buttonRadiusTopRight
+        colBackground: isOn ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+        colBackgroundHover: !usable ? colBackground : isOn ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Hover
+        colRipple: usable ? Appearance.colors.colLayer3Active : "transparent"
+        onClicked: if (usable) root.toggle(tool)
+        contentItem: RowLayout {
+            anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+            spacing: 12
+            Rectangle { // The icon in a squircle: the accent while it's on
+                implicitWidth: tile.compact ? 36 : 40; implicitHeight: implicitWidth
+                radius: Appearance.rounding.small
+                color: tile.isOn ? Appearance.colors.colPrimary : Appearance.colors.colLayer4
+                Behavior on color { ColorAnimation { duration: 120 } }
+                opacity: tile.usable ? 1 : 0.5
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: tile.iconName
+                    iconSize: tile.compact ? 18 : 20
+                    fill: tile.isOn ? 1 : 0
+                    color: tile.isOn ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer3
                 }
             }
-            Loader {
+            ColumnLayout {
                 Layout.fillWidth: true
-                active: card.isOn && card.extra !== null
-                visible: active
-                sourceComponent: card.extra
+                spacing: 1
+                StyledText {
+                    text: tile.title
+                    font.weight: Font.DemiBold
+                    color: !tile.usable ? Appearance.colors.colSubtext : tile.isOn ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                    textFormat: Text.StyledText
+                    text: !tile.available ? tile.missing : tile.isOn && tile.setting ? tile.setting : tile.description
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+            }
+            StyledSwitch {
+                checked: tile.isOn
+                enabled: tile.usable
+                onClicked: root.toggle(tile.tool)
+            }
+        }
+    }
+
+    // A setting in the panel under the tiles: its name, then its controls (the row's children after the name)
+    component SettingRow: RowLayout {
+        id: settingRow
+        property string label
+        Layout.fillWidth: true
+        spacing: 6
+        StyledText {
+            Layout.preferredWidth: 116
+            text: settingRow.label
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            color: Appearance.colors.colSubtext
+        }
+    }
+
+    // A dropdown in a joined piece, with its icon and name
+    component MenuPiece: Rectangle {
+        id: menuPiece
+        property string iconName
+        property string label
+        property bool leftEnd: false
+        property bool rightEnd: false
+        property alias options: menu.options
+        property alias value: menu.value
+        property alias fallbackText: menu.fallbackText
+        signal selected(var v)
+        Layout.fillWidth: true
+        Layout.preferredWidth: 1
+        implicitHeight: 48
+        color: Appearance.colors.colLayer3
+        topLeftRadius: root._join; topRightRadius: root._join
+        bottomLeftRadius: leftEnd ? root._outer : root._join
+        bottomRightRadius: rightEnd ? root._outer : root._join
+        RowLayout {
+            anchors { fill: parent; leftMargin: 14; rightMargin: 8 }
+            spacing: 10
+            MaterialSymbol { text: menuPiece.iconName; iconSize: 18; color: Appearance.colors.colSubtext }
+            StyledText { Layout.fillWidth: true; text: menuPiece.label; color: Appearance.colors.colOnLayer3 }
+            StyledComboBox {
+                id: menu
+                Layout.preferredWidth: 240
+                minimumWidth: 0
+                onSelected: v => menuPiece.selected(v)
             }
         }
     }
@@ -684,12 +763,15 @@ LauncherTopPanel {
         }
     }
 
-    // A one-line box for options, in monospace. Enter saves, Esc closes. followWhileTyping: false for a box whose
-    // text comes back rewritten (gamescope's other flags, split into words: a trailing space would go)
+    // A one-line box for options, in monospace, an icon before it if it has one, and a tip on hover. Enter saves,
+    // Esc closes. followWhileTyping: false for a box whose text comes back rewritten (gamescope's other flags, split
+    // into words: a trailing space would go)
     component OptionBox: Rectangle {
         id: box
         property string text
         property string placeholder
+        property string icon: ""
+        property string tip: ""
         property bool followWhileTyping: true
         signal edited(string text)
         implicitHeight: 42
@@ -697,9 +779,17 @@ LauncherTopPanel {
         color: Appearance.colors.colLayer4
         border.width: field.activeFocus ? 2 : 0
         border.color: Appearance.colors.colPrimary
+        HoverHandler { id: boxHover }
+        MaterialSymbol {
+            visible: box.icon !== ""
+            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+            text: box.icon
+            iconSize: 17
+            color: Appearance.colors.colSubtext
+        }
         ToolbarTextField {
             id: field
-            anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+            anchors { fill: parent; leftMargin: box.icon !== "" ? 34 : 6; rightMargin: 6 }
             colBackground: "transparent"
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
@@ -711,23 +801,6 @@ LauncherTopPanel {
                 else if (event.key === Qt.Key_Escape) { root.closeRequested(); event.accepted = true; }
             }
         }
-    }
-
-    // A labelled dropdown
-    component SettingMenu: ColumnLayout {
-        id: settingMenu
-        property string label
-        property alias options: menu.options
-        property alias value: menu.value
-        property alias fallbackText: menu.fallbackText
-        signal selected(var v)
-        spacing: 4
-        SectionLabel { text: settingMenu.label; color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.3) }
-        StyledComboBox {
-            id: menu
-            Layout.fillWidth: true
-            minimumWidth: 0
-            onSelected: v => settingMenu.selected(v)
-        }
+        StyledToolTip { text: box.tip; extraVisibleCondition: box.tip !== "" && boxHover.hovered && !field.activeFocus }
     }
 }
