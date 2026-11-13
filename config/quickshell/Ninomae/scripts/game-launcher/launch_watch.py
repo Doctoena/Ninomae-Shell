@@ -2,7 +2,8 @@
 """Follows a game from the moment it's launched until its window shows, for the launch drawer
 (modules/gameLauncher/LaunchSplash.qml). Prints one JSON object per line whenever something changes:
 
-  {"stage": <stage>, "progress": <0–1, or -1 when there's no number>, "error": <Steam's error or "">}
+  {"stage": <stage>, "progress": <0–1, or -1 when there's no number>, "error": <Steam's error or "">,
+   "log": <a file with what the game printed, on "exited", or "">}
 
 Stages, in the order a launch usually goes through them:
   preparing   Steam's checks before anything else (licence, stats, cloud/controller config)
@@ -13,7 +14,9 @@ Stages, in the order a launch usually goes through them:
   choose      Steam is asking which launch option to use
   starting    the process is up, waiting for its first window
   window      one of the game's windows opened; the script exits
-  exited      the game quit before it showed a window; the script exits
+  exited      the game quit before it showed a window; the script exits. For a Steam game, "error" is why
+              when it can tell (explain(): the last crash-like line it printed) and "log" all it printed,
+              from Steam's console-linux.txt
   failed      Steam couldn't launch it ("error" is e.g. "AppError_19"); the script exits
   timeout     nothing settled in 10 minutes; the script exits
 
@@ -57,6 +60,73 @@ TASKS = {
     "DelayLaunch": "starting", "CreatingProcess": "starting", "WaitingGameWindow": "starting", "Completed": "starting",
     "Failed": "failed",
 }
+
+
+# What the game printed (Steam's console-linux.txt, which every game's output goes to): the lines that are
+# Steam's own or the same on every launch are left out, and the ones naming the account
+NOISE = re.compile(r"gameoverlayrenderer\.so.*cannot be preloaded|libva error|Adding process \d+|skipping destruction"
+                   r"|breakpad|minidump|SteamInternal_|Steam ?ID|\[S_API\]|SteamAPI_|Game Recording|reaping pid|^chdir "
+                   r"|CEFBrowser|webhelper|SteamUI|ExecCommandLine|ExecuteSteamURL|pressure-vessel-wrap\[\d+\]: W:"
+                   r"|_srt_architecture|restricted method|loadLibrary has been called|enable-native-access"
+                   r"|Restricted methods|Game process|GameAction|Removing process|Installing breakpad"
+                   r"|GameOverlay|AppInterfaceStats|^\s*$", re.I)
+# A line that says it crashed, and why
+CRASH = re.compile(r"Unhandled (page fault|exception)|Segmentation fault|core dumped|err:module:import_dll"
+                   r"|error while loading shared libraries|cannot open shared object|VK_ERROR_\w+|vk\w+ failed"
+                   r"|terminate called|Traceback|Exception in thread|fatal error|Out of memory"
+                   r"|failed to (create|initiali[sz]e)", re.I)
+# Of those, the ones that name a cause rather than the crash it led to (a missing DLL before the page fault)
+CAUSE = re.compile(r"err:module:import_dll|error while loading shared libraries|cannot open shared object|VK_ERROR_\w+"
+                   r"|Out of memory", re.I)
+ACCOUNT = re.compile(r"7656119\d{10}")
+
+
+def plain(line):
+    """A crash line in a few words for the drawer ("Missing MSVCP140.dll"); the line itself when it isn't one
+    of these (it's in the log in full either way)"""
+    for pattern, words in (
+        (r"import_dll Library (\S+)", "Missing {0}"),
+        (r"error while loading shared libraries: ([^:\s]+)", "Missing {0}"),
+        (r"([\w.+-]+\.so[\w.]*): cannot open shared object", "Missing {0}"),
+        (r"(VK_ERROR_\w+)", "Vulkan error: {0}"),
+        (r"Out of memory", "Ran out of memory"),
+        (r"Unhandled page fault", "Crashed (page fault)"),
+        (r"Unhandled exception", "Crashed (unhandled exception)"),
+        (r"Segmentation fault", "Crashed (segmentation fault)"),
+        (r"terminate called after throwing an instance of '([^']+)'", "Crashed ({0})"),
+    ):
+        m = re.search(pattern, line, re.I)
+        if m:
+            return words.format(*m.groups())
+    return line
+
+
+def explain(lines, appid):
+    """Why a game closed before its window: (reason, log file). The reason is its last crash-like line, or ""
+    (its last line otherwise is as likely a harmless warning); the log is all it printed (the home folder as ~),
+    for the drawer's Log button"""
+    home = os.path.expanduser("~")
+    kept = []
+    for line in lines:
+        text = re.sub(r"\x1b\[[0-9;]*m", "", line)[22:] if logged_at(line) else ""  # Without "[date time] "
+        if text and not NOISE.search(text) and not ACCOUNT.search(text):
+            kept.append(text.replace(home, "~").rstrip())
+    if not kept:
+        return "", ""
+    crash = [l.strip() for l in kept if CRASH.search(l)]
+    causes = [l for l in crash if CAUSE.search(l)]
+    reason = plain(causes[0] if causes else crash[-1] if crash else "")  # The first cause, else the last crash
+    reason = reason if len(reason) <= 160 else reason[:157] + "…"
+    folder = os.path.expanduser("~/.cache/quickshell/game-launcher/launch-logs")
+    path = os.path.join(folder, f"{appid}.log")
+    try:
+        os.makedirs(folder, exist_ok=True)
+        with open(path, "w") as f:
+            f.write(f"What the game printed before it closed, {time.strftime('%Y-%m-%d %H:%M')} (from Steam's"
+                    " console-linux.txt, its own lines left out)\n\n" + "\n".join(kept) + "\n")
+    except OSError:
+        path = ""
+    return reason, path
 
 
 class Follower:
@@ -191,7 +261,7 @@ def main():
     kind, key = sys.argv[1], sys.argv[2]
     manifest = sys.argv[3] if len(sys.argv) > 3 else ""
     started = time.time()
-    state = {"stage": "preparing" if kind == "steam" else "starting", "progress": -1, "error": ""}
+    state = {"stage": "preparing" if kind == "steam" else "starting", "progress": -1, "error": "", "log": ""}
     last = None
 
     def emit(**changes):
@@ -205,6 +275,7 @@ def main():
     emit()
     console = Follower(os.path.join(LOGS, "console_log.txt"), started - 3) if kind == "steam" else None
     shaders = Follower(os.path.join(LOGS, "shader_log.txt"), started - 3) if kind == "steam" else None
+    output = Follower(os.path.join(LOGS, "console-linux.txt"), started - 3) if kind == "steam" else None  # Read on "exited"
     task_re = re.compile(rf"GameAction \[AppID {re.escape(key)}, ActionID \d+\] : LaunchApp (?:changed task to (\w+)|failed with (\w+))")
     replay_re = re.compile(rf"Still replaying {re.escape(key)} \((\d+)%")
     events = hyprland_events()
@@ -260,7 +331,8 @@ def main():
                     emit(stage="starting", progress=-1)  # Steam didn't log it (or Lutris): it's up
             elif not roots and seen_roots:
                 if created:
-                    emit(stage="exited", progress=-1)
+                    reason, log = explain(output.lines(), key) if output else ("", "")
+                    emit(stage="exited", progress=-1, error=reason, log=log)
                     return
                 # Something before the game itself: back to the step Steam was on, following its log
                 seen_roots = False

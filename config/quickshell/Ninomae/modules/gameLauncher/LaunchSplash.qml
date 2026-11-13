@@ -38,6 +38,7 @@ Scope {
     property string stage: "starting"
     property real progress: -1 // 0–1, -1 when there's no number
     property string error: ""
+    property string logFile: "" // What the game printed, when it closed before its window (launch_watch.py)
     readonly property bool failedState: isFailure(stage)
     readonly property bool canSkip: stage === "shaders" && (game?.id ?? "").startsWith("steam_")
     function isFailure(stage) { return stage === "exited" || stage === "failed"; }
@@ -56,7 +57,7 @@ Scope {
         case "cloud": return Translation.tr("Syncing cloud saves");
         case "shaders": return Translation.tr("Processing shaders") + pct;
         case "choose": return Translation.tr("Pick a launch option in Steam");
-        case "exited": return Translation.tr("Closed before its window opened");
+        case "exited": return error ? Translation.tr("Closed: %1").arg(error) : Translation.tr("Closed before its window opened");
         case "failed": return Translation.tr("Steam couldn't start it") + (error ? ` (${error})` : "");
         case "launched": return Translation.tr("Launched");
         default: return elapsed >= 20 ? Translation.tr("Still starting") : Translation.tr("Starting");
@@ -115,6 +116,7 @@ Scope {
         root.stage = "starting";
         root.progress = -1;
         root.error = "";
+        root.logFile = "";
         root.doneSteps.clear();
         if (!root.shown) root.screenName = Hyprland.focusedMonitor?.name ?? ""; // A retry stays put
         root.shown = true;
@@ -149,6 +151,7 @@ Scope {
         root.stage = s.stage;
         root.progress = s.progress ?? -1;
         root.error = s.error ?? "";
+        root.logFile = s.log ?? "";
         if (root.failedState) { failTime.restart(); _restoreSteam(false); } // Steam may have more to say
         if (root.stage === "shaders" && watcher.running) _hideSteamWindows(); // A real launch, not a preview
     }
@@ -267,7 +270,9 @@ Scope {
         onTriggered: {
             if (step >= steps.length) {
                 stop();
-                root._onStatus({ stage: fail ? "exited" : "window" });
+                // A failure as a real one reads: with why (a missing DLL, a cause launch_watch.py looks for)
+                root._onStatus(fail ? { stage: "exited", error: "Missing MSVCP140.dll" }
+                                    : { stage: "window" });
                 return;
             }
             root._onStatus(steps[step++]);
@@ -620,6 +625,11 @@ Scope {
                             buttonText: Translation.tr("Retry")
                             primary: true
                             onClicked: GameLauncherService.launchGame(root.game, GameLauncherService.lastLaunchOption[root.game?.id] ?? -1)
+                        }
+                        DialogButton { // What it printed, cleaned up (its last lines are the likeliest why)
+                            visible: root.logFile !== ""
+                            buttonText: Translation.tr("Log")
+                            onClicked: Quickshell.execDetached(["xdg-open", root.logFile])
                         }
                         DialogButton {
                             buttonText: Translation.tr("Dismiss")
