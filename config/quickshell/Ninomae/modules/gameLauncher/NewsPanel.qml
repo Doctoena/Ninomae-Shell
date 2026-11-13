@@ -8,16 +8,16 @@ import Quickshell.Widgets
 
 /**
  * A Steam game's official news (patch notes, updates, events) in a panel growing up out of the
- * launcher (LauncherTopPanel), same look as the achievements. Posts on the left (each with its first
- * picture, or an icon), the selected one on the right, laid out from blocks
- * (scripts/game-launcher/steam_news.py). It opens on an art banner (ArtBanner) with its title, date and
- * author: the post's first picture, else the game's art. The post is a ListView, so its images load as
- * they scroll into view rather than all at once (some posts have dozens). Compact to suit the sheet's
+ * launcher (LauncherTopPanel). Posts on the left as joined rows (each with its first picture, or an
+ * icon; the chosen one tinted), under "News" and All / Updates. The selected one on the right, laid out
+ * from blocks (scripts/game-launcher/steam_news.py). It opens on its picture as a banner (the game's
+ * art without one), its title, date and author on it; click it for the whole picture. The post is a
+ * ListView, so its images load as they scroll into view rather than all at once (some posts have dozens). Compact to suit the sheet's
  * short height: images that can span the article become banners like Steam's own headers (cropped from
  * the centre; click for the whole one).
  * Posts newer than the last visit are marked New (seen once the sheet closes, which also clears the
- * News button's count), and All / Updates over the list narrows it to patch notes. No header: the banner
- * names the game, and the post on Steam and close sit in the corner.
+ * News button's count), and All / Updates over the list narrows it to patch notes. The post on Steam and
+ * close sit in the banner's corner.
  * ↑/↓ change post, Esc closes.
  */
 LauncherTopPanel {
@@ -34,9 +34,14 @@ LauncherTopPanel {
     readonly property var posts: updatesOnly ? allPosts.filter(p => p.update) : allPosts
     property int selected: 0
     readonly property var post: posts[selected] ?? null
-    // The banner's picture: the post's first. When the post starts with it, it isn't shown again under it
+    // The banner's picture: the post's first. Near its start (often after a line of text) it isn't shown again
+    // under it; further down it stays where it is
     readonly property string postArt: firstImage(post)
-    readonly property var postBlocks: !post ? [] : post.blocks[0]?.type === "image" ? post.blocks.slice(1) : post.blocks
+    readonly property var postBlocks: {
+        if (!post) return [];
+        const i = post.blocks.findIndex(b => b.type === "image");
+        return i >= 0 && i <= 2 ? post.blocks.filter((b, k) => k !== i) : post.blocks;
+    }
     function firstImage(p) { return p?.blocks.find(b => b.type === "image")?.url ?? ""; }
     property real seenAtOpen: 0 // Posts after this are New (newsSeenFor, as it was when the sheet opened)
 
@@ -69,21 +74,31 @@ LauncherTopPanel {
         return Qt.formatDate(d, d.getFullYear() === new Date().getFullYear() ? "MMM d" : "MMM d, yyyy");
     }
 
-    // No header: the banner names the game. The post on Steam and close in its top corner; All / Updates (when the
-    // feed has both) in its bottom one, there while the post's top is in view (they'd sit over its text after)
-    Row {
-        id: filterRow
-        anchors { top: article.top; topMargin: 148 - 30 - 12; right: article.right; rightMargin: 12 } // The banner's bottom corner
-        z: 1
-        opacity: article.contentY < 40 ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        visible: root.canFilter && opacity > 0
-        spacing: 3
-        SheetFilterChip { label: Translation.tr("All"); on: !root.updatesOnly; onPicked: Config.options.gameLauncher.newsUpdatesOnly = false }
-        SheetFilterChip { label: Translation.tr("Updates"); symbol: "build"; on: root.updatesOnly; onPicked: Config.options.gameLauncher.newsUpdatesOnly = true }
+    // Over the list: "News", and All / Updates when the feed has both
+    Item {
+        id: listHead
+        anchors { top: parent.top; topMargin: 12; left: postList.left; right: postList.right }
+        height: 32
+        visible: root.allPosts.length > 0
+        StyledText {
+            anchors { left: parent.left; leftMargin: 2; verticalCenter: parent.verticalCenter }
+            text: Translation.tr("News")
+            font.family: Appearance.font.family.title
+            font.pixelSize: Appearance.font.pixelSize.large
+            font.weight: Font.DemiBold
+            color: Appearance.colors.colOnLayer0
+        }
+        Row {
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            visible: root.canFilter
+            spacing: 3
+            SheetFilterChip { label: Translation.tr("All"); on: !root.updatesOnly; onPicked: Config.options.gameLauncher.newsUpdatesOnly = false }
+            SheetFilterChip { label: Translation.tr("Updates"); symbol: "build"; on: root.updatesOnly; onPicked: Config.options.gameLauncher.newsUpdatesOnly = true }
+        }
     }
+    // The post on Steam and close, in the banner's corner
     Row {
-        anchors { top: parent.top; topMargin: 20; right: article.right; rightMargin: 8 }
+        anchors { top: parent.top; topMargin: 22; right: article.right; rightMargin: 10 } // 10 in from the banner's corner
         z: 1 // Over the article as it scrolls
         spacing: 6
         SheetIconButton {
@@ -101,90 +116,67 @@ LauncherTopPanel {
         }
     }
 
-    // ── Posts ──
+    // ── Posts: joined rows, the chosen one tinted ──
     ListView {
         id: postList
-        anchors { top: parent.top; topMargin: 12; bottom: parent.bottom; bottomMargin: 8; left: parent.left; leftMargin: 12 }
+        anchors { top: listHead.bottom; topMargin: 8; bottom: parent.bottom; bottomMargin: 8; left: parent.left; leftMargin: 12 }
         width: 280
         clip: true
-        spacing: 2
+        spacing: 3
         boundsBehavior: Flickable.StopAtBounds
         model: root.posts
-        // The newest post a card with its picture (or the game's art), the rest compact rows
         delegate: Rectangle {
             id: postRow
             required property var modelData
             required property int index
             readonly property bool current: root.selected === index
-            readonly property bool featured: index === 0
             readonly property string art: root.firstImage(modelData)
             width: postList.width
-            height: (featured ? featuredBox.height + 6 + postInfo.implicitHeight + 2 : Math.max(postInfo.implicitHeight, thumb.height)) + 14
-            radius: Appearance.rounding.normal
-            color: current ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
-                : postHover.hovered ? Appearance.colors.colLayer1 : "transparent"
+            height: 58
+            color: current ? Appearance.colors.colLayer3Accent
+                : postHover.hovered ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
             Behavior on color { ColorAnimation { duration: 120 } }
+            topLeftRadius: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined
+            topRightRadius: topLeftRadius
+            bottomLeftRadius: index === root.posts.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
+            bottomRightRadius: bottomLeftRadius
             HoverHandler { id: postHover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.selected = postRow.index }
-            ClippingRectangle { // Featured: the picture across the card
-                id: featuredBox
-                visible: postRow.featured
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
-                height: 72
-                radius: Appearance.rounding.small
-                color: Appearance.colors.colLayer2
-                Image {
-                    anchors.fill: parent
-                    source: postRow.featured ? (postRow.art || GameLauncherService.bannerArt(root.game)) : ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    sourceSize.width: 512 // Fixed: posts link images up to 4K
-                    opacity: status === Image.Ready ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 200 } }
-                }
-            }
-            ClippingRectangle { // A row: its first picture, else the game's own art (an icon for its kind without either)
+            ClippingRectangle { // Its first picture, else the game's own art (an icon for its kind without either)
                 id: thumb
-                readonly property string source: postRow.featured ? "" : (postRow.art || GameLauncherService.bannerArt(root.game))
-                visible: !postRow.featured
+                readonly property string source: postRow.art || GameLauncherService.bannerArt(root.game)
                 anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                width: 52; height: 34
-                radius: Appearance.rounding.small
-                color: Appearance.colors.colLayer2
+                width: 56; height: 42
+                radius: Appearance.rounding.verysmall
+                color: Appearance.colors.colLayer4
                 Image {
                     anchors.fill: parent
                     source: thumb.source
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
-                    sourceSize.width: 104
+                    sourceSize.width: 112 // Fixed: posts link images up to 4K
                     opacity: status === Image.Ready ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 200 } }
                 }
                 MaterialSymbol {
                     anchors.centerIn: parent
                     visible: thumb.source === ""
-                    text: postRow.modelData.update ? "build" : "campaign"
-                    iconSize: 16
+                    text: postRow.modelData.update ? "build" : "newspaper"
+                    iconSize: 18
                     color: postRow.current ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                 }
             }
             Column { // Title, date, and whether it's new or an update
-                id: postInfo
-                anchors {
-                    left: postRow.featured ? parent.left : thumb.right; right: parent.right
-                    leftMargin: postRow.featured ? 12 : 10; rightMargin: 12
-                }
-                y: postRow.featured ? featuredBox.y + featuredBox.height + 6 : (parent.height - height) / 2
+                anchors { left: thumb.right; leftMargin: 10; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
                 spacing: 3
                 StyledText {
                     width: parent.width
                     text: postRow.modelData.title
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.DemiBold
-                    color: postRow.current ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0
-                    wrapMode: Text.Wrap
-                    maximumLineCount: 2
+                    color: postRow.current ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
                     elide: Text.ElideRight
+                    maximumLineCount: 1
                 }
                 Row { // Date, and whether it's an update (plain text: most are), then New
                     spacing: 6
@@ -203,12 +195,6 @@ LauncherTopPanel {
                 }
             }
         }
-    }
-    Rectangle { // Divider
-        anchors { top: postList.top; bottom: postList.bottom; left: postList.right; leftMargin: 10 }
-        width: 1
-        color: Appearance.colors.colLayer1
-        visible: root.posts.length > 0
     }
 
     // ── The selected post ──
@@ -237,35 +223,46 @@ LauncherTopPanel {
                 : textBlock
             Component {
                 id: titleBlock
-                ArtBanner {
+                ClippingRectangle { // The post's picture (the game's art without one), its title on it
                     id: postBanner
-                    game: root.game
-                    art: root.postArt
-                    showLogo: true
-                    coverIcon: "newspaper"
-                    implicitHeight: 148
-                    Column {
-                        // Clear of the corner's buttons
-                        anchors { left: postBanner.coverItem.right; leftMargin: 18; right: parent.right; rightMargin: 96; verticalCenter: parent.verticalCenter }
-                        spacing: 6
-                        StyledText {
-                            width: parent.width
-                            text: root.post?.title ?? ""
-                            font.pixelSize: Appearance.font.pixelSize.larger
-                            font.weight: Font.DemiBold
-                            color: Appearance.colors.colOnLayer0
-                            wrapMode: Text.Wrap
-                            maximumLineCount: 2
-                            elide: Text.ElideRight
+                    readonly property string picture: root.postArt || GameLauncherService.bannerArt(root.game)
+                    implicitHeight: 170
+                    radius: Appearance.rounding.small
+                    color: Appearance.colors.colLayer3
+                    Image {
+                        anchors.fill: parent
+                        source: postBanner.picture
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        sourceSize.width: 1400 // A fixed size: posts often link 4K images
+                        opacity: status === Image.Ready ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                    }
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        visible: postBanner.picture === ""
+                        text: "newspaper"
+                        iconSize: 40
+                        color: Appearance.colors.colSubtext
+                    }
+                    Rectangle { // Shade for the title, from a third of the way down
+                        anchors.fill: parent
+                        gradient: Gradient {
+                            GradientStop { position: 0.3; color: ColorUtils.transparentize(Appearance.colors.colLayer0, 1) }
+                            GradientStop { position: 1; color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.05) }
                         }
+                    }
+                    MouseArea { // The whole picture, uncropped, in the browser
+                        anchors.fill: parent
+                        enabled: root.postArt !== ""
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: StringUtils.openWebLink(root.postArt) // Written by the game's developers
+                    }
+                    Column {
+                        anchors { left: parent.left; leftMargin: 22; right: parent.right; rightMargin: 22; bottom: parent.bottom; bottomMargin: 16 }
+                        spacing: 4
                         Row {
                             spacing: 8
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: [root.formatDate(root.post?.date ?? 0), root.post?.author ?? ""].filter(s => s).join("  ·  ")
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.25)
-                            }
                             PostChip {
                                 visible: (root.post?.date ?? 0) > root.seenAtOpen
                                 text: Translation.tr("New")
@@ -276,6 +273,23 @@ LauncherTopPanel {
                                 text: Translation.tr("Update")
                                 tint: Appearance.colors.colTertiary
                             }
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: [root.formatDate(root.post?.date ?? 0), root.post?.author ?? ""].filter(s => s).join("  ·  ")
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.2)
+                            }
+                        }
+                        StyledText {
+                            width: parent.width
+                            text: root.post?.title ?? ""
+                            font.family: Appearance.font.family.title
+                            font.pixelSize: Appearance.font.pixelSize.hugeass
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colOnLayer0
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
                         }
                     }
                 }
