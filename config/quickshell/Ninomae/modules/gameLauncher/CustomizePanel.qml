@@ -6,6 +6,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
+import "ParticlePresets.js" as Presets
 
 /**
  * A game's look, in a panel growing up out of the launcher (LauncherTopPanel): its background, cover and
@@ -200,13 +201,8 @@ LauncherTopPanel {
         { key: "none", label: Translation.tr("None"), icon: "visibility_off" }
     ]
     function effectLabel(key) { return effects.find(e => e.key === key)?.label ?? key; }
-    // What Auto picks for this game (its name, else its Steam tags), asked of an idle GameParticles
-    readonly property string autoEffect: game ? autoPicker._detect(game.name, "") : "ambient"
-    GameParticles {
-        id: autoPicker
-        visible: false; active: false
-        storeTags: root.game?.storeTags ?? []
-    }
+    // What Auto picks for this game (its name, else its Steam tags)
+    readonly property string autoEffect: game ? Presets.pick(game.name, game.storeTags) : "ambient"
 
     // ── Along the top of the right side: the search (or, for the effect, its amount and strength) and Close ──
     Item {
