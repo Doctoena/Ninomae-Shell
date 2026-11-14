@@ -11,18 +11,19 @@ latest: the newest few of both, each with a small picture to show ("image": the 
 page made for a clip, list_clips.py's cache key; "" when there's none yet) and a big one ("full": the shot,
 or that same frame).
 """
-import hashlib, json, os, sys
+import json, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # -I leaves the script's own folder out
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "clips"))
 from find_screenshots import EXTENSIONS as SHOTS, games_dir
+from list_clips import cache_key, thumb_path  # noqa: E402 (the thumbnails are list_clips.py's)
 VIDEO = (".mp4", ".mkv", ".webm", ".mov")
 LATEST = 5  # The stats page's Captures card: the newest large, four under it
 
 
 def clip_thumb(path, st, cache):
     """list_clips.py's thumbnail for this clip, if it made one"""
-    key = hashlib.sha1(f"{path}\0{st.st_size}\0{st.st_mtime_ns}".encode()).hexdigest()[:20]
-    thumb = os.path.join(cache, key + ".jpg")
+    thumb = thumb_path(cache, cache_key(path, st))
     return thumb if os.path.exists(thumb) else ""
 
 

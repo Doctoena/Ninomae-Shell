@@ -4,7 +4,9 @@
 Usage: list_clips.py <clips folder of the game> <cache dir>
 Prints one line per clip, tab-separated:
   <modified, s since epoch>  <duration s>  <width>  <height>  <bytes>  <thumbnail path>  <clip path>
-Each clip's details (ffprobe) and thumbnail (a frame ~1 s in, 480 px wide, ffmpeg) are made once and
+Each clip's details (ffprobe) and thumbnail (a frame 2 s before its end, 480 px wide, ffmpeg: a replay is saved
+just after the moment, its start is often a menu or a loading screen. One saved from the in-game overlay: from
+just before the overlay opened, see before_end) are made once and
 kept in the cache dir, named by a hash of the path, size and time, so a clip that changes gets new ones.
 New clips are worked on a few at a time. Afterwards, cache files no clip of any game matches any more
 (deleted or moved clips) are removed, once they're a day old.
@@ -22,6 +24,20 @@ VIDEO = (".mp4", ".mkv", ".webm", ".mov")
 
 def cache_key(path, st):
     return hashlib.sha1(f"{path}\0{st.st_size}\0{st.st_mtime_ns}".encode()).hexdigest()[:20]
+
+
+def thumb_path(cache, key):
+    """Where a clip's thumbnail is kept (".end": taken near the end, so ones from the old start frame are remade)"""
+    return os.path.join(cache, key + ".end.jpg")
+
+
+def before_end(path):
+    """How long before the clip's end its thumbnail is taken: 2 s, or, for one saved from the in-game overlay,
+    from just before the overlay opened (on_save.sh keeps that on the clip)"""
+    try:
+        return max(2.0, float(os.getxattr(path, "user.ninomae.thumb_before_end")))
+    except (OSError, ValueError):
+        return 2.0
 
 
 def prune(clips_root, cache):
@@ -47,7 +63,7 @@ def prune(clips_root, cache):
 def details(path, st, cache):
     key = cache_key(path, st)
     meta_path = os.path.join(cache, key + ".json")
-    thumb = os.path.join(cache, key + ".jpg")
+    thumb = thumb_path(cache, key)
     meta = None
     try:
         with open(meta_path) as f:
@@ -70,7 +86,9 @@ def details(path, st, cache):
         except (OSError, ValueError, subprocess.SubprocessError):
             pass
     if not os.path.exists(thumb):
-        at = "1" if meta["duration"] > 2 else "0"
+        try: os.remove(os.path.join(cache, key + ".jpg"))  # The old one, from ~1 s in
+        except OSError: pass
+        at = f"{max(0.0, meta['duration'] - before_end(path)):.2f}"
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", at, "-i", path, "-frames:v", "1",
                         "-vf", "scale=480:-2", "-q:v", "4", thumb],
                        capture_output=True, timeout=20)

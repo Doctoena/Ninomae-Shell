@@ -1,5 +1,6 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
+import qs
 import qs.modules.common
 import QtQuick
 import Quickshell
@@ -137,7 +138,7 @@ Singleton {
             "-sc", Quickshell.shellPath("scripts/clips/on_save.sh"),
         ]
         environment: ({ CLIP_GAME: root.game, CLIPS_DIR: root.clipsDir, CLIP_SECONDS: String(root.seconds),
-                        CLIP_APPID: root.gameAppId, CLIP_ART: root.gameArt })
+                        CLIP_APPID: root.gameAppId, CLIP_ART: root.gameArt, CLIP_HINT: root.hintFile })
         stderr: StdioCollector { id: recorderErrors }
         onExited: (exitCode, exitStatus) => {
             // Stopped on purpose, the game having quit, leaves no game; still one means it failed
@@ -200,7 +201,26 @@ Singleton {
         const now = Date.now();
         if (now - _lastSave < saveCooldown) return;
         _lastSave = now;
-        recorder.signal(10); // SIGUSR1: save the replay (on_save.sh moves it and notifies)
+        // Saved from the in-game overlay (or just after closing it): the clip's last seconds show the overlay,
+        // so its thumbnail is taken from before it opened. on_save.sh puts this hint on the clip, list_clips.py reads it.
+        // Written, then SIGUSR1 (save the replay; on_save.sh moves it and notifies), so it's there first
+        const overlayRecent = GlobalStates.gameOverlayOpen || now - _overlayClosed < 2500;
+        const before = overlayRecent && _overlayOpened > 0 ? (now - _overlayOpened) / 1000 + 0.5 : 0;
+        const pid = recorder.processId;
+        if (!pid) { recorder.signal(10); return; }
+        Quickshell.execDetached(["sh", "-c", (before > 0 ? 'printf "%s %s" "$2" "$3" > "$1"' : 'rm -f -- "$1"') + '; kill -USR1 "$4"',
+                                 "clip-save", root.hintFile, String(Math.floor(now / 1000)), before.toFixed(2), String(pid)]);
+    }
+    // When the in-game overlay last opened and closed (ms), for the hint above
+    property real _overlayOpened: 0
+    property real _overlayClosed: 0
+    readonly property string hintFile: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/ninomae-clip-thumb-hint`
+    Connections {
+        target: GlobalStates
+        function onGameOverlayOpenChanged() {
+            if (GlobalStates.gameOverlayOpen) root._overlayOpened = Date.now();
+            else root._overlayClosed = Date.now();
+        }
     }
 
     // ── The save key ──

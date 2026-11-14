@@ -15,6 +15,17 @@ mkdir -p -- "$dir"
 dest="$dir/$safe $(date +'%Y-%m-%d %H-%M-%S').${src##*.}"
 mv -f -- "$src" "$dest" || dest="$src"
 
+# Saved from the in-game overlay: the shell left a hint (CLIP_HINT: "<saved at, s> <seconds before the end>")
+# of where the game was last showing, kept on the clip for its thumbnail (list_clips.py). A stale one is ignored
+if [[ -n ${CLIP_HINT:-} && -f $CLIP_HINT ]]; then
+    read -r at before < "$CLIP_HINT"
+    rm -f -- "$CLIP_HINT"
+    if [[ ${at:-} =~ ^[0-9]+$ && ${before:-} =~ ^[0-9]+(\.[0-9]+)?$ ]] && (( $(date +%s) - at < 60 )); then
+        python3 -I -c 'import os, sys; os.setxattr(sys.argv[1], "user.ninomae.thumb_before_end", sys.argv[2].encode())' \
+            "$dest" "$before" 2>/dev/null
+    fi
+fi
+
 # The notification's picture: the game's own icon. Steam keeps a small square one per game in its library
 # cache (a jpg named by its hash, beside the art folders); else the game's cover art (shown cropped
 # square); else the film icon
