@@ -13,7 +13,8 @@ import Quickshell.Io
  * On top, an art banner (ArtBanner, the game's logo) with how saving works, and close. Under it, rows of tiles
  * (on = accent): the tools, GameMode, MangoHud and gamescope, each switching its word in front of %command%,
  * with the settings of those on joined under them (MangoHud's layout, as MANGOHUD_CONFIG=preset=N; gamescope's
- * screen, refresh rate, mode, FSR upscaling and any other flags). Then Proton's switches (Wayland, HDR, NTSYNC,
+ * screen, refresh rate, mode, the picture (the whole screen, or 16:9 in the middle of an ultrawide), FSR upscaling
+ * and any other flags). Then Proton's switches (Wayland, HDR, NTSYNC,
  * a variable each), with the Proton version and Updates (once it's installed: the mode lives in the game's
  * appmanifest) joined under them. The footer: the whole line as Steam has it, Undo and Save.
  * With the shell's Millennium plugin in Steam (themes/steam/ninomae-plugin) every change goes straight to
@@ -138,7 +139,7 @@ LauncherTopPanel {
     readonly property var scope: parseGamescope(parsed.gamescope)
     function parseGamescope(args) {
         const t = (args ?? "").trim().split(/\s+/).filter(x => x);
-        const g = { W: 0, H: 0, w: 0, h: 0, r: 0, mode: "", filter: "", rest: [] };
+        const g = { W: 0, H: 0, w: 0, h: 0, r: 0, mode: "", filter: "", scaler: "", rest: [] };
         const num = i => parseInt(t[i + 1]) || 0;
         for (let i = 0; i < t.length; i++) {
             const a = t[i];
@@ -150,20 +151,22 @@ LauncherTopPanel {
             else if (a === "-f" || a === "--fullscreen") g.mode = "fullscreen";
             else if (a === "-b" || a === "--borderless") g.mode = "borderless";
             else if (a === "-F" || a === "--filter") g.filter = t[++i] ?? "";
+            else if (a === "-S" || a === "--scaler") g.scaler = t[++i] ?? "";
             else g.rest.push(a);
         }
         return g;
     }
     function setScope(change) {
         const g = Object.assign(parseGamescope(parsed.gamescope), change);
-        // FSR keeps its share of the output as the output changes
-        if (change.W && g.filter === "fsr" && scope.W) { const k = scope.w / scope.W; g.w = Math.round(g.W * k); g.h = Math.round(g.H * k); }
+        // The picture keeps its shape and FSR level as the output changes (a new picture brings its own size)
+        if (change.W && change.w === undefined && (gameAspect || fsrLevel)) Object.assign(g, pictureSize(g.W, g.H, gameAspect, fsrLevel));
         const out = [];
         if (g.mode === "fullscreen") out.push("-f"); else if (g.mode === "borderless") out.push("-b");
         if (g.W && g.H) out.push("-W", g.W, "-H", g.H);
         if (g.w && g.h) out.push("-w", g.w, "-h", g.h);
         if (g.r) out.push("-r", g.r);
         if (g.filter) out.push("-F", g.filter);
+        if (g.scaler) out.push("-S", g.scaler);
         const p = parse(options);
         p.gamescope = out.concat(g.rest).join(" ");
         options = build(p);
@@ -174,16 +177,43 @@ LauncherTopPanel {
         { value: "0.67", label: Translation.tr("Quality") }, { value: "0.59", label: Translation.tr("Balanced") },
         { value: "0.5", label: Translation.tr("Performance") }
     ]
+    // Its share of the output's height, which holds whatever the picture's shape
     readonly property string fsrLevel: {
-        if (scope.filter !== "fsr" || !scope.w || !scope.W) return "";
-        const k = scope.w / scope.W;
+        if (scope.filter !== "fsr" || !scope.h || !scope.H) return "";
+        const k = scope.h / scope.H;
         return fsrLevels.slice(1).reduce((best, l) => Math.abs(l.value - k) < Math.abs(best.value - k) ? l : best).value;
     }
-    function setFsr(level) {
-        const W = scope.W || (info?.monitors?.[0]?.width ?? 0), H = scope.H || (info?.monitors?.[0]?.height ?? 0);
-        if (level === "") setScope({ w: 0, h: 0, filter: "" });
-        else setScope({ W: W, H: H, w: Math.round(W * level), h: Math.round(H * level), filter: "fsr" });
+    // ── The game's picture: the whole output, or 16:9 in the middle of a wider one ("16:9"), as a 16:9 monitor
+    //    would show it (2560 × 1440 on a 5120 × 1440 ultrawide), black at the sides. gamescope stays fullscreen
+    //    and fits the game's smaller picture into it (-S fit keeps its shape); FSR draws it smaller still ──
+    readonly property real wideAspect: 16 / 9
+    readonly property int outW: scope.W || (info?.monitors?.[0]?.width ?? 0)
+    readonly property int outH: scope.H || (info?.monitors?.[0]?.height ?? 0)
+    readonly property bool canNarrow: outH > 0 && outW / outH > wideAspect + 0.05 // Wider than 16:9
+    readonly property string gameAspect: scope.w && scope.h && canNarrow
+        && Math.abs(scope.w / scope.h - wideAspect) < 0.02 ? "16:9" : ""
+    // The game's size (-w/-h) for an output, a shape and an FSR level; 0 × 0 is the output's own
+    function pictureSize(W, H, aspect, level) {
+        if (aspect === "" && level === "") return { w: 0, h: 0 };
+        const k = level === "" ? 1 : Number(level);
+        return { w: Math.round((aspect === "16:9" ? H * wideAspect : W) * k), h: Math.round(H * k) };
     }
+    function setPicture(aspect, level) {
+        const size = pictureSize(outW, outH, aspect, level);
+        const change = Object.assign({ W: outW, H: outH, filter: level === "" ? "" : "fsr" }, size);
+        if (aspect === "16:9") {
+            change.scaler = "fit";
+            if (scope.mode === "") change.mode = "fullscreen"; // The black sides need the whole screen
+        }
+        else if (scope.scaler === "fit") change.scaler = "";
+        if (aspect === "" && level === "") { change.W = scope.W; change.H = scope.H; } // Leaves the size as it was
+        setScope(change);
+    }
+    function setFsr(level) { setPicture(gameAspect, level); }
+    readonly property var aspectOptions: [
+        { value: "", label: Translation.tr("Whole screen") },
+        { value: "16:9", label: Translation.tr("16:9 in the middle · %1 × %2").arg(Math.round(outH * wideAspect)).arg(outH) }
+    ]
     // The screens' sizes, and the one in use if it's another
     readonly property var sizeOptions: {
         const seen = new Set(), out = [];
@@ -363,6 +393,7 @@ LauncherTopPanel {
         const parts = [];
         if (scope.W && scope.H) parts.push(`${scope.W} × ${scope.H}`);
         if (scope.r) parts.push(`${scope.r} Hz`);
+        if (gameAspect) parts.push(Translation.tr("16:9 in the middle"));
         if (fsrLevel) parts.push("FSR " + (fsrLevels.find(l => l.value === fsrLevel)?.label ?? ""));
         return parts.length ? parts.join("  ·  ") : Translation.tr("At the game's own size");
     }
@@ -455,6 +486,16 @@ LauncherTopPanel {
                             options: root.modeOptions
                             value: root.scope.mode
                             onSelected: v => root.setScope({ mode: v })
+                        }
+                    }
+                    SettingRow { // Only on a screen wider than 16:9
+                        visible: root.toolsOn.gamescope && root.canNarrow
+                        label: Translation.tr("Picture")
+                        Segmented {
+                            Layout.fillWidth: true
+                            value: root.gameAspect
+                            options: root.aspectOptions
+                            onPicked: v => root.setPicture(v, root.fsrLevel)
                         }
                     }
                     SettingRow {
