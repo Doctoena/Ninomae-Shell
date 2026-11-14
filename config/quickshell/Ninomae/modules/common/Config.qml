@@ -229,7 +229,7 @@ Singleton {
                 property bool hidePartialBoxArt: true
                 property bool steamAtLogin: false // Start Steam hidden when you log in (services/SteamAutostart.qml)
                 property bool launchAnimation: true // Drawer under the bar following a launched game until its window opens (LaunchSplash.qml)
-                property bool particleDepth: false // Far particles drawn soft and out of focus (Ninomae.Particles only)
+                property bool particleDepth: true // Far particles drawn soft and out of focus (Ninomae.Particles only)
                 property bool particleParallax: false // The particles shift a little with the pointer (Ninomae.Particles only)
                 // A game's way to start that Play uses without asking, as Steam's default launch option:
                 // "<game id>:<option>", the option one of its Steam launch options (GameDetailsPanel's launchMenu)

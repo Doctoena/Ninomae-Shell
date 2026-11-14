@@ -334,8 +334,8 @@ Item {
         [/skyrim|valheim|frostpunk|the\s*long\s*dark|never\s*alone|far\s*cry\s*4|northgard|icarus|below\s*zero|horizon\s*(zero|forbidden)|lost\s*planet|project\s*winter|whiteout/, "snow"],
         // Underwater
         [/subnautica|abzu|dave\s*the\s*diver|bioshock|\bsoma\b|barotrauma|beyond\s*blue|in\s*other\s*waters|maneater|depth/, "bubbles"],
-        // Horror and survival in the murk
-        [/silent\s*hill|phasmophobia|dayz|lethal\s*company|devour|outlast|amnesia|layers\s*of\s*fear|visage|alan\s*wake|sons\s*of\s*the\s*forest|the\s*forest|dead\s*by\s*daylight|until\s*dawn|resident\s*evil|evil\s*within|alien\s*isolation|darkwood|madison|fatal\s*frame|content\s*warning|the\s*medium|little\s*nightmares|^limbo|^inside$|s\.?t\.?a\.?l\.?k\.?e\.?r|metro\s*(2033|last|exodus)|\bscum\b|just\s*survive|cry\s*of\s*fear|f\.e\.a\.r|condemned|observer|distraint/, "fog"],
+        // Horror and survival in the murk: dust in a failing light
+        [/silent\s*hill|phasmophobia|dayz|lethal\s*company|devour|outlast|amnesia|layers\s*of\s*fear|visage|alan\s*wake|sons\s*of\s*the\s*forest|the\s*forest|dead\s*by\s*daylight|until\s*dawn|resident\s*evil|evil\s*within|alien\s*isolation|darkwood|madison|fatal\s*frame|content\s*warning|the\s*medium|little\s*nightmares|^limbo|^inside$|s\.?t\.?a\.?l\.?k\.?e\.?r|metro\s*(2033|last|exodus)|\bscum\b|just\s*survive|cry\s*of\s*fear|f\.e\.a\.r|condemned|observer|distraint/, "horror"],
         // Zombies and the end of the world
         [/zomboid|walking\s*dead|left\s*4\s*dead|back\s*4\s*blood|world\s*war\s*z|dead\s*island|dying\s*light|state\s*of\s*decay|days\s*gone|last\s*of\s*us|z1\s*battle|h1z1|7\s*days\s*to\s*die|dead\s*rising|dead\s*space|zombie|undead|black\s*ops.*zombies/, "ash"],
         // Military and competitive shooters
@@ -380,7 +380,8 @@ Item {
         5752: "circuit", 255534: "circuit", 5432: "circuit", 5502: "circuit", // Robots, Automation, Programming, Hacking
         3835: "wasteland", // Post-apocalyptic
         1659: "ash", // Zombies
-        1667: "fog", 1721: "fog", 3978: "fog", 5716: "fog", 7432: "fog", 4342: "fog", // Horror, Psychological Horror, Survival Horror, Mystery, Lovecraftian, Dark
+        1667: "horror", 1721: "horror", 3978: "horror", 7432: "horror", // Horror, Psychological Horror, Survival Horror, Lovecraftian
+        5716: "fog", 4342: "fog", // Mystery, Dark
         4604: "embers", 29482: "embers", 1646: "embers", 9541: "embers", 4172: "embers", // Dark Fantasy, Souls-like, Hack and Slash, Demons, Medieval
         1684: "magic", 4057: "magic", 16094: "magic", 1718: "magic", 620519: "magic", // Fantasy, Magic, Mythology, MOBA, Hero Shooter
         4168: "tracers", 1678: "tracers", 1663: "tracers", // Military, War, FPS
