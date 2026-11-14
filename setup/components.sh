@@ -655,12 +655,18 @@ update_shell() {
     if (( failed )); then result fail "See the log"; else result done "Python helpers upgraded, plugin up to date"; fi
 }
 update_steam_plugin() {
-    step "Steam plugins"
+    step "Steam: Millennium and plugins"
     remove_old_port_guard
     # The Ninomae plugin updates with this folder. It's put in here too if it isn't yet (turning it on
     # waits for Steam to be closed), and Steam has to restart to load a new copy
     if [[ -d /usr/lib/millennium ]]; then
-        local plugin
+        local plugin millennium
+        # Millennium itself first (sudo: it lives in /usr/lib); Steam has to be closed to swap it
+        run_visible "$DOTFILES/themes/steam/install-theme.sh" --update-millennium; millennium=$?
+        case $millennium in
+            3) needs_you "Steam: close it and run ${c_bold}ninomae update${c_off} again, to update Millennium" ;;
+            1) warn "Couldn't update Millennium; see the log" ;;
+        esac
         run "$DOTFILES/themes/steam/install-theme.sh" --plugin; plugin=$?
         (( plugin == 3 )) && needs_you "Steam: close it and run ${c_bold}ninomae update${c_off} again, to turn on pause and resume in the launcher"
         (( plugin == 1 )) && warn "Couldn't put in the Ninomae plugin; see the log"

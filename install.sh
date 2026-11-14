@@ -7,8 +7,8 @@
 #  Modes
 #    (none)          Install: pick what to set up from a checklist
 #    --update        Update an existing install: latest files, missing packages,
-#                    new links, Python helpers, drawer plugin, Steam plugin,
-#                    login screen
+#                    new links, Python helpers, drawer plugin, Millennium and
+#                    the Steam plugins, login screen
 #    --uninstall     Remove the config links and put back what they replaced
 #                    (packages and system themes stay)
 #    --check         See if everything is in place (links, settings, packages, the

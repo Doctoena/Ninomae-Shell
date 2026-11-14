@@ -50,6 +50,25 @@ PY
 }
 ninomae_enabled() { grep -q '"ninomae"' "$MILLENNIUM_CONFIG" 2>/dev/null; }
 
+# Millennium's latest stable release tag (v3.6.3, say), the one its own installer picks
+MILLENNIUM_VERSION="${XDG_STATE_HOME:-$HOME/.local/state}/ninomae/millennium-version"
+latest_millennium() {
+    local tag
+    tag="$(curl -fsSL -H 'Accept: application/vnd.github.v3+json' \
+        https://api.github.com/repos/SteamClientHomebrew/Millennium/releases/latest | jq -r .tag_name)" || return 1
+    [[ $tag == v* ]] && echo "$tag"
+}
+remember_millennium() { mkdir -p "$(dirname "$MILLENNIUM_VERSION")" && printf '%s\n' "$1" >"$MILLENNIUM_VERSION"; }
+# The links Steam loads Millennium through (what its installer's post-install step makes)
+link_millennium() {
+    local steam="$HOME/.steam/steam"
+    mkdir -p "$steam/ubuntu12_32" "$steam/ubuntu12_64" "$steam/steamrt64"
+    ln -sf /usr/lib/millennium/libmillennium_bootstrap_x86.so "$steam/ubuntu12_32/libXtst.so.6"
+    ln -sf /usr/lib/millennium/libmillennium_bootstrap_hhx64.so "$steam/ubuntu12_64/libXtst.so.6"
+    ln -sf /usr/lib/millennium/libmillennium_hhx64.so "$steam/ubuntu12_64/libmillennium_hhx64.so"
+    ln -sf /run/host/usr/lib/millennium/libmillennium_bootstrap_x64.so "$steam/steamrt64/libXtst.so.6"
+}
+
 # --plugin: only the Ninomae plugin, for ninomae update. Exit 0 = on (or already), 3 = Steam is open, so
 # it's linked but turned on only once Steam is closed, 1 = couldn't
 if [[ ${1:-} == --plugin ]]; then
@@ -71,6 +90,39 @@ if [[ ${1:-} == --update-plugin ]]; then
     mv "$NOTIF_PLUGIN.part" "$NOTIF_PLUGIN"; ok "Notifications plugin updated"; exit 10
 fi
 
+# --update-millennium: Millennium itself to its latest release, for ninomae update. Millennium keeps no
+# version of its own, so the release installed is remembered in $MILLENNIUM_VERSION; without one (installed
+# before this), the latest release's files are compared with the installed ones.
+# Exit 0 = already the latest, 10 = updated (Steam loads it when it next starts), 3 = Steam is open, 1 = failed
+if [[ ${1:-} == --update-millennium ]]; then
+    [[ -d /usr/lib/millennium ]] || { warn "Millennium isn't installed"; exit 1; }
+    tag="$(latest_millennium)" || { warn "Couldn't look up Millennium's latest release"; exit 1; }
+    installed="$(cat "$MILLENNIUM_VERSION" 2>/dev/null || true)"
+    if [[ $installed == "$tag" ]]; then ok "Millennium $tag is the latest"; exit 0; fi
+    # Its libraries are loaded into Steam: replacing them under a running Steam can crash it. With a
+    # remembered version it's known to be outdated without downloading anything
+    steam_open() { pgrep -x steam >/dev/null; }
+    steam_open_msg="Millennium $tag is out (installed: ${installed:-older}), but Steam is open"
+    [[ -n $installed ]] && steam_open && { warn "$steam_open_msg"; exit 3; }
+    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+    name="millennium-$tag-linux-x86_64"
+    url="https://github.com/SteamClientHomebrew/Millennium/releases/download/$tag/$name"
+    curl -fsSL -o "$tmp/$name.tar.gz" "$url.tar.gz" && curl -fsSL -o "$tmp/$name.sha256" "$url.sha256" \
+        || { warn "Couldn't download Millennium $tag"; exit 1; }
+    (cd "$tmp" && sha256sum -c --status "$name.sha256") || { warn "Millennium $tag's download didn't match its checksum"; exit 1; }
+    tar xzf "$tmp/$name.tar.gz" -C "$tmp" ./usr/lib/millennium || { warn "Millennium $tag's download isn't laid out as expected"; exit 1; }
+    new="$tmp/usr/lib/millennium"
+    if diff -rq "$new" /usr/lib/millennium >/dev/null 2>&1; then
+        remember_millennium "$tag"; ok "Millennium $tag is the latest"; exit 0
+    fi
+    steam_open && { warn "$steam_open_msg"; exit 3; }
+    # Only Millennium's own folder is copied in (its installer copies the whole archive over /), with the
+    # archive's permissions so its helper programs stay executable (owned by root, as sudo makes them)
+    sudo cp -r --preserve=mode "$new" /usr/lib/ || { warn "Couldn't install Millennium $tag"; exit 1; }
+    link_millennium
+    remember_millennium "$tag"; ok "Millennium updated to $tag"; exit 10
+fi
+
 # Steam unpacks its client (ubuntu12_32/64) on first launch; Millennium hooks into those folders
 if [[ ! -d "$HOME/.steam/steam/ubuntu12_64" ]]; then
     warn "Steam hasn't been opened yet. Open it once (and sign in), close it, then run: $0"
@@ -90,6 +142,8 @@ if [[ -d /usr/lib/millennium && -L "$HOME/.steam/steam/ubuntu12_64/libXtst.so.6"
     ok "Millennium already installed"
 else
     curl -fsSL "https://steambrew.app/install.sh" | bash
+    # What it installed, so ninomae update knows when there's a newer one
+    tag="$(latest_millennium)" && remember_millennium "$tag"
     ok "Millennium installed"
 fi
 
