@@ -1248,7 +1248,7 @@ Item {
     //  GPU — with Ninomae.Particles, its ParticleSim moves and draws them (ParticleGpuLayers.qml), at 60 fps;
     //  this file only picks the preset and the colours. Without it, the JavaScript here and the Canvases below
     // ═════════════════════════════════════════════════════════
-    Loader { id: _gpu; anchors.fill: parent; source: "ParticleGpuLayers.qml" }
+    Loader { id: _gpu; anchors.fill: parent; active: root.active; source: "ParticleGpuLayers.qml" } // Not for an idle one (Customize asks it what Auto picks)
     readonly property bool _gpuOn: _gpu.item !== null
     readonly property var _sim: _gpu.item?.sim ?? null
     on_GpuOnChanged: if (_gpuOn) _initDelay.restart() // It loaded after the first start

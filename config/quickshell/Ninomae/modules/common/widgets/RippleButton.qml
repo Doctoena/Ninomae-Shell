@@ -8,6 +8,9 @@ import QtQuick.Controls
  */
 Button {
     id: root
+    // A click doesn't take the keys (Tab still reaches it): Space and Enter then go where they were going,
+    // not to press the clicked button again (the launcher's panels and pages keep theirs)
+    focusPolicy: Qt.TabFocus
     property bool toggled
     property string buttonText
     property bool pointingHandCursor: true

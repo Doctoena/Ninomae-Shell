@@ -200,6 +200,13 @@ LauncherTopPanel {
         { key: "none", label: Translation.tr("None"), icon: "visibility_off" }
     ]
     function effectLabel(key) { return effects.find(e => e.key === key)?.label ?? key; }
+    // What Auto picks for this game (its name, else its Steam tags), asked of an idle GameParticles
+    readonly property string autoEffect: game ? autoPicker._detect(game.name, "") : "ambient"
+    GameParticles {
+        id: autoPicker
+        visible: false; active: false
+        storeTags: root.game?.storeTags ?? []
+    }
 
     // ── Along the top of the right side: the search (or, for the effect, its amount and strength) and Close ──
     Item {
@@ -484,7 +491,7 @@ LauncherTopPanel {
     // Where each part comes from, for its row ("Trying one" while one is hovered)
     function partSource(key) {
         if (key === tab && trying) return Translation.tr("Trying one");
-        if (key === "effect") return effectNow === "auto" ? Translation.tr("Auto · from the art") : effectLabel(effectNow);
+        if (key === "effect") return effectNow === "auto" ? Translation.tr("Auto · %1").arg(effectLabel(autoEffect)) : effectLabel(effectNow);
         const c = key === "hero" ? custom.heroArt : key === "grid" ? custom.boxArt : custom.logo;
         return _file(c) !== "" ? Translation.tr("Custom") : Translation.tr("The game's own");
     }
