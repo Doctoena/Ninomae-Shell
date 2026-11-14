@@ -15,7 +15,9 @@ qs_config=Ninomae
 # Exact Qt package builds (a Fedora rebuild of the same version can still change what the plugin
 # links against) plus a hash of the sources, with relative paths so moving the dotfiles doesn't count
 stamp() {
-    rpm -q qt6-qtbase qt6-qtdeclarative qt6-qtbase-private-devel # Installing the last one adds Ninomae.Particles
+    # Installing the last one adds Ninomae.Particles. rpm fails when one isn't installed, but its
+    # "not installed" line is still part of the stamp (installing it later should rebuild)
+    rpm -q qt6-qtbase qt6-qtdeclarative qt6-qtbase-private-devel || true
     (cd "$here" && find CMakeLists.txt src -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum)
 }
 if [[ ${1:-} == --stamp ]]; then stamp; exit; fi
