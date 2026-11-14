@@ -655,31 +655,43 @@ update_shell() {
     if (( failed )); then result fail "See the log"; else result done "Python helpers upgraded, plugin up to date"; fi
 }
 update_steam_plugin() {
+    local reopen_steam=0 millennium=-1 status=skip # reopen_steam: closed here to update Millennium, so opened again at the end
     step "Steam: Millennium and plugins"
     remove_old_port_guard
     # The Ninomae plugin updates with this folder. It's put in here too if it isn't yet (turning it on
     # waits for Steam to be closed), and Steam has to restart to load a new copy
     if [[ -d /usr/lib/millennium ]]; then
-        local plugin millennium
-        # Millennium itself first (sudo: it lives in /usr/lib); Steam has to be closed to swap it
+        local plugin
+        # Millennium itself first (sudo: it lives in /usr/lib). Steam has to be closed to swap it: on a yes
+        # it's closed for the rest of this step (the plugins below then go in without a restart) and opened again
         run_visible "$DOTFILES/themes/steam/install-theme.sh" --update-millennium; millennium=$?
-        case $millennium in
-            3) needs_you "Steam: close it and run ${c_bold}ninomae update${c_off} again, to update Millennium" ;;
-            1) warn "Couldn't update Millennium; see the log" ;;
-        esac
+        if (( millennium == 3 )); then
+            if confirm "Close Steam to update Millennium? (it opens again afterwards)"; then
+                run_visible "$DOTFILES/themes/steam/install-theme.sh" --update-millennium --close-steam; millennium=$?
+                pgrep -x steam >/dev/null || reopen_steam=1
+            else needs_you "Steam: close it and run ${c_bold}ninomae update${c_off} again, to update Millennium"; fi
+        fi
+        (( millennium == 1 )) && warn "Couldn't update Millennium; see the log"
         run "$DOTFILES/themes/steam/install-theme.sh" --plugin; plugin=$?
         (( plugin == 3 )) && needs_you "Steam: close it and run ${c_bold}ninomae update${c_off} again, to turn on pause and resume in the launcher"
         (( plugin == 1 )) && warn "Couldn't put in the Ninomae plugin; see the log"
         [[ $(python3 -I "$STEAM_CONTROL" status) == outdated ]] \
             && needs_you "Steam: restart it (Exit Steam, then start it) to load the updated Ninomae plugin"
     fi
-    if [[ ! -f $STEAM_PLUGIN ]]; then info "Notifications plugin not installed"; result skip "Notifications plugin not installed"; return; fi
-    local status
-    run_visible "$DOTFILES/themes/steam/install-theme.sh" --update-plugin; status=$?
+    if [[ -f $STEAM_PLUGIN ]]; then run_visible "$DOTFILES/themes/steam/install-theme.sh" --update-plugin; status=$?
+    else info "Notifications plugin not installed"; fi
+    if (( reopen_steam )) && (( ! DRY_RUN )); then
+        # Detached, and without the installer's lock (fd 8), or the next run would say it's still running
+        setsid -f steam >/dev/null 2>&1 </dev/null 8>&- && ok "Steam opened again"
+    fi
+    local mil=""; (( millennium == 10 )) && mil="Millennium updated · "
     case $status in
-        0) result done "Already the latest" ;;
-        10) result done "Updated"; pgrep -x steam >/dev/null && needs_you "Steam: restart it (Exit Steam, then start it) to load the updated notifications plugin" ;;
-        *) result fail "Download failed; see the log" ;;
+        skip) [[ -n $mil ]] && result done "${mil}notifications plugin not installed" || result skip "Notifications plugin not installed" ;;
+        0) result done "${mil}notifications plugin already the latest" ;;
+        10) result done "${mil}notifications plugin updated"
+            (( ! reopen_steam )) && pgrep -x steam >/dev/null \
+                && needs_you "Steam: restart it (Exit Steam, then start it) to load the updated notifications plugin" ;;
+        *) result fail "${mil}notifications plugin download failed; see the log" ;;
     esac
 }
 update_login_screen() {

@@ -50,6 +50,15 @@ PY
 }
 ninomae_enabled() { grep -q '"ninomae"' "$MILLENNIUM_CONFIG" 2>/dev/null; }
 
+# Asks Steam to exit and waits for it (up to 30 s); fails if it's still running after that
+close_steam() {
+    pgrep -x steam >/dev/null || return 0
+    echo "  Closing Steam…"
+    steam -shutdown >/dev/null 2>&1 || true
+    for _ in $(seq 30); do pgrep -x steam >/dev/null || return 0; sleep 1; done
+    return 1
+}
+
 # Millennium's latest stable release tag (v3.6.3, say), the one its own installer picks
 MILLENNIUM_VERSION="${XDG_STATE_HOME:-$HOME/.local/state}/ninomae/millennium-version"
 latest_millennium() {
@@ -90,9 +99,10 @@ if [[ ${1:-} == --update-plugin ]]; then
     mv "$NOTIF_PLUGIN.part" "$NOTIF_PLUGIN"; ok "Notifications plugin updated"; exit 10
 fi
 
-# --update-millennium: Millennium itself to its latest release, for ninomae update. Millennium keeps no
-# version of its own, so the release installed is remembered in $MILLENNIUM_VERSION; without one (installed
-# before this), the latest release's files are compared with the installed ones.
+# --update-millennium [--close-steam]: Millennium itself to its latest release, for ninomae update.
+# Millennium keeps no version of its own, so the release installed is remembered in $MILLENNIUM_VERSION;
+# without one (installed before this), the latest release's files are compared with the installed ones.
+# --close-steam closes a running Steam to put the update in (whoever asked for it opens Steam again).
 # Exit 0 = already the latest, 10 = updated (Steam loads it when it next starts), 3 = Steam is open, 1 = failed
 if [[ ${1:-} == --update-millennium ]]; then
     [[ -d /usr/lib/millennium ]] || { warn "Millennium isn't installed"; exit 1; }
@@ -101,9 +111,9 @@ if [[ ${1:-} == --update-millennium ]]; then
     if [[ $installed == "$tag" ]]; then ok "Millennium $tag is the latest"; exit 0; fi
     # Its libraries are loaded into Steam: replacing them under a running Steam can crash it. With a
     # remembered version it's known to be outdated without downloading anything
-    steam_open() { pgrep -x steam >/dev/null; }
+    may_close=0; [[ ${2:-} == --close-steam ]] && may_close=1
     steam_open_msg="Millennium $tag is out (installed: ${installed:-older}), but Steam is open"
-    [[ -n $installed ]] && steam_open && { warn "$steam_open_msg"; exit 3; }
+    [[ -n $installed ]] && (( ! may_close )) && pgrep -x steam >/dev/null && { warn "$steam_open_msg"; exit 3; }
     tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
     name="millennium-$tag-linux-x86_64"
     url="https://github.com/SteamClientHomebrew/Millennium/releases/download/$tag/$name"
@@ -115,7 +125,8 @@ if [[ ${1:-} == --update-millennium ]]; then
     if diff -rq "$new" /usr/lib/millennium >/dev/null 2>&1; then
         remember_millennium "$tag"; ok "Millennium $tag is the latest"; exit 0
     fi
-    steam_open && { warn "$steam_open_msg"; exit 3; }
+    if (( may_close )); then close_steam || { warn "Steam didn't close, so Millennium $tag wasn't put in"; exit 1; }
+    elif pgrep -x steam >/dev/null; then warn "$steam_open_msg"; exit 3; fi
     # Only Millennium's own folder is copied in (its installer copies the whole archive over /), with the
     # archive's permissions so its helper programs stay executable (owned by root, as sudo makes them)
     sudo cp -r --preserve=mode "$new" /usr/lib/ || { warn "Couldn't install Millennium $tag"; exit 1; }
@@ -130,12 +141,7 @@ if [[ ! -d "$HOME/.steam/steam/ubuntu12_64" ]]; then
 fi
 
 # Millennium can only be installed, and its config only edited, while Steam is closed
-if pgrep -x steam >/dev/null; then
-    echo "  Closing Steam…"
-    steam -shutdown >/dev/null 2>&1 || true
-    for _ in $(seq 30); do pgrep -x steam >/dev/null || break; sleep 1; done
-    pgrep -x steam >/dev/null && { warn "Steam is still running; close it and run $0 again"; exit 1; }
-fi
+close_steam || { warn "Steam is still running; close it and run $0 again"; exit 1; }
 
 # 1. Millennium
 if [[ -d /usr/lib/millennium && -L "$HOME/.steam/steam/ubuntu12_64/libXtst.so.6" ]]; then
