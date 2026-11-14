@@ -23,6 +23,10 @@ class ParticleSim : public QObject {
     Q_PROPERTY(bool running READ running WRITE setRunning NOTIFY runningChanged)
     Q_PROPERTY(int target MEMBER m_target NOTIFY targetChanged) // How many particles to keep up
     Q_PROPERTY(int fps READ fps WRITE setFps NOTIFY fpsChanged)
+    // Far particles as soft out-of-focus discs, near ones sharp
+    Q_PROPERTY(bool depth MEMBER m_depth NOTIFY looksChanged)
+    // The particles shift a little with the pointer (setPointer), near ones more: parallax
+    Q_PROPERTY(bool parallax MEMBER m_parallax NOTIFY looksChanged)
 
 public:
     explicit ParticleSim(QObject *parent = nullptr);
@@ -31,6 +35,7 @@ public:
     Q_INVOKABLE void setPalette(const QVariantList &palette); // Recolours the live particles too
     Q_INVOKABLE void restart(); // The old particles fade out as dots, new ones scatter in
     Q_INVOKABLE void clear();
+    Q_INVOKABLE void setPointer(double x, double y, bool inside); // Over the layers, in their coordinates
     bool running() const { return m_timer.isActive(); }
     void setRunning(bool on);
     int fps() const { return 1000 / std::max(1, m_timer.interval()); }
@@ -41,6 +46,7 @@ signals:
     void runningChanged();
     void targetChanged();
     void fpsChanged();
+    void looksChanged();
 
 private:
     struct Rgb { int r = 200, g = 200, b = 255; };
@@ -85,6 +91,7 @@ private:
         bool shootingStar = false; double shootingRate = 4;
         bool connections = false; double connDist = 120;
         bool packets = false; double packetRate = 0.4;
+        double flicker = 0; // Every this many seconds or so, the light stutters (horror)
     };
 
     void step();
@@ -102,6 +109,9 @@ private:
     double fsin(double a) const;
     double fcos(double a) const;
     double noise2d(double x, double y) const;
+    double shiftX(const Particle &p) const;
+    double shiftY(const Particle &p) const;
+    bool blurred(const Particle &p) const;
     void emitSoft();
     void emitMain();
     double w() const;
@@ -131,4 +141,8 @@ private:
     double m_boltT = 0, m_arcT = 0, m_popT = 0, m_dripT = 0, m_tracerT = 0, m_packetT = 0, m_shootT = 0;
     double m_wph = 0, m_wx = 0, m_wy = 0, m_gTimer = 0, m_gx = 0, m_gy = 0, m_gStr = 0;
     std::vector<float> m_buf;
+    bool m_depth = false, m_parallax = false;
+    double m_ptrX = 0, m_ptrY = 0; bool m_ptrInside = false;
+    double m_parX = 0, m_parY = 0; // The parallax offset, easing toward the pointer
+    double m_flickerT = 0, m_light = 1; int m_stutters = 0; double m_stutterT = 0;
 };

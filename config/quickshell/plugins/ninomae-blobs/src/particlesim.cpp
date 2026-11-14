@@ -113,6 +113,7 @@ void ParticleSim::configure(const QVariantMap &p, const QVariantList &palette, d
     c.shootingStar = flag(p, "shootingStar"); c.shootingRate = num(p, "shootingRate", 4);
     c.connections = flag(p, "connections"); c.connDist = num(p, "connDist", 120);
     c.packets = flag(p, "packets"); c.packetRate = num(p, "packetRate", 0.4);
+    c.flicker = num(p, "flicker", 0);
     m_cfg = c;
     m_sizeK = sizeK;
     setPalette(palette);
@@ -149,10 +150,15 @@ double ParticleSim::noise2d(double x, double y) const {
          + fsin(x * 1.1 + y * 0.9 + 3.0) * 0.15 + fsin(x * 0.5 - y * 1.3 + 5.0) * 0.1;
 }
 
+void ParticleSim::setPointer(double x, double y, bool inside) {
+    m_ptrX = x; m_ptrY = y; m_ptrInside = inside;
+}
+
 void ParticleSim::clear() {
     m_bolts.clear(); m_sparkBursts.clear(); m_ripples.clear(); m_drips.clear(); m_tracers.clear();
     m_packets.clear(); m_links.clear(); m_shooting.reset();
     m_flash = 0;
+    m_light = 1; m_stutters = 0; m_flickerT = 0; m_stutterT = 0;
     m_boltT = m_arcT = m_popT = m_dripT = m_tracerT = m_packetT = m_shootT = 0;
 }
 
@@ -419,6 +425,27 @@ void ParticleSim::update(double dt) {
     std::erase_if(m_packets, [dt](Packet &p) { p.t += dt / p.dur; return p.t >= 1; });
     if (m_flash > 0) { m_flash -= dt * 0.9; if (m_flash < 0) m_flash = 0; }
 
+    // A failing light: now and then two or three quick dips, then steady again
+    if (cfg.flicker > 0) {
+        if (m_stutters == 0 && every(m_flickerT, cfg.flicker, dt)) { m_stutters = 2 + rndInt(3); m_stutterT = 0; }
+        if (m_stutters > 0) {
+            m_stutterT -= dt;
+            if (m_stutterT <= 0) {
+                const bool dim = m_light > 0.6;
+                m_light = dim ? 0.15 + rnd() * 0.25 : 1;
+                m_stutterT = dim ? 0.04 + rnd() * 0.08 : 0.05 + rnd() * 0.15;
+                if (!dim) m_stutters--;
+            }
+        }
+    }
+    // Parallax: ease toward the pointer's offset from the middle (back to rest when it leaves)
+    {
+        const double tx = m_parallax && m_ptrInside && W > 0 ? (m_ptrX / W - 0.5) * 2 : 0;
+        const double ty = m_parallax && m_ptrInside && H > 0 ? (m_ptrY / H - 0.5) * 2 : 0;
+        const double k = std::min(1.0, dt * 3);
+        m_parX += (tx - m_parX) * k; m_parY += (ty - m_parY) * k;
+    }
+
     // Particles
     const double fadeInRate = cfg.fadeIn, drift = cfg.drift;
     std::vector<Particle> kept;
@@ -562,22 +589,30 @@ QByteArray bytes(const std::vector<float> &v) {
 }
 } // namespace
 
+// Parallax: nearer particles shift further with the pointer (up to 16 px)
+double ParticleSim::shiftX(const Particle &p) const { return -m_parX * 16 * (p.dp - 0.3) / 0.7; }
+double ParticleSim::shiftY(const Particle &p) const { return -m_parY * 9 * (p.dp - 0.3) / 0.7; }
+// Depth: the furthest particles of a shape (not streaks, fog or bokeh) drawn out of focus
+bool ParticleSim::blurred(const Particle &p) const {
+    return m_depth && p.dp < 0.6 && !m_cfg.streak && p.shape != kSoft && p.shape != kBokeh && p.shape != 10;
+}
+
 void ParticleSim::emitSoft() {
     m_buf.clear();
     Emitter e { m_buf };
     const double snap = m_cfg.pixelSnap;
     for (const Particle &p : m_parts) { // Fog banks and dust clouds, squashed into banks
         if (p.shape != kSoft) continue;
-        const double a = p.al * p.tm;
+        const double a = p.al * p.tm * m_light;
         if (a < 0.005) continue;
-        e.radial(0, 0, p.x, p.y, p.sz * 1.5, p.sz * 0.75, p.c.r, p.c.g, p.c.b, std::min(1.0, a * 2.5));
+        e.radial(0, 0, p.x + shiftX(p), p.y + shiftY(p), p.sz * 1.5, p.sz * 0.75, p.c.r, p.c.g, p.c.b, std::min(1.0, a * 2.5));
     }
     const int glowBlend = m_cfg.additive ? 1 : 2;
     for (const Particle &p : m_parts) { // Glow halos under the particles
         if (p.gw <= 0 || p.shape == kSoft) continue;
-        const double a = p.al * p.tm * (0.5 + p.dp * 0.5);
+        const double a = p.al * p.tm * (0.5 + p.dp * 0.5) * m_light * (blurred(p) ? 0.5 : 1);
         if (a < 0.1) continue;
-        double x = p.x, y = p.y;
+        double x = p.x + shiftX(p), y = p.y + shiftY(p);
         if (snap > 0) { x = std::round(x / snap) * snap; y = std::round(y / snap) * snap; }
         const double r = p.sz * p.gw + 2;
         e.radial(glowBlend, 1, x, y, r, r, p.c.r, p.c.g, p.c.b, std::min(1.0, a * 0.95));
@@ -679,12 +714,17 @@ void ParticleSim::emitMain() {
     const double snap = cfg.pixelSnap;
     for (const Particle &p : m_parts) {
         if (p.shape == kSoft) continue;
-        const double a = p.al * p.tm * (0.5 + p.dp * 0.5);
+        const double a = p.al * p.tm * (0.5 + p.dp * 0.5) * m_light;
         if (a < 0.01) continue;
-        double x = p.x, y = p.y;
+        double x = p.x + shiftX(p), y = p.y + shiftY(p);
         if (snap > 0) { x = std::round(x / snap) * snap; y = std::round(y / snap) * snap; }
         const int r = p.c.r, g = p.c.g, b = p.c.b;
         if (p.shape == kBokeh) { e.radial(base, 2, x, y, p.sz, p.sz, r, g, b, a); continue; }
+        if (blurred(p)) { // Out of focus: a soft disc, bigger and fainter the further it is
+            const double rr = p.sz * (1.6 + (0.6 - p.dp) * 3);
+            e.radial(base, 2, x, y, rr, rr, r, g, b, std::min(1.0, a * 1.6));
+            continue;
+        }
         if (cfg.streak) {
             const double spd = std::sqrt(p.vx * p.vx + p.vy * p.vy);
             if (spd < 0.01) continue;

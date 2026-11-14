@@ -188,6 +188,7 @@ LauncherTopPanel {
         { key: "embers", label: Translation.tr("Embers"), icon: "whatshot" },
         { key: "tracers", label: Translation.tr("Tracers"), icon: "trending_flat" },
         { key: "wasteland", label: Translation.tr("Dust storm"), icon: "air" },
+        { key: "horror", label: Translation.tr("Horror"), icon: "skull" },
         { key: "magic", label: Translation.tr("Magic"), icon: "auto_fix_high" },
         { key: "cavern", label: Translation.tr("Cavern"), icon: "diamond" },
         { key: "stars", label: Translation.tr("Stars"), icon: "star" },

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.services
+import qs.modules.common
 
 // GameParticles v6 — SoA particle engine behind the game details banner
 // Each preset is one clear idea (rain, fog, warp, tracers…) rather than a stack of every effect.
@@ -219,6 +220,16 @@ Item {
             tint: "#9c9890", tintAmt: 0.6,
             tracers: true, tracerRate: 0.8, tracerAngle: -0.22, tracerSpread: 0.18, tracerBoth: true,
             tracerSpd: [1600, 2300], tracerLen: [90, 170], tracerW: 1.6, tracerColor: "#ffd27a", fast: true
+        },
+
+        // Dust hanging in a failing light that stutters now and then, a little fog low down (flicker: with the plugin)
+        "horror": {
+            n: 40, szMin: 1, szMax: 2.6, spdMin: 2, spdMax: 7,
+            dir: "float", fadeIn: 0.5, fadeOut: 0.02, aMin: 0.35, aMax: 0.8,
+            glow: 1.6, drift: 10, noise: true,
+            shapes: [0, 0, 0, 9], shapeSize: { 9: [90, 170] }, shapeAlpha: { 9: [0.04, 0.09] }, shapeGlow: { 9: 0 },
+            flicker: 5,
+            tint: "#cfc8bc", tintAmt: 0.7
         },
 
         // Blowing grit and dust clouds
@@ -1240,6 +1251,13 @@ Item {
     readonly property bool _gpuOn: _gpu.item !== null
     readonly property var _sim: _gpu.item?.sim ?? null
     on_GpuOnChanged: if (_gpuOn) _initDelay.restart() // It loaded after the first start
+    Binding { when: root._sim !== null; target: root._sim; property: "depth"; value: Config.options?.gameLauncher?.particleDepth ?? false }
+    Binding { when: root._sim !== null; target: root._sim; property: "parallax"; value: Config.options?.gameLauncher?.particleParallax ?? false }
+    HoverHandler { // Where the pointer is, for the parallax (passive: the page's own controls still get it)
+        enabled: root._gpuOn && (Config.options?.gameLauncher?.particleParallax ?? false)
+        onPointChanged: root._sim?.setPointer(point.position.x, point.position.y, hovered)
+        onHoveredChanged: root._sim?.setPointer(point.position.x, point.position.y, hovered)
+    }
     Binding {
         when: root._gpuOn
         target: root._gpuOn ? _gpu.item : null
