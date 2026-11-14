@@ -53,6 +53,7 @@ qt_add_qml_module(ninomae-particles
     PLUGIN_TARGET ninomae-particles
     SOURCES
         src/particlelayer.cpp src/particlelayer.hpp
+        src/particlesim.cpp src/particlesim.hpp
 )
 target_link_libraries(ninomae-particles PRIVATE Qt::Core Qt::Gui Qt::GuiPrivate Qt::Qml Qt::Quick)
 target_include_directories(ninomae-particles PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")

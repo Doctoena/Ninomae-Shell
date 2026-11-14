@@ -1,12 +1,13 @@
 import QtQuick
 import Ninomae.Particles
 
-// The particles' two layers on the GPU (Ninomae.Particles, plugins/ninomae-blobs): GameParticles.qml loads this,
-// and falls back to its Canvases when the plugin isn't built. The soft one (fog, glows) is drawn at a third of
-// the size and scaled up, as its Canvas was
+// The particles on the GPU (Ninomae.Particles, plugins/ninomae-blobs): ParticleSim moves them and draws into the two
+// layers every frame. GameParticles.qml loads this, configures sim, and falls back to its Canvases and its own
+// JavaScript when the plugin isn't built. The soft layer (fog, glows) is drawn at a third of the size and scaled up
 Item {
-    readonly property alias soft: softLayer
-    readonly property alias main: mainLayer
+    id: layers
+    readonly property alias sim: particleSim
+    property bool running: false
     ParticleLayer {
         id: softLayer
         coordScale: 3
@@ -16,5 +17,11 @@ Item {
     ParticleLayer {
         id: mainLayer
         anchors.fill: parent
+    }
+    ParticleSim {
+        id: particleSim
+        soft: softLayer
+        main: mainLayer
+        running: layers.running
     }
 }
