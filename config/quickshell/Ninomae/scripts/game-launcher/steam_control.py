@@ -13,11 +13,12 @@
                                         but the plugin doesn't answer) or missing
 
 The calls run inside Steam, in the shell's Millennium plugin (themes/steam/ninomae-plugin). The two talk
-through a mailbox in ~/.cache/ninomae-steam (home, as Steam's runtime container has its own /run/user): a request is a
-file in requests/, the plugin answers in replies/ and keeps "alive" ("<now> <loaded>") up to date while
-Steam runs. The plugin checks every 2 s, and every 0.15 s while "wanted" is fresh: the launcher's
-downloads feed (steam_downloads.py) touches it while it's open, and so does each request. Errors (JSON "error"): off (Steam or the plugin isn't running), failed (Steam refused the
-call, as when Valve renames it, or didn't answer in time; "detail" says what Steam said).
+through a mailbox in ~/.cache/ninomae-steam (in home: Steam's runtime container has a /run/user of its own).
+A request is a file in requests/, the plugin answers in replies/ and keeps "alive" ("<now> <loaded>") up to
+date while Steam runs. The plugin checks every 2 s, and every 0.15 s while "wanted" is fresh: the launcher's
+downloads feed (steam_downloads.py) touches it while it's open, and so does each request.
+Errors (JSON "error"): off (Steam or the plugin isn't running), failed (Steam refused the call, as when Valve
+renames it, or didn't answer in time; "detail" says what Steam said).
 """
 import json, os, subprocess, sys, time, uuid
 
@@ -77,14 +78,9 @@ def installed():
 
 
 def _steam_up_for():
-    """Seconds since Steam started, or None if it isn't running"""
-    pid = subprocess.run(["pgrep", "-o", "-x", "steam"], capture_output=True, text=True).stdout.strip()
-    if not pid:
-        return None
-    try:
-        return int(subprocess.run(["ps", "-o", "etimes=", "-p", pid], capture_output=True, text=True).stdout)
-    except ValueError:
-        return None
+    """Seconds since Steam started (its oldest process), or None if it isn't running"""
+    out = subprocess.run(["ps", "-C", "steam", "-o", "etimes="], capture_output=True, text=True).stdout.split()
+    return max(map(int, out)) if out else None
 
 
 def status():
