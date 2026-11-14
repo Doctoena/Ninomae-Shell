@@ -12,7 +12,7 @@
                                         running) or missing
 
 The calls run inside Steam, in the shell's Millennium plugin (themes/steam/ninomae-plugin). The two talk
-through a mailbox in $XDG_RUNTIME_DIR/ninomae-steam, a folder only this account can open: a request is a
+through a mailbox in ~/.cache/ninomae-steam (home, as Steam's runtime container has its own /run/user): a request is a
 file in requests/, the plugin answers in replies/ and keeps "alive" ("<now> <loaded>") up to date while
 Steam runs. The plugin checks every 2 s, and every 0.15 s while "wanted" is fresh: the launcher's
 downloads feed (steam_downloads.py) touches it while it's open, and so does each request. Errors (JSON "error"): off (Steam or the plugin isn't running), failed (Steam refused the
@@ -20,7 +20,7 @@ call, as when Valve renames it, or didn't answer in time; "detail" says what Ste
 """
 import json, os, sys, time, uuid
 
-MAILBOX = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "ninomae-steam")
+MAILBOX = os.path.expanduser("~/.cache/ninomae-steam")  # The plugin's path too: not XDG_CACHE_HOME, set differently in Steam
 ALIVE_SECS = 5  # The plugin writes "alive" every second while Steam runs: older than this, it's gone
 PLUGIN = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "millennium", "plugins", "ninomae")
 PLUGIN_FILES = ("backend/main.lua", ".millennium/Dist/index.js", "plugin.json")

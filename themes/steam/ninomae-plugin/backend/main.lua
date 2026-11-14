@@ -1,5 +1,7 @@
--- The Ninomae launcher's way into Steam: a mailbox in $XDG_RUNTIME_DIR/ninomae-steam, a folder only
--- this account can open (Flatpak apps get a runtime folder of their own).
+-- The Ninomae launcher's way into Steam: a mailbox in ~/.cache/ninomae-steam, in your home so only this
+-- account can open it. Not in $XDG_RUNTIME_DIR: Steam runs in its runtime container (steamrt64), which has a
+-- /run/user of its own the shell can't see. Home is the same folder inside and out.
+-- (Flatpak Steam can't see ~/.cache either.)
 --   requests/<id>.json   written by the shell (scripts/game-launcher/steam_control.py): {"cmd", "args"}
 --   replies/<id>.json    written here once the frontend has run it: {"ok", "value"} or {"ok": false, "error"}
 --   alive                "<now> <loaded>": the last check, so the shell knows Steam and this plugin are up,
@@ -11,8 +13,8 @@ local logger = require("logger")
 local millennium = require("millennium")
 local fs = require("fs")
 
-local runtime = os.getenv("XDG_RUNTIME_DIR")
-local dir = runtime and runtime ~= "" and (runtime .. "/ninomae-steam") or nil
+local home = os.getenv("HOME")
+local dir = home and home ~= "" and (home .. "/.cache/ninomae-steam") or nil
 local REQUEST_SECS = 15 -- An older request was left by a shell that gave up on it: never run it late
 local WANTED_SECS = 5 -- The shell touches "wanted" every second or two while the launcher is open
 local loaded = os.time()
@@ -91,7 +93,7 @@ local function on_load()
         remove_all_in(dir .. "/requests") -- Left from before Steam started: not run now
         logger:info("Ninomae mailbox: " .. dir)
     else
-        logger:error("No mailbox (XDG_RUNTIME_DIR unset or not writable): the Ninomae launcher can't reach Steam")
+        logger:error("No mailbox (HOME unset or ~/.cache not writable): the Ninomae launcher can't reach Steam")
     end
     millennium.ready()
 end
