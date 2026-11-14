@@ -5,6 +5,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
+import QtQuick.Shapes
 import Quickshell.Widgets
 Item {
     id: root
@@ -17,6 +18,24 @@ Item {
     // The ▶ on hover: for an installed game that isn't running (GameLauncherService.quickLaunch)
     readonly property bool _canPlay: stateBadge._state === "installed" && !stateBadge._playing
 
+    // The favourite's bookmark: shoulders curving into the tile's top edge, a notch at the bottom (favButton's sizes)
+    component RibbonShape: Shape {
+        property color fill
+        width: favButton.width; height: favButton.height
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeWidth: 0
+            fillColor: fill
+            startX: 0; startY: 0
+            PathArc { x: favButton.shoulder; y: favButton.shoulder; radiusX: favButton.shoulder; radiusY: favButton.shoulder; direction: PathArc.Clockwise }
+            PathLine { x: favButton.shoulder; y: favButton.ribbonH }
+            PathLine { x: favButton.shoulder + favButton.ribbonW / 2; y: favButton.ribbonH - favButton.notch }
+            PathLine { x: favButton.shoulder + favButton.ribbonW; y: favButton.ribbonH }
+            PathLine { x: favButton.shoulder + favButton.ribbonW; y: favButton.shoulder }
+            PathArc { x: favButton.ribbonW + 2 * favButton.shoulder; y: 0; radiusX: favButton.shoulder; radiusY: favButton.shoulder; direction: PathArc.Clockwise }
+            PathLine { x: 0; y: 0 }
+        }
+    }
     // Debounce hover to prevent rapid-fire animation starts when sweeping across tiles
     Timer {
         id: _hoverDebounce
@@ -54,14 +73,15 @@ Item {
             opacity: root.showHoverEffect ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
         }
-        Rectangle { // Focus ring, with a small gap from the tile
+        Rectangle { // Focus ring, with a small gap from the tile (the favourite's ribbon follows its fade)
+            id: focusRing
             anchors { fill: cardBackground; margins: -4 }
             radius: cardBackground.radius + 4
             color: "transparent"
             border.width: 2
             border.color: Appearance.colors.colPrimary
             opacity: root.showHoverEffect ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } } // With the lift
         }
     Rectangle {
         id: cardBackground
@@ -272,45 +292,62 @@ Item {
                 text: stateBadge._look?.tip ?? ""
             }
         }
-        Item {
+    }
+        Item { // Favourite: a bookmark hanging from the tile's top edge, its shoulders curving into it. At rest in
+            // the grid's own colour, as if the edge folds down; on hover in the accent, reaching up into the ring
             id: favButton
-            anchors { top: parent.top; right: parent.right; topMargin: 6; rightMargin: 6 }
-            z: 10; width: 24; height: 24
-            property bool hovered: favMouseArea.containsMouse
-            property bool isFav: {
+            anchors { top: cardBackground.top; topMargin: -reach; right: cardBackground.right; rightMargin: 12 }
+            z: 10
+            readonly property real shoulder: 6
+            readonly property real ribbonW: 24
+            readonly property real reach: 4 * focusRing.opacity // Up to the ring's outer edge, as the ring comes in
+            readonly property real ribbonH: 36 + reach
+            readonly property real notch: 7
+            width: ribbonW + 2 * shoulder; height: ribbonH
+            readonly property bool hovered: favMouseArea.containsMouse
+            // How full the accent was when the pointer left (it fades from there with the ring)
+            property real leaveFrom: 1
+            readonly property bool isFav: {
                 const _ = GameLauncherService.favoritesSet;
                 return game ? _.has(game.id) : false;
             }
             opacity: (isFav || root.showHoverEffect) ? 1.0 : 0.0; visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-            Rectangle {
-                id: favGlow
-                anchors.centerIn: parent
-                width: favButton.isFav ? 28 : 0; height: width; radius: width / 2
-                color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.6)
-                opacity: favButton.isFav ? 1.0 : 0.0
-                Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+            RibbonShape { // At rest: the grid's colour (a favourite) or a see-through one to click
+                fill: favButton.isFav ? Appearance.colors.colLayer1
+                    : ColorUtils.transparentize(Appearance.colors.colLayer0, favButton.hovered ? 0.15 : 0.35)
             }
-            Rectangle {
-                id: favBg
-                anchors.fill: parent; radius: Appearance.rounding.verysmall
-                color: favButton.isFav
-                    ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.2)
-                    : (favMouseArea.containsMouse
-                        ? ColorUtils.transparentize(Appearance.colors.colLayer0, 0.2)
-                        : ColorUtils.transparentize(Appearance.colors.colLayer0, 0.4))
-                Behavior on color { ColorAnimation { duration: 150 } }
+            Connections {
+                target: root
+                function onShowHoverEffectChanged() { if (!root.showHoverEffect) favButton.leaveFrom = Math.max(0.01, focusRing.opacity); }
+            }
+            Item { // On hover the accent fills it from the ring down, step for step with the ring coming in; when the
+                // pointer leaves it fades with the ring, from as full as it got
+                width: parent.width
+                height: parent.height * (root.showHoverEffect ? focusRing.opacity : favButton.leaveFrom)
+                opacity: root.showHoverEffect ? 1 : focusRing.opacity / favButton.leaveFrom
+                visible: favButton.isFav && height > 0 && opacity > 0
+                clip: true
+                z: 1
+                RibbonShape { fill: Appearance.colors.colPrimary }
+                MaterialSymbol { // The star over the accent
+                    anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 6 + favButton.reach }
+                    text: "star"; fill: 1; iconSize: 15
+                    color: Appearance.colors.colOnPrimary
+                    transform: Scale { // Pops with the star under it
+                        origin.x: starIcon.width / 2; origin.y: starIcon.height / 2
+                        xScale: starScale.xScale; yScale: starScale.yScale
+                    }
+                }
             }
             MaterialSymbol {
                 id: starIcon
-                anchors.centerIn: parent
+                anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 6 + favButton.reach }
                 text: "star"
                 fill: favButton.isFav ? 1 : 0
-                iconSize: 14
-                color: favButton.isFav ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurface
+                iconSize: 15
+                color: favButton.isFav ? Appearance.colors.colPrimary : Appearance.colors.colOnSurface
                 Behavior on fill { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 200 } }
                 transform: Scale {
                     id: starScale
                     origin.x: starIcon.width / 2
@@ -339,6 +376,5 @@ Item {
                 text: favButton.isFav ? Translation.tr("Remove from favorites") : Translation.tr("Add to favorites")
             }
         }
-    }
     }
 }
