@@ -498,6 +498,16 @@ LauncherTopPanel {
                             onPicked: v => root.setPicture(v, root.fsrLevel)
                         }
                     }
+                    StyledText { // A game keeps the resolution it saved, and draws that squeezed into the 16:9 picture
+                        visible: root.toolsOn.gamescope && root.gameAspect !== ""
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 122 // Under the row's controls, past its label
+                        wrapMode: Text.Wrap
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: Appearance.colors.colSubtext
+                        text: Translation.tr("If it looks squeezed, set the game's own resolution to %1 × %2 in its video settings (it remembers the screen's)")
+                            .arg(Math.round(root.outH * root.wideAspect)).arg(root.outH)
+                    }
                     SettingRow {
                         visible: root.toolsOn.gamescope
                         label: Translation.tr("FSR")
