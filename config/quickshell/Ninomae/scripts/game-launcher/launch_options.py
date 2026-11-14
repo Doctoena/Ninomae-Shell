@@ -204,7 +204,8 @@ def monitors():
 
 def default_gamescope_args(mons):
     m = mons[0] if mons else None
-    return f"-f -W {m['width']} -H {m['height']} -r {m['refresh']}" if m else "-f"
+    # --force-grab-cursor: the mouse always the game's (see the panel's Mouse setting); without it aiming catches
+    return f"-f -W {m['width']} -H {m['height']} -r {m['refresh']} --force-grab-cursor" if m else "-f --force-grab-cursor"
 
 # ── Commands ────────────────────────────────────────────────────────────────
 # ── Straight to Steam, through the shell's Millennium plugin (steam_control.py) ──

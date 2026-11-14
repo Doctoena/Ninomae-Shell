@@ -139,7 +139,7 @@ LauncherTopPanel {
     readonly property var scope: parseGamescope(parsed.gamescope)
     function parseGamescope(args) {
         const t = (args ?? "").trim().split(/\s+/).filter(x => x);
-        const g = { W: 0, H: 0, w: 0, h: 0, r: 0, mode: "", filter: "", scaler: "", rest: [] };
+        const g = { W: 0, H: 0, w: 0, h: 0, r: 0, mode: "", filter: "", scaler: "", grab: false, rest: [] };
         const num = i => parseInt(t[i + 1]) || 0;
         for (let i = 0; i < t.length; i++) {
             const a = t[i];
@@ -152,6 +152,7 @@ LauncherTopPanel {
             else if (a === "-b" || a === "--borderless") g.mode = "borderless";
             else if (a === "-F" || a === "--filter") g.filter = t[++i] ?? "";
             else if (a === "-S" || a === "--scaler") g.scaler = t[++i] ?? "";
+            else if (a === "--force-grab-cursor") g.grab = true;
             else g.rest.push(a);
         }
         return g;
@@ -167,6 +168,7 @@ LauncherTopPanel {
         if (g.r) out.push("-r", g.r);
         if (g.filter) out.push("-F", g.filter);
         if (g.scaler) out.push("-S", g.scaler);
+        if (g.grab) out.push("--force-grab-cursor");
         const p = parse(options);
         p.gamescope = out.concat(g.rest).join(" ");
         options = build(p);
@@ -507,6 +509,18 @@ LauncherTopPanel {
                         color: Appearance.colors.colSubtext
                         text: Translation.tr("If it looks squeezed, set the game's own resolution to %1 × %2 in its video settings (it remembers the screen's)")
                             .arg(Math.round(root.outH * root.wideAspect)).arg(root.outH)
+                    }
+                    SettingRow {
+                        // gamescope flips the mouse between the desktop's pointer and the game's own movement as the
+                        // game hides and shows its cursor: inside Hyprland that made aiming catch. Locked, it's always the game's
+                        visible: root.toolsOn.gamescope
+                        label: Translation.tr("Mouse")
+                        Segmented {
+                            Layout.fillWidth: true
+                            value: root.scope.grab ? "grab" : ""
+                            options: [{ value: "grab", label: Translation.tr("Locked to the game") }, { value: "", label: Translation.tr("Follows the cursor") }]
+                            onPicked: v => root.setScope({ grab: v === "grab" })
+                        }
                     }
                     SettingRow {
                         visible: root.toolsOn.gamescope
