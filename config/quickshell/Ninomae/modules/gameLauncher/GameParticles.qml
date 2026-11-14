@@ -359,16 +359,49 @@ Item {
 
     function _resolve(key) { return _aliases[key] || key; }
 
+    // Steam's store tags (their ids) → an effect, for games no name rule knows. A game's tags come most voted first
+    // (steam_store_tags.py), and its first one here picks. Kept to tags that say what a game looks like
+    readonly property var _tagRules: ({
+        4115: "neon", 699: "neon", 1752: "neon", // Cyberpunk, Racing, Rhythm
+        16598: "warp", // Space Sim
+        1755: "stars", // Space
+        3942: "arcs", 4821: "arcs", // Sci-fi, Mechs
+        5752: "circuit", 255534: "circuit", 5432: "circuit", 5502: "circuit", // Robots, Automation, Programming, Hacking
+        3835: "wasteland", // Post-apocalyptic
+        1659: "ash", // Zombies
+        1667: "fog", 1721: "fog", 3978: "fog", 5716: "fog", 7432: "fog", 4342: "fog", // Horror, Psychological Horror, Survival Horror, Mystery, Lovecraftian, Dark
+        4604: "embers", 29482: "embers", 1646: "embers", 9541: "embers", 4172: "embers", // Dark Fantasy, Souls-like, Hack and Slash, Demons, Medieval
+        1684: "magic", 4057: "magic", 16094: "magic", 1718: "magic", 620519: "magic", // Fantasy, Magic, Mythology, MOBA, Hero Shooter
+        4168: "tracers", 1678: "tracers", 1663: "tracers", // Military, War, FPS
+        3964: "pixel", 1732: "pixel", 4004: "pixel", // Pixel Graphics, Voxel, Retro
+        9157: "bubbles", // Underwater
+        9803: "snow", // Snow
+        30358: "leaves", 87918: "leaves", 22602: "leaves", // Nature, Farming Sim, Agriculture
+        97376: "fireflies", 4726: "fireflies", 1654: "fireflies", // Cozy, Cute, Relaxing
+        4085: "sakura", // Anime
+        5981: "cavern", 21006: "cavern", 1720: "cavern", // Mining, Underground, Dungeon Crawler
+    })
+    // This game's store tags: given (the Customize preview, which has no game id), or the library's
+    property var storeTags: null
+    function _tagsOf(id) {
+        if (storeTags) return storeTags;
+        if (!id) return [];
+        return GameLauncherService.games.find(g => g.id === id)?.storeTags ?? [];
+    }
+
     function _detect(name, id) {
         if (id) {
             const _ = GameLauncherService.particleOverridesRevision;
             const ov = GameLauncherService.getParticleOverride(id);
             if (ov && ov !== "auto") return _resolve(ov);
         }
-        if (!name) return "ambient";
-        const n = name.toLowerCase();
-        for (let i = 0; i < _rules.length; i++) {
+        const n = (name || "").toLowerCase();
+        for (let i = 0; n && i < _rules.length; i++) {
             if (_rules[i][0].test(n)) return _rules[i][1];
+        }
+        for (const tag of _tagsOf(id)) {
+            const preset = _tagRules[tag];
+            if (preset) return preset;
         }
         return "ambient";
     }
@@ -644,6 +677,7 @@ Item {
     onGameNameChanged: _initDelay.restart()
     onImageSourceChanged: _initDelay.restart()
     onForcePresetChanged: _initDelay.restart()
+    onStoreTagsChanged: _initDelay.restart()
     // Density changes live: the spawner fills up to the new count, or the extra ones go
     property real _areaScale: 1
     function _retarget() {

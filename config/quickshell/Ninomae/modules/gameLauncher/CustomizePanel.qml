@@ -282,6 +282,7 @@ LauncherTopPanel {
                 sourceComponent: GameParticles {
                     // No game id: it would use the saved choice instead of the one shown here
                     gameName: root.game?.name ?? ""
+                    storeTags: root.game?.storeTags ?? [] // Auto here picks as the page does
                     forcePreset: root.shownEffect === "auto" ? "" : root.shownEffect
                     imageSource: root.previewHero
                     densityScale: root.density

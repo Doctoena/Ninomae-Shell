@@ -876,6 +876,11 @@ if [[ -n "${OWN_API_CACHE:-}" && -f "$OWN_API_CACHE" ]]; then
         | map(. + {playtime2Weeks: ($p[.id] // 0)})' <<<"$_output" 2>/dev/null) || true
 fi
 
+# Steam's store tags, most voted first: they pick a game's particle effect (GameParticles.qml)
+if [[ -f "$STEAM_DIR/appcache/appinfo.vdf" ]]; then
+    _tagged=$(python3 "$SCRIPT_DIR/steam_store_tags.py" "$STEAM_DIR/appcache/appinfo.vdf" <<<"$_output" 2>/dev/null) && _output=$_tagged
+fi
+
 # Enrich with partial box art detection
 _output=$(echo "$_output" | _validate_art_paths)
 
