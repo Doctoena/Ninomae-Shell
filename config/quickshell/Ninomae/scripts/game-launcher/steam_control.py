@@ -9,7 +9,8 @@
   steam_control.py skip-shaders <appid> → a launch waiting on Vulkan shader processing starts now (Steam's Skip)
   steam_control.py status             → on (Steam runs with the plugin), outdated (Steam runs an older copy
                                         than the one on disk: a restart loads it), installed (Steam isn't
-                                        running) or missing
+                                        running, or only just started), unreachable (Steam has run a while
+                                        but the plugin doesn't answer) or missing
 
 The calls run inside Steam, in the shell's Millennium plugin (themes/steam/ninomae-plugin). The two talk
 through a mailbox in ~/.cache/ninomae-steam (home, as Steam's runtime container has its own /run/user): a request is a
@@ -18,10 +19,11 @@ Steam runs. The plugin checks every 2 s, and every 0.15 s while "wanted" is fres
 downloads feed (steam_downloads.py) touches it while it's open, and so does each request. Errors (JSON "error"): off (Steam or the plugin isn't running), failed (Steam refused the
 call, as when Valve renames it, or didn't answer in time; "detail" says what Steam said).
 """
-import json, os, sys, time, uuid
+import json, os, subprocess, sys, time, uuid
 
 MAILBOX = os.path.expanduser("~/.cache/ninomae-steam")  # The plugin's path too: not XDG_CACHE_HOME, set differently in Steam
 ALIVE_SECS = 5  # The plugin writes "alive" every second while Steam runs: older than this, it's gone
+STARTUP_SECS = 30  # Steam up this long and still no "alive": the plugin isn't coming
 PLUGIN = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "millennium", "plugins", "ninomae")
 PLUGIN_FILES = ("backend/main.lua", ".millennium/Dist/index.js", "plugin.json")
 MILLENNIUM_CONFIG = os.path.expanduser("~/.config/millennium/config.json")
@@ -74,6 +76,28 @@ def installed():
         return False
 
 
+def _steam_up_for():
+    """Seconds since Steam started, or None if it isn't running"""
+    pid = subprocess.run(["pgrep", "-o", "-x", "steam"], capture_output=True, text=True).stdout.strip()
+    if not pid:
+        return None
+    try:
+        return int(subprocess.run(["ps", "-o", "etimes=", "-p", pid], capture_output=True, text=True).stdout)
+    except ValueError:
+        return None
+
+
+def status():
+    """on, outdated, installed, unreachable or missing (see the top)"""
+    if not installed():
+        return "missing"
+    loaded = _alive()
+    if loaded is not None:
+        return "outdated" if outdated(loaded) else "on"
+    up = _steam_up_for()
+    return "unreachable" if up is not None and up >= STARTUP_SECS else "installed"
+
+
 def request(cmd, timeout=6, **args):
     """Runs one of the plugin's commands in Steam: (its value, None), or (None, error). The error is
     "off", "failed", or "failed: <what Steam said>"
@@ -112,8 +136,7 @@ def request(cmd, timeout=6, **args):
 def main():
     a = sys.argv[1:]
     if a == ["status"]:
-        loaded = _alive()
-        print("missing" if not installed() else "installed" if loaded is None else "outdated" if outdated(loaded) else "on")
+        print(status())
         return 0
     if len(a) == 2 and a[0] == "resume" and a[1].isdigit():
         value, err = request("resume", appid=int(a[1]))

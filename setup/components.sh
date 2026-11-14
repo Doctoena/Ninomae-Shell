@@ -762,6 +762,7 @@ check_steam() { # Millennium's theme, the notifications plugin and the Ninomae p
         on) ok "Ninomae plugin, working" ;;
         installed) ok "Ninomae plugin, works while Steam runs" ;;
         outdated) warn "Ninomae plugin updated, restart Steam to load it"; missing+=(restart) ;;
+        unreachable) warn "Ninomae plugin isn't answering, restart Steam (then ninomae update if it still doesn't)"; missing+=(restart) ;;
         *) warn "Ninomae plugin isn't on"; missing+=(ninomae) ;;
     esac
     if (( ! ${#missing[@]} )); then result done "Theme, notifications and Ninomae plugins"

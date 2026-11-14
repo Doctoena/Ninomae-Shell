@@ -208,11 +208,15 @@ def default_gamescope_args(mons):
 
 # ── Commands ────────────────────────────────────────────────────────────────
 # ── Straight to Steam, through the shell's Millennium plugin (steam_control.py) ──
-def live():
-    """steam_control when Steam runs with the plugin, else None (then it's files and a restart)"""
+def control():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))) # Run with -I, which leaves its own folder out
     import steam_control
-    return steam_control if steam_control.available() else None
+    return steam_control
+
+def live():
+    """steam_control when Steam runs with the plugin, else None (then it's files and a restart)"""
+    sc = control()
+    return sc if sc.available() else None
 
 def live_details(sc, appid):
     """A game's launch options, Proton choice ("" for Steam's default) and update mode, as Steam has them
@@ -236,7 +240,8 @@ def cmd_get(appid):
         state = child(read_vdf(manifest), "AppState")
         try: auto_update = int(get_value(state, "AutoUpdateBehavior") or 0) if state is not None else None
         except ValueError: auto_update = 0
-    sc = live() if steam_running() else None
+    running = steam_running()
+    sc = live() if running else None
     details = live_details(sc, appid) if sc else None
     if details:
         options, proton = details["options"], details["proton"]
@@ -250,8 +255,10 @@ def cmd_get(appid):
         "monitors": mons,
         "defaultGamescopeArgs": default_gamescope_args(mons),
         "ntsync": os.path.exists("/dev/ntsync"), # PROTON_USE_NTSYNC needs the kernel's ntsync module loaded
-        "steamRunning": steam_running(),
+        "steamRunning": running,
         "live": details is not None, # Saving goes straight to Steam: no restart
+        # Steam has run a while but the plugin doesn't answer: something broke it (a Steam or Millennium update)
+        "unreachable": running and not sc and control().status() == "unreachable",
     }))
 
 _window_was_open = False # Steam's own window was up when close_steam closed it: start_steam opens it again

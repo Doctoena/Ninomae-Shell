@@ -159,7 +159,7 @@ ContentPage {
         SettingsCard {
             RowLayout {
                 id: plugin
-                property string status: "" // steam_control.py status: on, outdated, installed (Steam isn't running) or missing
+                property string status: "" // steam_control.py status: on, outdated, installed (Steam isn't running), unreachable or missing
                 Layout.fillWidth: true
                 Layout.leftMargin: 8
                 Layout.rightMargin: 8
@@ -171,9 +171,10 @@ ContentPage {
                     stdout: StdioCollector { onStreamFinished: plugin.status = text.trim() }
                 }
                 MaterialSymbol {
-                    text: plugin.status === "missing" ? "extension_off" : "extension"
+                    text: plugin.status === "missing" || plugin.status === "unreachable" ? "extension_off" : "extension"
                     iconSize: Appearance.font.pixelSize.larger
-                    color: plugin.status === "on" || plugin.status === "outdated" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                    color: plugin.status === "on" || plugin.status === "outdated" ? Appearance.colors.colPrimary
+                        : plugin.status === "unreachable" ? Appearance.colors.colError : Appearance.colors.colSubtext
                 }
                 StyledText {
                     Layout.fillWidth: true
@@ -182,6 +183,7 @@ ContentPage {
                     color: Appearance.colors.colOnLayer1
                     text: plugin.status === "on" ? Translation.tr("The launcher can pause, resume and order Steam's downloads, and save launch options without restarting Steam.")
                         : plugin.status === "outdated" ? Translation.tr("The Ninomae plugin was updated. Restart Steam to load it.")
+                        : plugin.status === "unreachable" ? Translation.tr("Steam is running but the Ninomae plugin isn't answering, so the launcher restarts Steam to save. Restart Steam, and if that doesn't fix it, run ninomae update.")
                         : plugin.status === "installed" ? Translation.tr("Pause and resume in the launcher work while Steam is running.")
                         : plugin.status === "missing" ? Translation.tr("To pause and resume downloads from the launcher, Steam needs Millennium and the Ninomae plugin. Run ninomae update to set them up.")
                         : ""

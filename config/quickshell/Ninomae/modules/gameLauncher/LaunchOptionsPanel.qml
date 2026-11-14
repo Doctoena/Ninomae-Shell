@@ -40,6 +40,7 @@ LauncherTopPanel {
     readonly property bool live: info?.live ?? false // Saving goes straight to Steam, so it's done as you go
     readonly property bool steamRunning: info?.steamRunning ?? false
     readonly property bool restartNeeded: steamRunning && !live
+    readonly property bool unreachable: info?.unreachable ?? false // The plugin should answer but doesn't
     function differs(a) {
         return !!a && (options.trim() !== (a.options ?? "").trim() || proton !== (a.proton ?? "") || autoUpdate !== (a.autoUpdate ?? -1));
     }
@@ -312,7 +313,8 @@ LauncherTopPanel {
                 MaterialSymbol {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.status.startsWith("error:") ? "error" : root.busy ? "progress_activity"
-                        : root.status === "saved" ? "check_circle" : root.live ? "bolt" : root.changed ? "edit" : "info"
+                        : root.status === "saved" ? "check_circle" : root.live ? "bolt" : root.changed ? "edit"
+                        : root.unreachable ? "extension_off" : "info"
                     iconSize: 16; fill: 1
                     color: stateText.color
                     RotationAnimation on rotation { running: root.busy; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
@@ -322,12 +324,15 @@ LauncherTopPanel {
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: Appearance.font.pixelSize.small
                     color: root.status.startsWith("error:") ? Appearance.colors.colError
-                        : root.status === "saved" ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.25)
+                        : root.status === "saved" ? Appearance.colors.colPrimary
+                        : root.unreachable && !root.changed && !root.busy ? Appearance.colors.colError
+                        : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.25)
                     text: root.status.startsWith("error:") ? root.status.substring(6)
                         : root.busy ? (root.restartNeeded ? Translation.tr("Restarting Steam…") : Translation.tr("Saving…"))
                         : root.status === "saved" ? Translation.tr("Saved to Steam")
                         : root.live ? Translation.tr("Changes go straight to Steam")
                         : root.changed ? (root.restartNeeded ? Translation.tr("Not saved yet · Steam restarts to apply it") : Translation.tr("Not saved yet"))
+                        : root.unreachable ? Translation.tr("Steam's plugin isn't answering, so saving restarts Steam")
                         : root.steamRunning ? Translation.tr("Saving restarts Steam") : Translation.tr("Saved into Steam's settings")
                 }
             }
