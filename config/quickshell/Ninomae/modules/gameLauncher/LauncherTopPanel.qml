@@ -6,6 +6,7 @@ import QtQuick
  * the details page's side menus (flipped, so its "bar" edge is the launcher's top). Base of the
  * details page's Screenshots, Achievements, News, Customize and Launch options; children go inside it. Keys come from the details
  * page while it's open, through the panel's handleKey(key, modifiers) (returns whether it used the key).
+ * After a click inside it (a button took the keys), the keys its controls don't use come up here instead.
  *
  * Placed by GameLauncher.qml (one at a time): as wide as the launcher, its bottom a few px behind the
  * launcher's top edge (same colour there, so there's no seam), riding with the launcher's own slide.
@@ -79,5 +80,9 @@ Item {
         clip: root.clipContent
         // Clicks (and hover) here don't fall through to the launcher's click-off-to-close
         MouseArea { anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.AllButtons }
+    }
+    // A click on one of its buttons gives that button the keys: what it doesn't use (Esc, the arrows) rises to here
+    Keys.onPressed: event => {
+        if (typeof root.handleKey === "function" && root.handleKey(event.key, event.modifiers)) event.accepted = true;
     }
 }
