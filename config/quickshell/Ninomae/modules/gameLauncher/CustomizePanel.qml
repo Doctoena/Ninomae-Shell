@@ -10,7 +10,7 @@ import Quickshell.Widgets
 /**
  * A game's look, in a panel growing up out of the launcher (LauncherTopPanel): its background, cover and
  * logo (from SteamGridDB, or a file) and the particle effect over its page.
- * On the left, a preview of the part as the page shows it (the cover as a tile), and the four parts as joined
+ * On the left, a preview of the part as the page shows it (the cover between its neighbours in the library), and the four parts as joined
  * rows, which pick what the right side shows. Hover a result or an effect to try it there; a click
  * applies it and the panel stays open, so the page below shows it too. Each art tab's results are fetched
  * once per opening, a page at a time (Load more), for the game or a name searched instead. The effect's
@@ -247,16 +247,15 @@ LauncherTopPanel {
             ClippingRectangle {
                 id: preview
                 anchors.centerIn: parent
-                width: root.tab === "grid" ? Math.round(height * 2 / 3) : parent.width
+                width: parent.width
                 height: parent.height
                 radius: Appearance.rounding.normal
                 color: Appearance.colors.colLayer1
-                Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
                 MaterialSymbol { // Nothing to show
                     anchors.centerIn: parent
-                    visible: (root.tab === "grid" ? coverImage : heroImage).status !== Image.Ready
-                    text: root.tab === "grid" ? "photo_library" : "panorama"
+                    visible: root.tab !== "grid" && heroImage.status !== Image.Ready
+                    text: "panorama"
                     iconSize: 40
                     color: Appearance.colors.colSubtext
                 }
@@ -292,15 +291,42 @@ LauncherTopPanel {
                     retainWhileLoading: true
                     sourceSize.width: 600
                 }
-                Image { // The cover, as in the library
-                    id: coverImage
-                    anchors.fill: parent
+                Row { // The cover as in the library: between the games beside it there, faded
+                    anchors.centerIn: parent
                     visible: root.tab === "grid"
-                    source: visible ? root.previewCover : ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    retainWhileLoading: true
-                    sourceSize.width: 400
+                    spacing: 12
+                    NeighbourCover { game: root.neighbours[0] ?? null }
+                    Item {
+                        width: 132; height: 198
+                        anchors.verticalCenter: parent.verticalCenter
+                        ClippingRectangle {
+                            anchors.fill: parent
+                            radius: Appearance.rounding.small
+                            color: Appearance.colors.colLayer2
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                visible: coverImage.status !== Image.Ready
+                                text: "photo_library"; iconSize: 32
+                                color: Appearance.colors.colSubtext
+                            }
+                            Image {
+                                id: coverImage
+                                anchors.fill: parent
+                                source: root.tab === "grid" ? root.previewCover : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                retainWhileLoading: true
+                                sourceSize.width: 264
+                            }
+                        }
+                        Rectangle {
+                            anchors { fill: parent; margins: -3 }
+                            radius: Appearance.rounding.small + 3
+                            color: "transparent"
+                            border.width: 2; border.color: Appearance.colors.colPrimary
+                        }
+                    }
+                    NeighbourCover { game: root.neighbours[1] ?? null }
                 }
                 Rectangle { // Whether this is the hovered one or the one in use
                     anchors { left: parent.left; top: parent.top; margins: 10 }
@@ -391,6 +417,38 @@ LauncherTopPanel {
                 caption: root.tab === "effect" ? Translation.tr("Back to Auto") : Translation.tr("Back to the game's own")
                 onClicked: root.reset()
             }
+        }
+    }
+    // The games beside this one in the library (as the grid shows it now), for the cover's preview
+    readonly property var neighbours: {
+        if (!game || tab !== "grid") return [];
+        const list = GameLauncherService.filteredGames.length > 2 ? GameLauncherService.filteredGames : GameLauncherService.games;
+        const i = list.findIndex(g => g.id === game.id);
+        const n = list.length;
+        if (n < 2) return [];
+        const at = i < 0 ? 0 : i;
+        return [list[(at - 1 + n) % n], list[(at + 1) % n]].filter(g => g.id !== game.id);
+    }
+    component NeighbourCover: ClippingRectangle {
+        id: neighbour
+        property var game
+        width: 108; height: 162
+        anchors.verticalCenter: parent.verticalCenter
+        radius: Appearance.rounding.small
+        color: Appearance.colors.colLayer2
+        opacity: 0.35
+        visible: !!game
+        Image {
+            anchors.fill: parent
+            source: {
+                if (!neighbour.game) return "";
+                const _ = GameLauncherService.customArtRevision;
+                const c = GameLauncherService.getCustomArt(neighbour.game.id);
+                return root._src(root._file(c.boxArt) || root._file(neighbour.game.boxArt));
+            }
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            sourceSize.width: 216
         }
     }
     // Where each part comes from, for its row ("Trying one" while one is hovered)
