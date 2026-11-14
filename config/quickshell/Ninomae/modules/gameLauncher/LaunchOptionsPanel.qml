@@ -13,8 +13,8 @@ import Quickshell.Io
  * On top, an art banner (ArtBanner, the game's logo) with how saving works, and close. Under it, rows of tiles
  * (on = accent): the tools, GameMode, MangoHud and gamescope, each switching its word in front of %command%,
  * with the settings of those on joined under them (MangoHud's layout, as MANGOHUD_CONFIG=preset=N; gamescope's
- * screen, refresh rate, mode, the picture (the whole screen, or 16:9 in the middle of an ultrawide), FSR upscaling
- * and any other flags). Then Proton's switches (Wayland, HDR, NTSYNC,
+ * screen, refresh rate and mode; the picture (the whole screen, or 16:9 in the middle of an ultrawide) and whether
+ * the mouse is locked to the game; FSR upscaling; any other flags). Then Proton's switches (Wayland, HDR, NTSYNC,
  * a variable each), with the Proton version and Updates (once it's installed: the mode lives in the game's
  * appmanifest) joined under them. The footer: the whole line as Steam has it, Undo and Save.
  * With the shell's Millennium plugin in Steam (themes/steam/ninomae-plugin) every change goes straight to
@@ -26,7 +26,7 @@ LauncherTopPanel {
     id: root
     required property var game
     panelWidth: 1160
-    panelHeight: 600
+    panelHeight: 640 // gamescope's settings and Proton's menus, without scrolling
     readonly property string appid: game?.id?.startsWith("steam_") ? game.id.substring(6) : ""
     readonly property string helper: Quickshell.shellPath("scripts/game-launcher/launch_options.py")
 
@@ -158,7 +158,7 @@ LauncherTopPanel {
         return g;
     }
     function setScope(change) {
-        const g = Object.assign(parseGamescope(parsed.gamescope), change);
+        const g = Object.assign({}, scope, change); // scope is parsed already (rest is only read)
         // The picture keeps its shape and FSR level as the output changes (a new picture brings its own size)
         if (change.W && change.w === undefined && (gameAspect || fsrLevel)) Object.assign(g, pictureSize(g.W, g.H, gameAspect, fsrLevel));
         const out = [];
@@ -201,20 +201,24 @@ LauncherTopPanel {
         return { w: Math.round((aspect === "16:9" ? H * wideAspect : W) * k), h: Math.round(H * k) };
     }
     function setPicture(aspect, level) {
-        const size = pictureSize(outW, outH, aspect, level);
-        const change = Object.assign({ W: outW, H: outH, filter: level === "" ? "" : "fsr" }, size);
+        const change = Object.assign({ filter: level === "" ? "" : "fsr" }, pictureSize(outW, outH, aspect, level));
+        if (change.w) { change.W = outW; change.H = outH; } // A picture needs the output's size written out
         if (aspect === "16:9") {
             change.scaler = "fit";
             if (scope.mode === "") change.mode = "fullscreen"; // The black sides need the whole screen
-        }
-        else if (scope.scaler === "fit") change.scaler = "";
-        if (aspect === "" && level === "") { change.W = scope.W; change.H = scope.H; } // Leaves the size as it was
+        } else if (scope.scaler === "fit") change.scaler = "";
         setScope(change);
     }
-    function setFsr(level) { setPicture(gameAspect, level); }
+    readonly property int narrowW: Math.round(outH * wideAspect)
     readonly property var aspectOptions: [
         { value: "", label: Translation.tr("Whole screen") },
-        { value: "16:9", label: Translation.tr("16:9 in the middle · %1 × %2").arg(Math.round(outH * wideAspect)).arg(outH) }
+        // A game keeps the resolution it saved, and draws that squeezed into the 16:9 picture
+        { value: "16:9", label: Translation.tr("16:9 · %1 × %2").arg(narrowW).arg(outH),
+          tip: Translation.tr("Set the game's own resolution to %1 × %2 too, or it draws squeezed").arg(narrowW).arg(outH) }
+    ]
+    readonly property var mouseOptions: [
+        { value: "grab", label: Translation.tr("Mouse locked"), tip: Translation.tr("Always the game's, so aiming doesn't catch") },
+        { value: "", label: Translation.tr("Mouse free"), tip: Translation.tr("gamescope switches it as the game hides and shows its cursor") }
     ]
     // The screens' sizes, and the one in use if it's another
     readonly property var sizeOptions: {
@@ -381,7 +385,7 @@ LauncherTopPanel {
         }
     }
 
-    // What a tile says while it's on: MangoHud's layout, gamescope's size, refresh and FSR
+    // What a tile says while it's on: MangoHud's layout; gamescope's size (the 16:9 picture's, when it's that), refresh and FSR
     readonly property var mangohudPresets: [
         { value: "", label: Translation.tr("Default") },
         { value: "1", label: Translation.tr("FPS only") },
@@ -393,9 +397,9 @@ LauncherTopPanel {
         : Translation.tr("%1 layout").arg(mangohudPresets.find(p => p.value === mangohudPreset)?.label ?? "")
     readonly property string scopeSetting: {
         const parts = [];
-        if (scope.W && scope.H) parts.push(`${scope.W} × ${scope.H}`);
+        if (gameAspect) parts.push(Translation.tr("%1 × %2 in the middle").arg(narrowW).arg(outH));
+        else if (scope.W && scope.H) parts.push(`${scope.W} × ${scope.H}`);
         if (scope.r) parts.push(`${scope.r} Hz`);
-        if (gameAspect) parts.push(Translation.tr("16:9 in the middle"));
         if (fsrLevel) parts.push("FSR " + (fsrLevels.find(l => l.value === fsrLevel)?.label ?? ""));
         return parts.length ? parts.join("  ·  ") : Translation.tr("At the game's own size");
     }
@@ -468,7 +472,7 @@ LauncherTopPanel {
                     }
                     SettingRow {
                         visible: root.toolsOn.gamescope
-                        label: "gamescope"
+                        label: Translation.tr("Screen")
                         StyledComboBox {
                             Layout.fillWidth: true; Layout.preferredWidth: 4; minimumWidth: 0
                             options: root.sizeOptions
@@ -490,35 +494,23 @@ LauncherTopPanel {
                             onSelected: v => root.setScope({ mode: v })
                         }
                     }
-                    SettingRow { // Only on a screen wider than 16:9
-                        visible: root.toolsOn.gamescope && root.canNarrow
-                        label: Translation.tr("Picture")
+                    SettingRow { // The picture's shape (only on a screen wider than 16:9) and the mouse
+                        visible: root.toolsOn.gamescope
+                        label: root.canNarrow ? Translation.tr("Picture") : Translation.tr("Mouse")
                         Segmented {
-                            Layout.fillWidth: true
+                            visible: root.canNarrow
+                            Layout.fillWidth: true; Layout.horizontalStretchFactor: 1 // Halves with the mouse's
                             value: root.gameAspect
                             options: root.aspectOptions
                             onPicked: v => root.setPicture(v, root.fsrLevel)
                         }
-                    }
-                    StyledText { // A game keeps the resolution it saved, and draws that squeezed into the 16:9 picture
-                        visible: root.toolsOn.gamescope && root.gameAspect !== ""
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 122 // Under the row's controls, past its label
-                        wrapMode: Text.Wrap
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtext
-                        text: Translation.tr("If it looks squeezed, set the game's own resolution to %1 × %2 in its video settings (it remembers the screen's)")
-                            .arg(Math.round(root.outH * root.wideAspect)).arg(root.outH)
-                    }
-                    SettingRow {
                         // gamescope flips the mouse between the desktop's pointer and the game's own movement as the
-                        // game hides and shows its cursor: inside Hyprland that made aiming catch. Locked, it's always the game's
-                        visible: root.toolsOn.gamescope
-                        label: Translation.tr("Mouse")
+                        // game hides and shows its cursor: inside Hyprland that made aiming catch. Locked, it's the game's
                         Segmented {
-                            Layout.fillWidth: true
+                            Layout.fillWidth: true; Layout.horizontalStretchFactor: 1
+                            Layout.leftMargin: root.canNarrow ? 6 : 0
                             value: root.scope.grab ? "grab" : ""
-                            options: [{ value: "grab", label: Translation.tr("Locked to the game") }, { value: "", label: Translation.tr("Follows the cursor") }]
+                            options: root.mouseOptions
                             onPicked: v => root.setScope({ grab: v === "grab" })
                         }
                     }
@@ -529,7 +521,7 @@ LauncherTopPanel {
                             Layout.fillWidth: true
                             value: root.fsrLevel
                             options: root.fsrLevels
-                            onPicked: v => root.setFsr(v)
+                            onPicked: v => root.setPicture(root.gameAspect, v)
                         }
                     }
                     SettingRow {
@@ -828,6 +820,10 @@ LauncherTopPanel {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: seg.picked(segItem.modelData.value)
+                    }
+                    StyledToolTip { // An option's tip, if it has one
+                        extraVisibleCondition: segMa.containsMouse && !!segItem.modelData.tip
+                        text: segItem.modelData.tip ?? ""
                     }
                 }
             }
