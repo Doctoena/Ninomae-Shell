@@ -68,6 +68,16 @@ latest_millennium() {
     [[ $tag == v* ]] && echo "$tag"
 }
 remember_millennium() { mkdir -p "$(dirname "$MILLENNIUM_VERSION")" && printf '%s\n' "$1" >"$MILLENNIUM_VERSION"; }
+# Millennium's helper programs. Its release archive has them as plain files (its installer makes them
+# executable after copying); left like that, Steam starts but never opens a window
+millennium_helpers_broken() {
+    local f; for f in /usr/lib/millennium/libmillennium_{pvs64,luavm_*}; do [[ -f $f && ! -x $f ]] && echo "$f"; done
+}
+fix_millennium_helpers() {
+    local broken; mapfile -t broken < <(millennium_helpers_broken)
+    (( ${#broken[@]} )) || return 0
+    sudo chmod 755 "${broken[@]}" && ok "Millennium's helper programs made executable again"
+}
 # The links Steam loads Millennium through (what its installer's post-install step makes)
 link_millennium() {
     local steam="$HOME/.steam/steam"
@@ -106,6 +116,8 @@ fi
 # Exit 0 = already the latest, 10 = updated (Steam loads it when it next starts), 3 = Steam is open, 1 = failed
 if [[ ${1:-} == --update-millennium ]]; then
     [[ -d /usr/lib/millennium ]] || { warn "Millennium isn't installed"; exit 1; }
+    # Repairs an install from before this was done (Steam then hangs at start), whether or not it's the latest
+    fix_millennium_helpers || { warn "Couldn't make Millennium's helper programs executable"; exit 1; }
     tag="$(latest_millennium)" || { warn "Couldn't look up Millennium's latest release"; exit 1; }
     installed="$(cat "$MILLENNIUM_VERSION" 2>/dev/null || true)"
     if [[ $installed == "$tag" ]]; then ok "Millennium $tag is the latest"; exit 0; fi
@@ -114,26 +126,30 @@ if [[ ${1:-} == --update-millennium ]]; then
     may_close=0; [[ ${2:-} == --close-steam ]] && may_close=1
     steam_open_msg="Millennium $tag is out (installed: ${installed:-older}), but Steam is open"
     [[ -n $installed ]] && (( ! may_close )) && pgrep -x steam >/dev/null && { warn "$steam_open_msg"; exit 3; }
-    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+    # The download is kept until it's put in: a first check while Steam is open, then the run that closes
+    # it, download it once. Its checksum is fetched and checked again each time
+    cache="${XDG_CACHE_HOME:-$HOME/.cache}/ninomae-millennium"
     name="millennium-$tag-linux-x86_64"
     url="https://github.com/SteamClientHomebrew/Millennium/releases/download/$tag/$name"
-    curl -fsSL -o "$tmp/$name.tar.gz" "$url.tar.gz" && curl -fsSL -o "$tmp/$name.sha256" "$url.sha256" \
-        || { warn "Couldn't download Millennium $tag"; exit 1; }
-    (cd "$tmp" && sha256sum -c --status "$name.sha256") || { warn "Millennium $tag's download didn't match its checksum"; exit 1; }
-    tar xzf "$tmp/$name.tar.gz" -C "$tmp" ./usr/lib/millennium || { warn "Millennium $tag's download isn't laid out as expected"; exit 1; }
+    mkdir -p "$cache" && find "$cache" -maxdepth 1 -type f ! -name "$name.*" -delete # Older releases
+    curl -fsSL -o "$cache/$name.sha256" "$url.sha256" || { warn "Couldn't download Millennium $tag"; exit 1; }
+    if ! (cd "$cache" && sha256sum -c --status "$name.sha256" 2>/dev/null); then
+        curl -fsSL -o "$cache/$name.tar.gz" "$url.tar.gz" || { warn "Couldn't download Millennium $tag"; exit 1; }
+        (cd "$cache" && sha256sum -c --status "$name.sha256") \
+            || { rm -f "$cache/$name.tar.gz"; warn "Millennium $tag's download didn't match its checksum"; exit 1; }
+    fi
+    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+    tar xzf "$cache/$name.tar.gz" -C "$tmp" ./usr/lib/millennium || { warn "Millennium $tag's download isn't laid out as expected"; exit 1; }
     new="$tmp/usr/lib/millennium"
     if diff -rq "$new" /usr/lib/millennium >/dev/null 2>&1; then
-        remember_millennium "$tag"; ok "Millennium $tag is the latest"; exit 0
+        remember_millennium "$tag"; rm -rf "$cache"; ok "Millennium $tag is the latest"; exit 0
     fi
     if (( may_close )); then close_steam || { warn "Steam didn't close, so Millennium $tag wasn't put in"; exit 1; }
     elif pgrep -x steam >/dev/null; then warn "$steam_open_msg"; exit 3; fi
-    # Only Millennium's own folder is copied in (its installer copies the whole archive over /). The archive
-    # has its helper programs as plain files, so they're made executable after, as its installer does:
-    # without that Steam starts but never opens a window
-    helpers=(); for f in "$new"/libmillennium_{pvs64,luavm_*}; do [[ -f $f ]] && helpers+=("/usr/lib/millennium/${f##*/}"); done
-    sudo cp -r "$new" /usr/lib/ && sudo chmod 755 "${helpers[@]}" || { warn "Couldn't install Millennium $tag"; exit 1; }
+    # Only Millennium's own folder is copied in (its installer copies the whole archive over /)
+    sudo cp -r "$new" /usr/lib/ && fix_millennium_helpers || { warn "Couldn't install Millennium $tag"; exit 1; }
     link_millennium
-    remember_millennium "$tag"; ok "Millennium updated to $tag"; exit 10
+    remember_millennium "$tag"; rm -rf "$cache"; ok "Millennium updated to $tag"; exit 10
 fi
 
 # Steam unpacks its client (ubuntu12_32/64) on first launch; Millennium hooks into those folders

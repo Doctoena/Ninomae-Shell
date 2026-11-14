@@ -684,13 +684,14 @@ update_steam_plugin() {
         # Detached, and without the installer's lock (fd 8), or the next run would say it's still running
         setsid -f steam >/dev/null 2>&1 </dev/null 8>&- && ok "Steam opened again"
     fi
+    (( status == 10 && ! reopen_steam )) && pgrep -x steam >/dev/null \
+        && needs_you "Steam: restart it (Exit Steam, then start it) to load the updated notifications plugin"
     local mil=""; (( millennium == 10 )) && mil="Millennium updated · "
     case $status in
-        skip) [[ -n $mil ]] && result done "${mil}notifications plugin not installed" || result skip "Notifications plugin not installed" ;;
+        skip) if [[ -n $mil ]]; then result done "${mil}notifications plugin not installed"
+              else result skip "Notifications plugin not installed"; fi ;;
         0) result done "${mil}notifications plugin already the latest" ;;
-        10) result done "${mil}notifications plugin updated"
-            (( ! reopen_steam )) && pgrep -x steam >/dev/null \
-                && needs_you "Steam: restart it (Exit Steam, then start it) to load the updated notifications plugin" ;;
+        10) result done "${mil}notifications plugin updated" ;;
         *) result fail "${mil}notifications plugin download failed; see the log" ;;
     esac
 }
@@ -774,7 +775,11 @@ check_steam() { # Millennium's theme, the notifications plugin and the Ninomae p
         info "Without Millennium the launcher can't pause or resume Steam's downloads, or save launch options"
         result skip "Not themed, run themes/steam/install-theme.sh"; return
     fi
-    local missing=()
+    local missing=() f
+    # Not executable (an update from before that was fixed left them so): Steam starts but never opens a window
+    for f in /usr/lib/millennium/libmillennium_{pvs64,luavm_*}; do
+        [[ -f $f && ! -x $f ]] && { warn "Millennium's ${f##*/} isn't executable, so Steam won't open"; missing+=(millennium); break; }
+    done
     if [[ -f $STEAM_THEME/skin.json ]]; then ok "Material theme"; else warn "Material theme missing"; missing+=(theme); fi
     if [[ -f $STEAM_PLUGIN ]] && millennium_enabled "$STEAM_PLUGIN_ID"; then ok "Notifications plugin"
     else warn "Notifications plugin missing or off (Steam keeps its own pop-ups)"; missing+=(notifications); fi
@@ -786,6 +791,7 @@ check_steam() { # Millennium's theme, the notifications plugin and the Ninomae p
         *) warn "Ninomae plugin isn't on"; missing+=(ninomae) ;;
     esac
     if (( ! ${#missing[@]} )); then result done "Theme, notifications and Ninomae plugins"
+    elif [[ " ${missing[*]} " == *" millennium "* ]]; then result todo "Run ninomae update to repair Millennium"
     elif [[ ${missing[*]} == restart ]]; then result todo "Restart Steam to load the Ninomae plugin"
     elif [[ ${missing[*]} == ninomae ]]; then result todo "Close Steam and run ninomae update"
     else result todo "Close Steam and run themes/steam/install-theme.sh"; fi
