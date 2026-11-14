@@ -294,13 +294,14 @@ Item {
         }
     }
         Item { // Favourite: a bookmark hanging from the tile's top edge, its shoulders curving into it. At rest in
-            // the grid's own colour, as if the edge folds down; on hover in the accent, reaching up into the ring
+            // the grid's own colour, as if the edge folds down; on hover in the accent, reaching up into the ring.
+            // Not a favourite: the same plain bookmark on hover, an outline star to click
             id: favButton
             anchors { top: cardBackground.top; topMargin: -reach; right: cardBackground.right; rightMargin: 12 }
             z: 10
             readonly property real shoulder: 6
             readonly property real ribbonW: 24
-            readonly property real reach: 4 * focusRing.opacity // Up to the ring's outer edge, as the ring comes in
+            readonly property real reach: isFav ? 4 * focusRing.opacity : 0 // A favourite's: up into the ring as it comes in
             readonly property real ribbonH: 36 + reach
             readonly property real notch: 7
             width: ribbonW + 2 * shoulder; height: ribbonH
@@ -313,10 +314,7 @@ Item {
             }
             opacity: (isFav || root.showHoverEffect) ? 1.0 : 0.0; visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-            RibbonShape { // At rest: the grid's colour (a favourite) or a see-through one to click
-                fill: favButton.isFav ? Appearance.colors.colLayer1
-                    : ColorUtils.transparentize(Appearance.colors.colLayer0, favButton.hovered ? 0.15 : 0.35)
-            }
+            RibbonShape { fill: Appearance.colors.colLayer1 } // The grid's colour: a favourite at rest, or one to click on hover
             Connections {
                 target: root
                 function onShowHoverEffectChanged() { if (!root.showHoverEffect) favButton.leaveFrom = Math.max(0.01, focusRing.opacity); }
@@ -346,7 +344,8 @@ Item {
                 text: "star"
                 fill: favButton.isFav ? 1 : 0
                 iconSize: 15
-                color: favButton.isFav ? Appearance.colors.colPrimary : Appearance.colors.colOnSurface
+                color: favButton.isFav || favButton.hovered ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on fill { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                 transform: Scale {
                     id: starScale
