@@ -10,8 +10,9 @@ import Quickshell.Widgets
 /**
  * A game's look, in a panel growing up out of the launcher (LauncherTopPanel): its background, cover and
  * logo (from SteamGridDB, or a file) and the particle effect over its page.
- * On the left, a preview of the part as the page shows it (the cover between its neighbours in the library), and the four parts as joined
- * rows, which pick what the right side shows. Hover a result or an effect to try it there; a click
+ * On the left, a preview of the part as the page shows it (the cover between its neighbours in the library),
+ * and the four parts as joined rows, which pick what the right side shows. Hover a result or an effect to try
+ * it there; a click
  * applies it and the panel stays open, so the page below shows it too. Each art tab's results are fetched
  * once per opening, a page at a time (Load more), for the game or a name searched instead. The effect's
  * amount and strength are per game too. Keys: ←/→ switch tabs, ↑/↓ scroll, Esc closes.
@@ -63,6 +64,7 @@ LauncherTopPanel {
     // ── Hovered for the preview: a result's thumbnail, or an effect ──
     property string hoverArt: ""
     property string hoverEffect: ""
+    readonly property bool trying: hoverArt !== "" || hoverEffect !== "" // Hovering one: the preview shows it
     readonly property string shownEffect: hoverEffect || effectNow
     function _src(p) { return !p ? "" : p.startsWith("/") ? "file://" + p : p; }
     readonly property string previewHero: _src(tab === "hero" && hoverArt ? hoverArt : heroNow)
@@ -239,141 +241,133 @@ LauncherTopPanel {
         width: 420
         spacing: 10
 
-        Item { // The card keeps its height across tabs; a cover sits in the middle of it
-            id: previewBox
+        ClippingRectangle { // The preview: the same card on every tab, its contents moving between them
+            id: preview
             Layout.fillWidth: true
             Layout.preferredHeight: 224
-            readonly property bool trying: root.hoverArt !== "" || root.hoverEffect !== ""
-            ClippingRectangle {
-                id: preview
-                anchors.centerIn: parent
-                width: parent.width
-                height: parent.height
-                radius: Appearance.rounding.normal
-                color: Appearance.colors.colLayer1
+            radius: Appearance.rounding.normal
+            color: Appearance.colors.colLayer1
 
-                MaterialSymbol { // Nothing to show
-                    anchors.centerIn: parent
-                    visible: root.tab !== "grid" && heroImage.status !== Image.Ready
-                    text: "panorama"
-                    iconSize: 40
-                    color: Appearance.colors.colSubtext
+            MaterialSymbol { // Nothing to show
+                anchors.centerIn: parent
+                visible: root.tab !== "grid" && heroImage.status !== Image.Ready
+                text: "panorama"
+                iconSize: 40
+                color: Appearance.colors.colSubtext
+            }
+            Image { // The background, as behind the page: it eases back and out for the cover, dims under the logo
+                id: heroImage
+                anchors.fill: parent
+                source: root.previewHero
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                retainWhileLoading: true
+                sourceSize.width: 800
+                opacity: root.tab === "grid" ? 0 : 1
+                scale: root.tab === "grid" ? 1.08 : 1
+                Behavior on opacity { PreviewAnim {} }
+                Behavior on scale { PreviewAnim {} }
+            }
+            Rectangle { // Dims the background while the logo is the part being changed
+                anchors.fill: parent
+                color: "black"
+                opacity: root.tab === "logo" ? 0.35 : 0
+                Behavior on opacity { PreviewAnim {} }
+            }
+            Loader { // The effect, live: the hovered one, else the one in use; fades in and out with its tab
+                anchors.fill: parent
+                active: (root.tab === "effect" || opacity > 0) && root.shownEffect !== "none" && root.shown
+                opacity: root.tab === "effect" ? 1 : 0
+                Behavior on opacity { PreviewAnim {} }
+                sourceComponent: GameParticles {
+                    // No game id: it would use the saved choice instead of the one shown here
+                    gameName: root.game?.name ?? ""
+                    forcePreset: root.shownEffect === "auto" ? "" : root.shownEffect
+                    imageSource: root.previewHero
+                    densityScale: root.density
+                    opacityScale: root.effectOpacity
                 }
-                Image { // The background, as behind the page: it eases back and out for the cover, dims under the logo
-                    id: heroImage
-                    anchors.fill: parent
-                    source: root.previewHero
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    retainWhileLoading: true
-                    sourceSize.width: 800
-                    opacity: root.tab === "grid" ? 0 : 1
-                    scale: root.tab === "grid" ? 1.08 : 1
-                    Behavior on opacity { PreviewAnim {} }
-                    Behavior on scale { PreviewAnim {} }
+            }
+            Image { // The logo over it, as on the page: a little bigger while it's the part being changed
+                anchors.centerIn: parent
+                width: parent.width * 0.7; height: parent.height * 0.45
+                visible: root.previewLogo !== "" && opacity > 0
+                source: root.previewLogo
+                opacity: root.tab === "grid" ? 0 : 1
+                scale: root.tab === "logo" ? 1.1 : root.tab === "grid" ? 0.85 : 1
+                Behavior on opacity { PreviewAnim {} }
+                Behavior on scale { PreviewAnim {} }
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                retainWhileLoading: true
+                sourceSize.width: 600
+            }
+            Row { // The cover as in the library: between the games beside it there, faded. It rises into place,
+                // the neighbours sliding out from behind it
+                id: coverRow
+                anchors.centerIn: parent
+                property real away: root.tab === "grid" ? 0 : 1 // 0 in place, 1 tucked away
+                Behavior on away { PreviewAnim {} }
+                visible: away < 1
+                opacity: 1 - away
+                spacing: 12
+                NeighbourCover {
+                    game: root.neighbours[0] ?? null
+                    transform: Translate { x: (108 + 12) * 0.6 * coverRow.away }
                 }
-                Rectangle { // Dims the background while the logo is the part being changed
-                    anchors.fill: parent
-                    color: "black"
-                    opacity: root.tab === "logo" ? 0.35 : 0
-                    Behavior on opacity { PreviewAnim {} }
-                }
-                Loader { // The effect, live: the hovered one, else the one in use; fades in and out with its tab
-                    anchors.fill: parent
-                    active: (root.tab === "effect" || opacity > 0) && root.shownEffect !== "none" && root.shown
-                    opacity: root.tab === "effect" ? 1 : 0
-                    Behavior on opacity { PreviewAnim {} }
-                    sourceComponent: GameParticles {
-                        // No game id: it would use the saved choice instead of the one shown here
-                        gameName: root.game?.name ?? ""
-                        forcePreset: root.shownEffect === "auto" ? "" : root.shownEffect
-                        imageSource: root.previewHero
-                        densityScale: root.density
-                        opacityScale: root.effectOpacity
-                    }
-                }
-                Image { // The logo over it, as on the page: a little bigger while it's the part being changed
-                    anchors.centerIn: parent
-                    width: parent.width * 0.7; height: parent.height * 0.45
-                    visible: root.previewLogo !== "" && opacity > 0
-                    source: root.previewLogo
-                    opacity: root.tab === "grid" ? 0 : 1
-                    scale: root.tab === "logo" ? 1.1 : root.tab === "grid" ? 0.85 : 1
-                    Behavior on opacity { PreviewAnim {} }
-                    Behavior on scale { PreviewAnim {} }
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    retainWhileLoading: true
-                    sourceSize.width: 600
-                }
-                Row { // The cover as in the library: between the games beside it there, faded. It rises into place,
-                    // the neighbours sliding out from behind it
-                    id: coverRow
-                    anchors.centerIn: parent
-                    property real away: root.tab === "grid" ? 0 : 1 // 0 in place, 1 tucked away
-                    Behavior on away { PreviewAnim {} }
-                    visible: away < 1
-                    opacity: 1 - away
-                    spacing: 12
-                    NeighbourCover {
-                        game: root.neighbours[0] ?? null
-                        transform: Translate { x: (108 + 12) * 0.6 * coverRow.away }
-                    }
-                    Item {
-                        width: 132; height: 198
-                        anchors.verticalCenter: parent.verticalCenter
-                        z: 1
-                        transform: [Translate { y: 18 * coverRow.away }, Scale { origin.x: 66; origin.y: 99; xScale: 1 - 0.08 * coverRow.away; yScale: xScale }]
-                        ClippingRectangle {
+                Item {
+                    width: 132; height: 198
+                    anchors.verticalCenter: parent.verticalCenter
+                    z: 1
+                    transform: [Translate { y: 18 * coverRow.away }, Scale { origin.x: 66; origin.y: 99; xScale: 1 - 0.08 * coverRow.away; yScale: xScale }]
+                    ClippingRectangle {
+                        anchors.fill: parent
+                        radius: Appearance.rounding.small
+                        color: Appearance.colors.colLayer2
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            visible: coverImage.status !== Image.Ready
+                            text: "photo_library"; iconSize: 32
+                            color: Appearance.colors.colSubtext
+                        }
+                        Image {
+                            id: coverImage
                             anchors.fill: parent
-                            radius: Appearance.rounding.small
-                            color: Appearance.colors.colLayer2
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                visible: coverImage.status !== Image.Ready
-                                text: "photo_library"; iconSize: 32
-                                color: Appearance.colors.colSubtext
-                            }
-                            Image {
-                                id: coverImage
-                                anchors.fill: parent
-                                source: root.tab === "grid" ? root.previewCover : ""
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                retainWhileLoading: true
-                                sourceSize.width: 264
-                            }
-                        }
-                        Rectangle {
-                            anchors { fill: parent; margins: -3 }
-                            radius: Appearance.rounding.small + 3
-                            color: "transparent"
-                            border.width: 2; border.color: Appearance.colors.colPrimary
+                            source: root.tab === "grid" ? root.previewCover : ""
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            retainWhileLoading: true
+                            sourceSize.width: 264
                         }
                     }
-                    NeighbourCover {
-                        game: root.neighbours[1] ?? null
-                        transform: Translate { x: -(108 + 12) * 0.6 * coverRow.away }
+                    Rectangle {
+                        anchors { fill: parent; margins: -3 }
+                        radius: Appearance.rounding.small + 3
+                        color: "transparent"
+                        border.width: 2; border.color: Appearance.colors.colPrimary
                     }
                 }
-                Rectangle { // Whether this is the hovered one or the one in use
-                    anchors { left: parent.left; top: parent.top; margins: 10 }
-                    readonly property bool hovering: previewBox.trying
-                    width: previewLabel.implicitWidth + 16; height: 24
-                    radius: Appearance.rounding.chip
-                    color: hovering ? Appearance.colors.colPrimary : Qt.rgba(0, 0, 0, 0.55)
-                    StyledText {
-                        id: previewLabel
-                        anchors.centerIn: parent
-                        text: parent.hovering ? Translation.tr("Preview") : Translation.tr("In use")
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Medium
-                        color: parent.hovering ? Appearance.colors.colOnPrimary : "white"
-                    }
+                NeighbourCover {
+                    game: root.neighbours[1] ?? null
+                    transform: Translate { x: -(108 + 12) * 0.6 * coverRow.away }
+                }
+            }
+            Rectangle { // Whether this is the hovered one or the one in use
+                anchors { left: parent.left; top: parent.top; margins: 10 }
+                readonly property bool hovering: root.trying
+                width: previewLabel.implicitWidth + 16; height: 24
+                radius: Appearance.rounding.chip
+                color: hovering ? Appearance.colors.colPrimary : Qt.rgba(0, 0, 0, 0.55)
+                StyledText {
+                    id: previewLabel
+                    anchors.centerIn: parent
+                    text: parent.hovering ? Translation.tr("Preview") : Translation.tr("In use")
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Medium
+                    color: parent.hovering ? Appearance.colors.colOnPrimary : "white"
                 }
             }
         }
-
 
         // The four parts, joined: the one being changed tinted, each saying where it comes from
         ColumnLayout {
@@ -420,7 +414,7 @@ LauncherTopPanel {
                             elide: Text.ElideRight
                             text: root.partSource(partRow.modelData.key)
                             font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: partRow.active && previewBox.trying ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                            color: partRow.active && root.trying ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                         }
                     }
                 }
@@ -487,7 +481,7 @@ LauncherTopPanel {
     }
     // Where each part comes from, for its row ("Trying one" while one is hovered)
     function partSource(key) {
-        if (key === tab && (hoverArt !== "" || hoverEffect !== "")) return Translation.tr("Trying one");
+        if (key === tab && trying) return Translation.tr("Trying one");
         if (key === "effect") return effectNow === "auto" ? Translation.tr("Auto · from the art") : effectLabel(effectNow);
         const c = key === "hero" ? custom.heroArt : key === "grid" ? custom.boxArt : custom.logo;
         return _file(c) !== "" ? Translation.tr("Custom") : Translation.tr("The game's own");

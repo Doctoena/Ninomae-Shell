@@ -1143,6 +1143,55 @@ Item {
         ctx.stroke();
     }
 
+    // Close pairs of particles, through a spatial grid (each neighbouring pair once, at most 100): draw(p1, p2, alpha)
+    // for each. Remembers the clearer links, which the data packets travel along
+    function _connect(width, height, draw) {
+        const cfg = root._cfg, cnt = root._count;
+        const px = root._px, py = root._py, al = root._al;
+        const cD = cfg.connDist || 120, cDSq = cD * cD;
+        const cols = Math.ceil(width / cD) + 1, rows = Math.ceil(height / cD) + 1, need = cols * rows;
+        if (!root._connGrid || root._connGrid.length < need) {
+            root._connGrid = new Array(need);
+            for (let gi = 0; gi < need; gi++) root._connGrid[gi] = [];
+        }
+        const grid = root._connGrid;
+        for (let gi = 0; gi < need; gi++) grid[gi].length = 0;
+        for (let i = 0; i < cnt; i++) {
+            if (al[i] < 0.05) continue;
+            const gc = Math.floor(px[i] / cD), gr = Math.floor(py[i] / cD);
+            if (gc >= 0 && gc < cols && gr >= 0 && gr < rows) grid[gr * cols + gc].push(i);
+        }
+        const links = [];
+        let drawn = 0;
+        for (let cy = 0; cy < rows && drawn < 100; cy++) {
+            for (let cx = 0; cx < cols && drawn < 100; cx++) {
+                const cell = grid[cy * cols + cx];
+                if (cell.length === 0) continue;
+                for (let ni = 0; ni < 5 && drawn < 100; ni++) {
+                    // Self, right, down, down-right, down-left: every neighbouring pair once
+                    let nx = cx, ny = cy;
+                    if (ni === 1) nx++; else if (ni === 2) ny++; else if (ni === 3) { nx++; ny++; } else if (ni === 4) { nx--; ny++; }
+                    if (nx < 0 || nx >= cols || ny >= rows) continue;
+                    const nb = ni === 0 ? cell : grid[ny * cols + nx];
+                    for (let ai = 0; ai < cell.length && drawn < 100; ai++) {
+                        const p1 = cell[ai];
+                        for (let bi = ni === 0 ? ai + 1 : 0; bi < nb.length && drawn < 100; bi++) {
+                            const p2 = nb[bi];
+                            const dx = px[p1] - px[p2], dy = py[p1] - py[p2], dSq = dx*dx + dy*dy;
+                            if (dSq >= cDSq) continue;
+                            const a = (1 - Math.sqrt(dSq) / cD) * Math.min(al[p1], al[p2]) * 0.75;
+                            if (a < 0.01) continue;
+                            draw(p1, p2, a);
+                            if (a > 0.08) links.push(px[p1], py[p1], px[p2], py[p2]);
+                            drawn++;
+                        }
+                    }
+                }
+            }
+        }
+        root._links = links;
+    }
+
     // ═════════════════════════════════════════════════════════
     //  GPU — the same drawing as the Canvases below, as primitives for Ninomae.Particles (ParticleGpuLayers.qml)
     // ═════════════════════════════════════════════════════════
@@ -1317,50 +1366,8 @@ Item {
                        { r: tr.c.r, g: tr.c.g, b: tr.c.b, a: 0 });
         }
 
-        // Connections (spatial grid); remembers the links for data packets
-        if (cfg.connections) {
-            const cD = cfg.connDist || 120, cDSq = cD * cD;
-            const cols = Math.ceil(width / cD) + 1, rows = Math.ceil(height / cD) + 1, need = cols * rows;
-            if (!root._connGrid || root._connGrid.length < need) {
-                root._connGrid = new Array(need);
-                for (let gi = 0; gi < need; gi++) root._connGrid[gi] = [];
-            }
-            const grid = root._connGrid;
-            for (let gi = 0; gi < need; gi++) grid[gi].length = 0;
-            for (let i = 0; i < cnt; i++) {
-                if (al[i] < 0.05) continue;
-                const gc = Math.floor(px[i] / cD), gr = Math.floor(py[i] / cD);
-                if (gc >= 0 && gc < cols && gr >= 0 && gr < rows) grid[gr * cols + gc].push(i);
-            }
-            const links = [];
-            let drawn = 0;
-            for (let cy = 0; cy < rows && drawn < 100; cy++) {
-                for (let cx = 0; cx < cols && drawn < 100; cx++) {
-                    const cell = grid[cy * cols + cx];
-                    if (cell.length === 0) continue;
-                    for (let ni = 0; ni < 5 && drawn < 100; ni++) {
-                        let nx = cx, ny = cy;
-                        if (ni === 1) nx++; else if (ni === 2) ny++; else if (ni === 3) { nx++; ny++; } else if (ni === 4) { nx--; ny++; }
-                        if (nx < 0 || nx >= cols || ny >= rows) continue;
-                        const nb = ni === 0 ? cell : grid[ny * cols + nx];
-                        for (let ai = 0; ai < cell.length && drawn < 100; ai++) {
-                            const p1 = cell[ai];
-                            for (let bi = ni === 0 ? ai + 1 : 0; bi < nb.length && drawn < 100; bi++) {
-                                const p2 = nb[bi];
-                                const dx = px[p1] - px[p2], dy = py[p1] - py[p2], dSq = dx*dx + dy*dy;
-                                if (dSq >= cDSq) continue;
-                                const a = (1 - Math.sqrt(dSq) / cD) * Math.min(al[p1], al[p2]) * 0.75;
-                                if (a < 0.01) continue;
-                                E.line(base, px[p1], py[p1], px[p2], py[p2], 1, cr[p1], cg[p1], cb[p1], a);
-                                if (a > 0.08) links.push(px[p1], py[p1], px[p2], py[p2]);
-                                drawn++;
-                            }
-                        }
-                    }
-                }
-            }
-            root._links = links;
-        }
+        // Connections between close particles
+        if (cfg.connections) root._connect(width, height, (p1, p2, a) => E.line(base, px[p1], py[p1], px[p2], py[p2], 1, cr[p1], cg[p1], cb[p1], a));
 
         // Data packets
         const pk = root._packets;
@@ -1600,53 +1607,14 @@ Item {
                 ctx.globalCompositeOperation = baseOp;
             }
 
-            // ── Connections (spatial grid); remembers the links for data packets ──
+            // ── Connections between close particles ──
             if (cfg.connections) {
-                const cD = cfg.connDist || 120, cDSq = cD * cD;
                 ctx.lineWidth = 1;
-                const cols = Math.ceil(width / cD) + 1, rows = Math.ceil(height / cD) + 1, need = cols * rows;
-                if (!root._connGrid || root._connGrid.length < need) {
-                    root._connGrid = new Array(need);
-                    for (let gi = 0; gi < need; gi++) root._connGrid[gi] = [];
-                }
-                const grid = root._connGrid;
-                for (let gi = 0; gi < need; gi++) grid[gi].length = 0;
-                for (let i = 0; i < cnt; i++) {
-                    if (al[i] < 0.05) continue;
-                    const gc = Math.floor(px[i] / cD), gr = Math.floor(py[i] / cD);
-                    if (gc >= 0 && gc < cols && gr >= 0 && gr < rows) grid[gr * cols + gc].push(i);
-                }
-                const links = [];
-                let drawn = 0;
-                for (let cy = 0; cy < rows && drawn < 100; cy++) {
-                    for (let cx = 0; cx < cols && drawn < 100; cx++) {
-                        const cell = grid[cy * cols + cx];
-                        if (cell.length === 0) continue;
-                        for (let ni = 0; ni < 5 && drawn < 100; ni++) {
-                            // Self, right, down, down-right, down-left: every neighbouring pair once
-                            let nx = cx, ny = cy;
-                            if (ni === 1) nx++; else if (ni === 2) ny++; else if (ni === 3) { nx++; ny++; } else if (ni === 4) { nx--; ny++; }
-                            if (nx < 0 || nx >= cols || ny >= rows) continue;
-                            const nb = ni === 0 ? cell : grid[ny * cols + nx];
-                            for (let ai = 0; ai < cell.length && drawn < 100; ai++) {
-                                const p1 = cell[ai];
-                                for (let bi = ni === 0 ? ai + 1 : 0; bi < nb.length && drawn < 100; bi++) {
-                                    const p2 = nb[bi];
-                                    const dx = px[p1] - px[p2], dy = py[p1] - py[p2], dSq = dx*dx + dy*dy;
-                                    if (dSq >= cDSq) continue;
-                                    const a = (1 - Math.sqrt(dSq) / cD) * Math.min(al[p1], al[p2]) * 0.75;
-                                    if (a < 0.01) continue;
-                                    ctx.globalAlpha = a;
-                                    ctx.strokeStyle = "rgb(" + cr[p1] + "," + cg[p1] + "," + cb[p1] + ")";
-                                    ctx.beginPath(); ctx.moveTo(px[p1], py[p1]); ctx.lineTo(px[p2], py[p2]); ctx.stroke();
-                                    if (a > 0.08) links.push(px[p1], py[p1], px[p2], py[p2]);
-                                    drawn++;
-                                }
-                            }
-                        }
-                    }
-                }
-                root._links = links;
+                root._connect(width, height, (p1, p2, a) => {
+                    ctx.globalAlpha = a;
+                    ctx.strokeStyle = "rgb(" + cr[p1] + "," + cg[p1] + "," + cb[p1] + ")";
+                    ctx.beginPath(); ctx.moveTo(px[p1], py[p1]); ctx.lineTo(px[p2], py[p2]); ctx.stroke();
+                });
             }
 
             // ── Data packets ─────────────────────────────
