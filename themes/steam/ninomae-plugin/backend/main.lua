@@ -50,11 +50,45 @@ local function quote(s) -- A Lua string as a JSON string
     end) .. '"'
 end
 
+-- Steam's notifications (the me.tysmith.steam-native-notifications plugin) go out through notify-send and
+-- gdbus, which Steam's runtime container doesn't have. Its helper script is written again each time Steam
+-- starts: put this plugin's host-tools (the system's own, run from /run/host) on its PATH. Checked every few
+-- seconds, as that plugin may write it after this one loads
+local function exists(path) local f = io.open(path, "r"); if f then f:close() end; return f ~= nil end
+local data_home = os.getenv("XDG_DATA_HOME")
+data_home = data_home and data_home ~= "" and data_home or (home and home .. "/.local/share")
+local notify_helper = home and home ~= "" and (home .. "/.cache/steam-native-notifications/notify-action") or nil
+local host_tools_needed = notify_helper ~= nil and data_home ~= nil
+    and not exists("/usr/bin/notify-send") and exists("/run/host/usr/bin/notify-send")
+local HOST_TOOLS_MARK = "# Ninomae: the system's notify-send and gdbus"
+local HOST_TOOLS = HOST_TOOLS_MARK .. " (Steam's runtime container has neither: themes/steam/ninomae-plugin)\n"
+    .. 'command -v notify-send >/dev/null 2>&1 || PATH="' .. (data_home or "")
+    .. '/millennium/plugins/ninomae/host-tools:$PATH"\n'
+local last_patch_check = 0
+local function give_notifications_host_tools(now)
+    if not host_tools_needed or now - last_patch_check < 5 then return end
+    last_patch_check = now
+    local f = io.open(notify_helper, "r")
+    if not f then return end
+    local text = f:read("*a")
+    f:close()
+    if text:find(HOST_TOOLS_MARK, 1, true) then return end
+    local at = text:find("unset LD_LIBRARY_PATH LD_PRELOAD\n", 1, true)
+    if not at then return end -- Its script changed: leave it alone
+    local cut = at + #"unset LD_LIBRARY_PATH LD_PRELOAD\n" - 1
+    f = io.open(notify_helper, "w") -- In place, so it stays executable
+    if not f then return end
+    f:write(text:sub(1, cut) .. HOST_TOOLS .. text:sub(cut + 1))
+    f:close()
+    logger:info("Steam notifications: using the system's notify-send and gdbus")
+end
+
 -- {"fast": whether the shell wants quick checks, "requests": [{"id", "body"}]} (body: the request
 -- file's text, parsed by the frontend one at a time). Each file leaves the queue as it's read
 function poll()
-    if not dir then return '{"fast":false,"requests":[]}' end
     local now = os.time()
+    give_notifications_host_tools(now)
+    if not dir then return '{"fast":false,"requests":[]}' end
     if now ~= last_alive then
         last_alive = now
         if not write(dir .. "/alive", now .. " " .. loaded) then make_dirs() end -- The folder went: again

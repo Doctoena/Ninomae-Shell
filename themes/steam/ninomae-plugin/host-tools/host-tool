@@ -1,0 +1,8 @@
+#!/bin/sh
+# The system's own notify-send or gdbus (named by the link this runs as), for Steam's notifications inside
+# Steam's runtime container, which has neither. The container shows the system under /run/host: run its
+# program with its own loader and libraries. backend/main.lua puts this folder on that plugin's PATH
+for ld in /run/host/usr/lib64/ld-linux-x86-64.so.2 /run/host/usr/lib/ld-linux-x86-64.so.2; do
+	[ -e "$ld" ] && exec "$ld" --library-path /run/host/usr/lib64:/run/host/usr/lib "/run/host/usr/bin/${0##*/}" "$@"
+done
+exit 127
