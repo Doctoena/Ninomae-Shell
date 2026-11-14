@@ -127,9 +127,11 @@ if [[ ${1:-} == --update-millennium ]]; then
     fi
     if (( may_close )); then close_steam || { warn "Steam didn't close, so Millennium $tag wasn't put in"; exit 1; }
     elif pgrep -x steam >/dev/null; then warn "$steam_open_msg"; exit 3; fi
-    # Only Millennium's own folder is copied in (its installer copies the whole archive over /), with the
-    # archive's permissions so its helper programs stay executable (owned by root, as sudo makes them)
-    sudo cp -r --preserve=mode "$new" /usr/lib/ || { warn "Couldn't install Millennium $tag"; exit 1; }
+    # Only Millennium's own folder is copied in (its installer copies the whole archive over /). The archive
+    # has its helper programs as plain files, so they're made executable after, as its installer does:
+    # without that Steam starts but never opens a window
+    helpers=(); for f in "$new"/libmillennium_{pvs64,luavm_*}; do [[ -f $f ]] && helpers+=("/usr/lib/millennium/${f##*/}"); done
+    sudo cp -r "$new" /usr/lib/ && sudo chmod 755 "${helpers[@]}" || { warn "Couldn't install Millennium $tag"; exit 1; }
     link_millennium
     remember_millennium "$tag"; ok "Millennium updated to $tag"; exit 10
 fi
