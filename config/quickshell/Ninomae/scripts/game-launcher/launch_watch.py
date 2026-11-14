@@ -18,6 +18,7 @@ Stages, in the order a launch usually goes through them:
               when it can tell (explain(): the last crash-like line it printed) and "log" all it printed,
               from Steam's console-linux.txt
   failed      Steam couldn't launch it ("error" is e.g. "AppError_19"); the script exits
+  cancelled   the launch was called off while shaders processed (Steam's Cancel); the script exits
   timeout     nothing settled in 10 minutes; the script exits
 
 Usage: launch_watch.py steam <app id> <appmanifest path or "">
@@ -25,7 +26,10 @@ Usage: launch_watch.py steam <app id> <appmanifest path or "">
 Steam's stages come from its console_log.txt ("LaunchApp changed task to …"). A Steam game only counts as
 exited once Steam has created its process (CreatingProcess). Before that, something Steam runs under the
 game's name ending (its first-run install script, which the matching leaves out anyway) isn't the game
-closing: a first launch used to read as a failure that way. Lutris games only get
+closing: a first launch used to read as a failure that way. Steam logs nothing when a launch
+is cancelled. While shaders process, the shader job ending ("Destroyed compile job" in shader_log.txt) with
+no next step from Steam within CANCEL_GRACE seconds is a cancel: after Skip or the last shader it moves on
+within the second. Lutris games only get
 "starting" and the end states. A window counts as the game's when its process descends from the
 game's root process: `reaper SteamLaunch AppId=<id>` for Steam, `lutris-wrapper <name>` for Lutris
 (the same ones watch_game.py looks for), so Steam's own dialogs and anything else never count.
@@ -47,6 +51,7 @@ from watch_game import matches  # noqa: E402
 LOGS = os.path.expanduser("~/.local/share/Steam/logs")
 POLL = 0.25
 TIMEOUT = 600
+CANCEL_GRACE = 5
 # Steam's launch tasks → stage. Anything not listed keeps the current stage
 TASKS = {
     "CheckShaderDepotManifest": "preparing", "UpdatingAppInfo": "preparing", "RequestingLicense": "preparing",
@@ -133,9 +138,10 @@ class Follower:
     """New lines of a log as it grows, from a little before the launch (Steam may already have
     written the first ones). Starts over when Steam rotates the file."""
     def __init__(self, path, since):
-        self.path, self.since, self.pos = path, since, 0
+        self.path, self.since, self.pos, self.skew = path, since, 0, 0
         try:
             self.pos = max(0, os.path.getsize(path) - 32768)
+            self.skew = clock_skew(path)
         except OSError:
             pass
         self.backlog = True
@@ -153,8 +159,20 @@ class Follower:
         lines = text.splitlines()
         if self.backlog:  # From the tail read at the start, only what's from this launch
             self.backlog = False
-            lines = [l for l in lines if logged_at(l) >= self.since]
+            lines = [l for l in lines if logged_at(l) + self.skew >= self.since]
         return lines
+
+
+def clock_skew(path):
+    """How far behind the system clock a log's timestamps are, in whole quarter hours. Steam's runtime
+    has its own time zone data, which can be older than the system's (Alberta's 2026 change put it an
+    hour behind), so its times are compared after adding this. Measured from the file's last line,
+    written when the file was last modified"""
+    with open(path, "rb") as f:
+        f.seek(max(0, os.path.getsize(path) - 4096))
+        tail = f.read().decode(errors="replace").splitlines()
+    stamped = [t for t in map(logged_at, tail) if t]
+    return round((os.path.getmtime(path) - stamped[-1]) / 900) * 900 if stamped else 0
 
 
 def logged_at(line):
@@ -278,6 +296,8 @@ def main():
     output = Follower(os.path.join(LOGS, "console-linux.txt"), started - 3) if kind == "steam" else None  # Read on "exited"
     task_re = re.compile(rf"GameAction \[AppID {re.escape(key)}, ActionID \d+\] : LaunchApp (?:changed task to (\w+)|failed with (\w+))")
     replay_re = re.compile(rf"Still replaying {re.escape(key)} \((\d+)%")
+    shader_end_re = re.compile(rf"Destroyed compile job {re.escape(key)}\b")
+    shaders_ended = 0  # When the shader job ended with no step after it yet (a cancel, if none comes)
     events = hyprland_events()
     roots, seen_roots, last_process_check, check_windows = set(), False, 0, False
     created = kind != "steam"  # Steam has created the game's process (its log says so)
@@ -307,12 +327,20 @@ def main():
                     return
                 if stage == "preparing" and state["stage"] != "preparing":
                     continue  # Steam's small checks between the real steps: keep showing the last real one
+                shaders_ended = 0  # Steam moved on
                 if stage and stage != state["stage"]:
                     emit(stage=stage, progress=-1)
             for line in shaders.lines():
+                if state["stage"] != "shaders":
+                    continue
                 m = replay_re.search(line)
-                if m and state["stage"] == "shaders":
+                if m:
                     emit(progress=int(m[1]) / 100)
+                elif shader_end_re.search(line):
+                    shaders_ended = time.time()
+            if shaders_ended and state["stage"] == "shaders" and time.time() - shaders_ended >= CANCEL_GRACE:
+                emit(stage="cancelled", progress=-1)
+                return
             if state["stage"] == "updating" and manifest and time.time() - last_progress_check >= 1:
                 last_progress_check = time.time()  # Walks the download folder: once a second is plenty
                 p = manifest_progress(manifest)

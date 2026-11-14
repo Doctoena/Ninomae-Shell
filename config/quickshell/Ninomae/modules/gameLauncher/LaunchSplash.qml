@@ -22,7 +22,8 @@ import Quickshell.Widgets
  * window, or Steam can't start it, it says so with Retry. Stays on the screen it opened on, and never
  * takes keyboard focus.
  * While Steam processes Vulkan shaders it brings its main window up to ask about them: that waits on a hidden
- * workspace instead, and the drawer has Skip (Steam's, through the shell's plugin in Steam).
+ * workspace instead, and the drawer has Skip (Steam's, through the shell's plugin in Steam). A window rule the
+ * launch turns on puts it there as it opens, so it never shows on screen first.
  * Off in Settings → Launcher (Config.options.gameLauncher.launchAnimation).
  */
 Scope {
@@ -34,7 +35,8 @@ Scope {
     property int elapsed: 0 // Seconds since the launch
 
     // From launch_watch.py: preparing | updating | setup | cloud | shaders | choose | starting
-    // | exited | failed. "window" shows launched, "timeout" just closes the drawer
+    // | exited | failed. "window" shows launched, "timeout" and "cancelled" (Steam's Cancel while shaders
+    // processed) just close the drawer
     property string stage: "starting"
     property real progress: -1 // 0–1, -1 when there's no number
     property string error: ""
@@ -124,6 +126,7 @@ Scope {
         if (args) {
             watcher.command = ["python3", "-I", Quickshell.shellPath("scripts/game-launcher/launch_watch.py"), ...args];
             watcher.running = true;
+            if (args[0] === "steam") _steamRule(true);
         }
     }
     // A made-up launch, to see every state without starting anything (IPC previewSplash).
@@ -134,6 +137,7 @@ Scope {
         root._fallback = false;
         previewStep.fail = fail;
         previewStep.step = 0;
+        _steamRule(false); // Nothing is launched
         previewStep.restart();
     }
     // The game's window is up: get out of its way at once, showing the check as the drawer goes
@@ -144,12 +148,13 @@ Scope {
     }
     function _onStatus(s) {
         if (s.stage === "window") { _succeed(); return; }
-        if (s.stage === "timeout") { dismiss(); return; }
+        if (s.stage === "timeout" || s.stage === "cancelled") { dismiss(); return; }
         root.stage = s.stage;
         root.progress = s.progress ?? -1;
         root.error = s.error ?? "";
         root.logFile = s.log ?? "";
         if (root.failedState) { failTime.restart(); _restoreSteam(false); } // Steam may have more to say
+        if (root.stage === "choose") _restoreSteam(false); // Its window asks which launch option
         if (root.stage === "shaders" && watcher.running) _hideSteamWindows(); // A real launch, not a preview
     }
 
@@ -172,7 +177,17 @@ Scope {
     }
     // The launch is over (or the drawer gone, Skip with it): Steam's window back, or to the tray if it only
     // opened to ask about shaders and the game is up
+    // Steam's main window straight to the hidden workspace as it opens, for the length of a launch: moved
+    // there after it opened, it showed for a moment. A Hyprland rule, turned on and off by name (the same
+    // name updates the one rule), and off again whenever the windows come back
+    property bool _steamRuleOn: false
+    function _steamRule(on) {
+        root._steamRuleOn = on;
+        Quickshell.execDetached(["hyprctl", "eval", `hl.window_rule({ name = "ninomae-steam-during-launch", match = { class = "^steam$", title = "^Steam$" }, workspace = "${root._hideWorkspace} silent", no_initial_focus = true, no_anim = true, enabled = ${on} })`]);
+    }
+    Component.onCompleted: _steamRule(false) // The shell restarted during a launch: Steam's window mustn't stay hidden
     function _restoreSteam(launched) {
+        if (root._steamRuleOn) _steamRule(false);
         root._openedSteam = ({});
         if (Object.keys(root._hiddenSteam).length === 0) return;
         const back = Hyprland.focusedWorkspace?.name ?? "";
@@ -192,7 +207,8 @@ Scope {
             const [address, , windowClass, title] = event.data.split(",");
             if (!root._isSteamMain({ class: windowClass, title: title })) return;
             root._openedSteam = Object.assign({}, root._openedSteam, { ["0x" + address]: true });
-            if (root.stage === "shaders") root._hideSteam("0x" + address, "");
+            // The rule already put it on the hidden workspace: noted, so it comes back (or goes to the tray)
+            if (root.stage === "shaders" || root._steamRuleOn) root._hideSteam("0x" + address, "");
         }
     }
     function skipShaders() {
