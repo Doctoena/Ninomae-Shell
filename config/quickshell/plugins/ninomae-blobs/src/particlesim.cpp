@@ -448,8 +448,8 @@ void ParticleSim::update(double dt) {
 
     // Particles
     const double fadeInRate = cfg.fadeIn, drift = cfg.drift;
-    std::vector<Particle> kept;
-    kept.reserve(m_parts.size());
+    std::vector<Particle> &kept = m_kept;
+    kept.clear();
     for (Particle &p : m_parts) {
         p.ag += dt;
         const double d = p.dp, wsc = d * dt;
@@ -662,7 +662,9 @@ void ParticleSim::emitMain() {
     if (cfg.connections) { // Close pairs through a spatial grid, each neighbouring pair once, at most 100
         const double cD = cfg.connDist, cDSq = cD * cD;
         const int cols = int(std::ceil(W / cD)) + 1, rows = int(std::ceil(H / cD)) + 1;
-        std::vector<std::vector<int>> grid(size_t(cols * rows));
+        std::vector<std::vector<int>> &grid = m_grid;
+        if (grid.size() < size_t(cols * rows)) grid.resize(size_t(cols * rows));
+        for (auto &cell : grid) cell.clear();
         for (int i = 0; i < int(m_parts.size()); i++) {
             const Particle &p = m_parts[size_t(i)];
             if (p.al < 0.05) continue;

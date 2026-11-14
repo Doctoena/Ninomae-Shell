@@ -141,6 +141,8 @@ private:
     double m_boltT = 0, m_arcT = 0, m_popT = 0, m_dripT = 0, m_tracerT = 0, m_packetT = 0, m_shootT = 0;
     double m_wph = 0, m_wx = 0, m_wy = 0, m_gTimer = 0, m_gx = 0, m_gy = 0, m_gStr = 0;
     std::vector<float> m_buf;
+    std::vector<Particle> m_kept;           // Kept between frames, so a frame doesn't allocate:
+    std::vector<std::vector<int>> m_grid;   // the particles still alive, the connections' grid
     bool m_depth = false, m_parallax = false;
     double m_ptrX = 0, m_ptrY = 0; bool m_ptrInside = false;
     double m_parX = 0, m_parY = 0; // The parallax offset, easing toward the pointer

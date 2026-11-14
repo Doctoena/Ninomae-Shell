@@ -140,6 +140,8 @@
     "immichEnabled": true,
     "immichUrl": "",
     "launchAnimation": true,
+    "particleDepth": true,
+    "particleParallax": false,
     "newsUpdatesOnly": false,
     "sortOrder": "recency",
     "steamAtLogin": false,
