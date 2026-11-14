@@ -259,19 +259,30 @@ LauncherTopPanel {
                     iconSize: 40
                     color: Appearance.colors.colSubtext
                 }
-                Image { // The background, as behind the page
+                Image { // The background, as behind the page: it eases back and out for the cover, dims under the logo
                     id: heroImage
                     anchors.fill: parent
-                    visible: root.tab !== "grid"
-                    source: visible ? root.previewHero : ""
+                    source: root.previewHero
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     retainWhileLoading: true
                     sourceSize.width: 800
+                    opacity: root.tab === "grid" ? 0 : 1
+                    scale: root.tab === "grid" ? 1.08 : 1
+                    Behavior on opacity { PreviewAnim {} }
+                    Behavior on scale { PreviewAnim {} }
                 }
-                Loader { // The effect, live: the hovered one, else the one in use
+                Rectangle { // Dims the background while the logo is the part being changed
                     anchors.fill: parent
-                    active: root.tab === "effect" && root.shownEffect !== "none" && root.shown
+                    color: "black"
+                    opacity: root.tab === "logo" ? 0.35 : 0
+                    Behavior on opacity { PreviewAnim {} }
+                }
+                Loader { // The effect, live: the hovered one, else the one in use; fades in and out with its tab
+                    anchors.fill: parent
+                    active: (root.tab === "effect" || opacity > 0) && root.shownEffect !== "none" && root.shown
+                    opacity: root.tab === "effect" ? 1 : 0
+                    Behavior on opacity { PreviewAnim {} }
                     sourceComponent: GameParticles {
                         // No game id: it would use the saved choice instead of the one shown here
                         gameName: root.game?.name ?? ""
@@ -281,24 +292,38 @@ LauncherTopPanel {
                         opacityScale: root.effectOpacity
                     }
                 }
-                Image { // The logo over it, as on the page
+                Image { // The logo over it, as on the page: a little bigger while it's the part being changed
                     anchors.centerIn: parent
                     width: parent.width * 0.7; height: parent.height * 0.45
-                    visible: root.tab !== "grid" && root.previewLogo !== ""
-                    source: visible ? root.previewLogo : ""
+                    visible: root.previewLogo !== "" && opacity > 0
+                    source: root.previewLogo
+                    opacity: root.tab === "grid" ? 0 : 1
+                    scale: root.tab === "logo" ? 1.1 : root.tab === "grid" ? 0.85 : 1
+                    Behavior on opacity { PreviewAnim {} }
+                    Behavior on scale { PreviewAnim {} }
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
                     retainWhileLoading: true
                     sourceSize.width: 600
                 }
-                Row { // The cover as in the library: between the games beside it there, faded
+                Row { // The cover as in the library: between the games beside it there, faded. It rises into place,
+                    // the neighbours sliding out from behind it
+                    id: coverRow
                     anchors.centerIn: parent
-                    visible: root.tab === "grid"
+                    property real away: root.tab === "grid" ? 0 : 1 // 0 in place, 1 tucked away
+                    Behavior on away { PreviewAnim {} }
+                    visible: away < 1
+                    opacity: 1 - away
                     spacing: 12
-                    NeighbourCover { game: root.neighbours[0] ?? null }
+                    NeighbourCover {
+                        game: root.neighbours[0] ?? null
+                        transform: Translate { x: (108 + 12) * 0.6 * coverRow.away }
+                    }
                     Item {
                         width: 132; height: 198
                         anchors.verticalCenter: parent.verticalCenter
+                        z: 1
+                        transform: [Translate { y: 18 * coverRow.away }, Scale { origin.x: 66; origin.y: 99; xScale: 1 - 0.08 * coverRow.away; yScale: xScale }]
                         ClippingRectangle {
                             anchors.fill: parent
                             radius: Appearance.rounding.small
@@ -326,7 +351,10 @@ LauncherTopPanel {
                             border.width: 2; border.color: Appearance.colors.colPrimary
                         }
                     }
-                    NeighbourCover { game: root.neighbours[1] ?? null }
+                    NeighbourCover {
+                        game: root.neighbours[1] ?? null
+                        transform: Translate { x: -(108 + 12) * 0.6 * coverRow.away }
+                    }
                 }
                 Rectangle { // Whether this is the hovered one or the one in use
                     anchors { left: parent.left; top: parent.top; margins: 10 }
@@ -428,6 +456,12 @@ LauncherTopPanel {
         if (n < 2) return [];
         const at = i < 0 ? 0 : i;
         return [list[(at - 1 + n) % n], list[(at + 1) % n]].filter(g => g.id !== game.id);
+    }
+    // The preview's moves between parts, on the shell's emphasized curve
+    component PreviewAnim: NumberAnimation {
+        duration: 320
+        easing.type: Easing.BezierSpline
+        easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
     }
     component NeighbourCover: ClippingRectangle {
         id: neighbour
