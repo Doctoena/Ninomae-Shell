@@ -81,8 +81,10 @@ Item {
         // Clicks (and hover) here don't fall through to the launcher's click-off-to-close
         MouseArea { anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.AllButtons }
     }
-    // A click on one of its buttons gives that button the keys: what it doesn't use (Esc, the arrows) rises to here
+    // A click on one of its buttons gives that button the keys: what it doesn't use (Esc, the arrows) rises to here.
+    // Esc closes it even when its own handler doesn't take it (Tags and Add a game keep theirs on one item)
     Keys.onPressed: event => {
         if (typeof root.handleKey === "function" && root.handleKey(event.key, event.modifiers)) event.accepted = true;
+        else if (event.key === Qt.Key_Escape) { root.closeRequested(); event.accepted = true; }
     }
 }
