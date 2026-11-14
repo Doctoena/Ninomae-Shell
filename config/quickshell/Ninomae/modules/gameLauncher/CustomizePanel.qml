@@ -9,8 +9,9 @@ import Quickshell.Widgets
 
 /**
  * A game's look, in a panel growing up out of the launcher (LauncherTopPanel): its background, cover and
- * logo (from SteamGridDB, or a file) and the particle effect over its page. One tab each.
- * On the left, a preview as the page shows it: hover a result or an effect to see it there first. A click
+ * logo (from SteamGridDB, or a file) and the particle effect over its page.
+ * On the left, a small copy of the page (the part being changed outlined) and the four parts as joined rows,
+ * which pick what the right side shows. Hover a result or an effect to try it in the copy; a click
  * applies it and the panel stays open, so the page below shows it too. Each art tab's results are fetched
  * once per opening, a page at a time (Load more), for the game or a name searched instead. The effect's
  * amount and strength are per game too. Keys: ←/→ switch tabs, ↑/↓ scroll, Esc closes.
@@ -197,266 +198,258 @@ LauncherTopPanel {
     ]
     function effectLabel(key) { return effects.find(e => e.key === key)?.label ?? key; }
 
-    // No header: the tabs and close along the top of the right side (the preview names the game)
+    // ── Along the top of the right side: the search (or, for the effect, its amount and strength) and Close ──
     Item {
         id: topRow
-        anchors { top: parent.top; topMargin: 16; left: side.right; leftMargin: 25; right: parent.right; rightMargin: 19 }
-        height: 36
-        Row { // The tabs: joined chips, the one shown tinted in the accent
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            spacing: 3
-            Repeater {
-                model: root.tabs
-                Rectangle {
-                    id: tabPill
-                    required property var modelData
-                    required property int index
-                    readonly property bool active: root.tab === modelData.key
-                    width: tabContent.implicitWidth + 24; height: 34
-                    topLeftRadius: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined
-                    bottomLeftRadius: topLeftRadius
-                    topRightRadius: index === root.tabs.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined
-                    bottomRightRadius: topRightRadius
-                    color: active ? Appearance.colors.colLayer3Accent : tabMa.containsMouse ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
-                    Behavior on color { ColorAnimation { duration: 140 } }
-                    Row {
-                        id: tabContent
-                        anchors.centerIn: parent
-                        spacing: 6
-                        MaterialSymbol {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: tabPill.modelData.icon; iconSize: 16
-                            fill: tabPill.active ? 1 : 0
-                            color: tabPill.active ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
-                        }
-                        StyledText {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: tabPill.modelData.label
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: tabPill.active ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
-                        }
-                    }
-                    MouseArea {
-                        id: tabMa
-                        anchors.fill: parent; hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.tab = tabPill.modelData.key
-                    }
-                }
-            }
-        }
+        anchors { top: parent.top; topMargin: 16; left: side.right; leftMargin: 20; right: parent.right; rightMargin: 16 }
+        height: 38
         SheetIconButton {
+            id: closeButton
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
             grouped: false
             iconName: "close"
             tip: Translation.tr("Close")
             onClicked: root.closeRequested()
         }
+        RowLayout { // The effect's sliders, where the art tabs have their search
+            anchors { left: parent.left; right: closeButton.left; rightMargin: 16; verticalCenter: parent.verticalCenter }
+            visible: root.tab === "effect" && root.effectNow !== "none"
+            spacing: 24
+            EffectSlider {
+                label: Translation.tr("Amount")
+                value: root.density
+                from: 0.25; to: 2
+                onMoved: v => root.density = v
+                onReleased: root.saveTweak()
+            }
+            EffectSlider {
+                label: Translation.tr("Strength")
+                value: root.effectOpacity
+                from: 0.3; to: 1.2
+                onMoved: v => root.effectOpacity = v
+                onReleased: root.saveTweak()
+            }
+        }
     }
 
-    // ── Left: the preview, what it is, and its buttons ──
+    // ── Left: the page as it will look, the four parts, and their buttons ──
     ColumnLayout {
         id: side
-        anchors { top: parent.top; topMargin: 16; left: parent.left; leftMargin: 20; bottom: parent.bottom; bottomMargin: 20 }
-        width: 380
-        spacing: 14
+        anchors { top: parent.top; topMargin: 16; left: parent.left; leftMargin: 16 }
+        width: 420
+        spacing: 10
 
-        Item { // The card keeps its height across tabs; a cover sits in the middle of it
+        // A small copy of the page: the background, the effect over it, the logo, the cover in the corner. The part
+        // being changed is outlined; hovering a result or an effect shows it here first
+        ClippingRectangle {
+            id: preview
             Layout.fillWidth: true
-            Layout.preferredHeight: 214
-            ClippingRectangle {
-                id: preview
-                anchors.centerIn: parent
-                width: root.tab === "grid" ? Math.round(height * 2 / 3) : parent.width
-                height: parent.height
-                radius: Appearance.rounding.normal
-                color: Appearance.colors.colLayer1
-                Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            Layout.preferredHeight: 224
+            radius: Appearance.rounding.small
+            color: Appearance.colors.colLayer1
+            readonly property bool trying: root.hoverArt !== "" || root.hoverEffect !== ""
 
-                MaterialSymbol { // Nothing to show
+            MaterialSymbol { // Nothing to show
+                anchors.centerIn: parent
+                visible: heroImage.status !== Image.Ready
+                text: "panorama"; iconSize: 40
+                color: Appearance.colors.colSubtext
+            }
+            Image {
+                id: heroImage
+                anchors.fill: parent
+                source: root.previewHero
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                retainWhileLoading: true
+                sourceSize.width: 840
+            }
+            Loader { // The effect, live: the hovered one, else the one in use
+                anchors.fill: parent
+                active: root.shownEffect !== "none" && root.shown
+                sourceComponent: GameParticles {
+                    // No game id: it would use the saved choice instead of the one shown here
+                    gameName: root.game?.name ?? ""
+                    forcePreset: root.shownEffect === "auto" ? "" : root.shownEffect
+                    imageSource: root._src(root.heroNow) // Its colours from a file: a hovered result is a web address
+                    densityScale: root.density
+                    opacityScale: root.effectOpacity
+                }
+            }
+            Image {
+                id: logoImage
+                anchors.centerIn: parent
+                width: parent.width * 0.62; height: parent.height * 0.36
+                visible: root.previewLogo !== ""
+                source: root.previewLogo
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                retainWhileLoading: true
+                sourceSize.width: 600
+                Rectangle { // Outlined while it's the logo being changed
                     anchors.centerIn: parent
-                    visible: (root.tab === "grid" ? coverImage : heroImage).status !== Image.Ready
-                    text: root.tab === "grid" ? "photo_library" : "panorama"
-                    iconSize: 40
-                    color: Appearance.colors.colSubtext
+                    width: parent.paintedWidth + 16; height: parent.paintedHeight + 12
+                    radius: Appearance.rounding.chip
+                    color: "transparent"
+                    border.width: 2; border.color: Appearance.colors.colPrimary
+                    visible: root.tab === "logo"
                 }
-                Image { // The background, as behind the page
-                    id: heroImage
-                    anchors.fill: parent
-                    visible: root.tab !== "grid"
-                    source: visible ? root.previewHero : ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    retainWhileLoading: true
-                    sourceSize.width: 800
-                }
-                Loader { // The effect, live: the hovered one, else the one in use
-                    anchors.fill: parent
-                    active: root.tab === "effect" && root.shownEffect !== "none" && root.shown
-                    sourceComponent: GameParticles {
-                        // No game id: it would use the saved choice instead of the one shown here
-                        gameName: root.game?.name ?? ""
-                        forcePreset: root.shownEffect === "auto" ? "" : root.shownEffect
-                        imageSource: root.previewHero
-                        densityScale: root.density
-                        opacityScale: root.effectOpacity
-                    }
-                }
-                Image { // The logo over it, as on the page
-                    anchors.centerIn: parent
-                    width: parent.width * 0.7; height: parent.height * 0.45
-                    visible: root.tab !== "grid" && root.previewLogo !== ""
-                    source: visible ? root.previewLogo : ""
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    retainWhileLoading: true
-                    sourceSize.width: 600
-                }
-                Image { // The cover, as in the library
+            }
+            ClippingRectangle { // The cover, as in the library
+                id: coverFrame
+                anchors { left: parent.left; bottom: parent.bottom; margins: 12 }
+                width: 62; height: 93
+                radius: Appearance.rounding.verysmall
+                color: Appearance.colors.colLayer2
+                visible: coverImage.source.toString() !== ""
+                Image {
                     id: coverImage
                     anchors.fill: parent
-                    visible: root.tab === "grid"
-                    source: visible ? root.previewCover : ""
+                    source: root.previewCover
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     retainWhileLoading: true
-                    sourceSize.width: 400
+                    sourceSize.width: 160
                 }
-                Rectangle { // Whether this is the hovered one or the one in use
-                    anchors { left: parent.left; top: parent.top; margins: 10 }
-                    readonly property bool hovering: root.hoverArt !== "" || root.hoverEffect !== ""
-                    width: previewLabel.implicitWidth + 16; height: 24
-                    radius: Appearance.rounding.chip
-                    color: hovering ? Appearance.colors.colPrimary : Qt.rgba(0, 0, 0, 0.55)
-                    StyledText {
-                        id: previewLabel
-                        anchors.centerIn: parent
-                        text: parent.hovering ? Translation.tr("Preview") : Translation.tr("In use")
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Medium
-                        color: parent.hovering ? Appearance.colors.colOnPrimary : "white"
+            }
+            Rectangle { // Outlined while it's the cover being changed
+                anchors { fill: coverFrame; margins: -3 }
+                radius: coverFrame.radius + 3
+                color: "transparent"
+                border.width: 2; border.color: Appearance.colors.colPrimary
+                visible: root.tab === "grid" && coverFrame.visible
+            }
+            Rectangle { // Hovering one: it's only a try
+                anchors { right: parent.right; top: parent.top; margins: 10 }
+                visible: preview.trying
+                width: tryLabel.implicitWidth + 18; height: 24
+                radius: Appearance.rounding.chip
+                color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.15)
+                StyledText {
+                    id: tryLabel
+                    anchors.centerIn: parent
+                    text: Translation.tr("Trying · click to keep")
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    color: Appearance.colors.colPrimary
+                }
+            }
+            Rectangle { // Outlined while it's the background or the effect being changed
+                anchors.fill: parent
+                radius: preview.radius
+                color: "transparent"
+                border.width: 2.5; border.color: Appearance.colors.colPrimary
+                visible: root.tab === "hero" || root.tab === "effect"
+            }
+        }
+
+        // The four parts, joined: the one being changed tinted, each saying where it comes from
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 3
+            Repeater {
+                model: root.tabs
+                RippleButton {
+                    id: partRow
+                    required property var modelData
+                    required property int index
+                    readonly property bool active: root.tab === modelData.key
+                    readonly property bool settingsRow: true
+                    Layout.fillWidth: true
+                    implicitHeight: 44
+                    GroupCorners { id: partCorners; item: partRow }
+                    buttonRadiusTop: partCorners.top
+                    buttonRadiusBottom: partCorners.bottom
+                    padding: 0
+                    colBackground: active ? Appearance.colors.colLayer3Accent : Appearance.colors.colLayer3
+                    colBackgroundHover: active ? Appearance.colors.colLayer3AccentHover : Appearance.colors.colLayer3Hover
+                    colRipple: Appearance.colors.colLayer3Active
+                    onClicked: root.tab = modelData.key
+                    contentItem: RowLayout {
+                        anchors { fill: parent; leftMargin: 8; rightMargin: 14 }
+                        spacing: 10
+                        Rectangle {
+                            implicitWidth: 30; implicitHeight: 30; radius: 8
+                            color: partRow.active ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.75) : Appearance.colors.colLayer4
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: partRow.modelData.icon; iconSize: 17; fill: 1
+                                color: Appearance.colors.colPrimary
+                            }
+                        }
+                        StyledText {
+                            text: partRow.modelData.label
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colOnLayer3
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignRight
+                            elide: Text.ElideRight
+                            text: root.partSource(partRow.modelData.key)
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: partRow.active && preview.trying ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                        }
                     }
                 }
             }
         }
 
-        ColumnLayout { // What's set (and Reset, when you changed it), then Choose file: joined rows, as Settings'
+        // Choose file (art) and back to the game's own, joined
+        RowLayout {
             Layout.fillWidth: true
             spacing: 3
-            Rectangle {
-                id: nowRow
-                Layout.fillWidth: true
-                implicitHeight: 52
-                readonly property bool settingsRow: true
-                GroupCorners { id: nowCorners; item: nowRow }
-                topLeftRadius: nowCorners.top; topRightRadius: nowCorners.top
-                bottomLeftRadius: nowCorners.bottom; bottomRightRadius: nowCorners.bottom
-                color: Appearance.colors.colLayer3
-                readonly property bool changed: root.tab === "effect" ? root.effectNow !== "auto" : root.isCustom
-                Rectangle {
-                    id: nowIcon
-                    anchors { left: parent.left; leftMargin: 9; verticalCenter: parent.verticalCenter }
-                    width: 34; height: 34; radius: 9
-                    color: Appearance.colors.colLayer3Accent
-                    MaterialSymbol { anchors.centerIn: parent; text: root.tabs.find(t => t.key === root.tab)?.icon ?? ""; iconSize: 18; color: Appearance.colors.colPrimary }
-                }
-                Column {
-                    anchors { left: nowIcon.right; leftMargin: 11; right: resetButton.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                    spacing: 1
-                    StyledText {
-                        width: parent.width; elide: Text.ElideRight
-                        text: root.tab === "effect" ? root.effectLabel(root.effectNow) : root.tabs.find(t => t.key === root.tab)?.label ?? ""
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colOnLayer3
-                    }
-                    StyledText {
-                        width: parent.width; elide: Text.ElideRight
-                        text: root.tab === "effect" ? (nowRow.changed ? Translation.tr("Chosen") : Translation.tr("From the game's name"))
-                            : nowRow.changed ? Translation.tr("Custom") : Translation.tr("The game's own")
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                        color: Appearance.colors.colSubtext
-                    }
-                }
-                RippleButton { // Back to the game's own
-                    id: resetButton
-                    anchors { right: parent.right; rightMargin: 9; verticalCenter: parent.verticalCenter }
-                    visible: root.isCustom
-                    width: visible ? 32 : 0; height: 32; padding: 0
-                    buttonRadius: 9
-                    colBackground: Appearance.colors.colLayer4
-                    colBackgroundHover: Appearance.colors.colLayer3Error
-                    colRipple: ColorUtils.transparentize(Appearance.colors.colError, 0.65)
-                    onClicked: root.reset()
-                    contentItem: MaterialSymbol {
-                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                        text: "restart_alt"; iconSize: 17
-                        color: resetButton.hovered ? Appearance.colors.colError : Appearance.colors.colOnLayer3
-                    }
-                    StyledToolTip { text: root.tab === "effect" ? Translation.tr("Reset effect") : Translation.tr("Back to the game's own") }
-                }
-            }
-            RippleButton {
-                id: chooseRow
+            PartButton {
                 visible: root.isArt
-                Layout.fillWidth: true
-                implicitHeight: 44
-                readonly property bool settingsRow: true
-                GroupCorners { id: chooseCorners; item: chooseRow }
-                buttonRadiusTop: chooseCorners.top
-                buttonRadiusBottom: chooseCorners.bottom
-                padding: 0
-                colBackground: Appearance.colors.colLayer3
-                colBackgroundHover: Appearance.colors.colLayer3Hover
-                colRipple: Appearance.colors.colLayer3Active
+                first: true; last: !resetPart.visible
+                symbol: "folder_open"; caption: Translation.tr("Choose file")
                 onClicked: root.chooseFile()
-                contentItem: Item {
-                    MaterialSymbol {
-                        id: chooseIcon
-                        anchors { left: parent.left; leftMargin: 17; verticalCenter: parent.verticalCenter }
-                        text: "folder_open"; iconSize: 18; color: Appearance.colors.colOnLayer3
-                    }
-                    StyledText {
-                        anchors { left: chooseIcon.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                        text: Translation.tr("Choose file"); color: Appearance.colors.colOnLayer3
-                    }
-                }
+            }
+            PartButton {
+                id: resetPart
+                visible: root.isCustom
+                first: !root.isArt; last: true
+                symbol: "restart_alt"
+                caption: root.tab === "effect" ? Translation.tr("Back to Auto") : Translation.tr("Back to the game's own")
+                onClicked: root.reset()
             }
         }
-        StyledText {
-            Layout.fillWidth: true
-            Layout.leftMargin: 4; Layout.rightMargin: 4
-            wrapMode: Text.Wrap
-            text: root.tab === "hero" ? Translation.tr("Behind the game's page, and its colours tint the particles.")
-                : root.tab === "grid" ? Translation.tr("The game's tile in the library.")
-                : root.tab === "logo" ? Translation.tr("Over the background, in place of the game's name.")
-                : Translation.tr("Drifts over the background. Hover one to try it here.")
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            color: Appearance.colors.colSubtext
+    }
+    // Where each part comes from, for its row ("Trying one" while one is hovered)
+    function partSource(key) {
+        if (key === tab && (hoverArt !== "" || hoverEffect !== "")) return Translation.tr("Trying one");
+        if (key === "effect") return effectNow === "auto" ? Translation.tr("Auto · from the art") : effectLabel(effectNow);
+        const c = key === "hero" ? custom.heroArt : key === "grid" ? custom.boxArt : custom.logo;
+        return _file(c) !== "" ? Translation.tr("Custom") : Translation.tr("The game's own");
+    }
+    component PartButton: RippleButton {
+        id: partButton
+        property string symbol
+        property string caption
+        property bool first: true
+        property bool last: true
+        Layout.fillWidth: true
+        implicitHeight: 40
+        padding: 0
+        buttonRadiusLeft: first ? Appearance.rounding.small : Appearance.rounding.joined
+        buttonRadiusRight: last ? Appearance.rounding.small : Appearance.rounding.joined
+        colBackground: Appearance.colors.colLayer3
+        colBackgroundHover: Appearance.colors.colLayer3Hover
+        colRipple: Appearance.colors.colLayer3Active
+        contentItem: Item {
+            Row {
+                anchors.centerIn: parent
+                spacing: 7
+                MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: partButton.symbol; iconSize: 17; color: Appearance.colors.colOnLayer3 }
+                StyledText { anchors.verticalCenter: parent.verticalCenter; text: partButton.caption; font.weight: Font.Medium; color: Appearance.colors.colOnLayer3 }
+            }
         }
-        EffectSlider { // How many
-            visible: root.tab === "effect" && root.effectNow !== "none"
-            label: Translation.tr("Amount")
-            value: root.density
-            from: 0.25; to: 2
-            onMoved: v => root.density = v
-            onReleased: root.saveTweak()
-        }
-        EffectSlider { // How strong
-            visible: root.tab === "effect" && root.effectNow !== "none"
-            label: Translation.tr("Strength")
-            value: root.effectOpacity
-            from: 0.3; to: 1.2
-            onMoved: v => root.effectOpacity = v
-            onReleased: root.saveTweak()
-        }
-        Item { Layout.fillHeight: true }
     }
 
     // ── Right: SteamGridDB's art for the tab, or the effects ──
     RowLayout { // Search SteamGridDB by another name (a non-Steam game it matched wrongly, or another game's art)
         id: searchRow
         visible: root.isArt && root.hasKey
-        anchors { top: topRow.bottom; topMargin: 12; left: side.right; leftMargin: 25; right: parent.right; rightMargin: 19 }
+        anchors { verticalCenter: topRow.verticalCenter; left: topRow.left; right: topRow.right; rightMargin: 34 + 8 }
         spacing: 8
         Rectangle {
             Layout.fillWidth: true
@@ -516,7 +509,7 @@ LauncherTopPanel {
 
     Item {
         id: content
-        anchors { top: searchRow.visible ? searchRow.bottom : topRow.bottom; topMargin: searchRow.visible ? 10 : 12; bottom: parent.bottom; bottomMargin: 12; left: side.right; leftMargin: 20; right: parent.right; rightMargin: 14 }
+        anchors { top: topRow.bottom; topMargin: 7; bottom: parent.bottom; bottomMargin: 12; left: side.right; leftMargin: 15; right: parent.right; rightMargin: 11 }
 
         // Art: states first
         SheetEmptyState {
@@ -636,26 +629,39 @@ LauncherTopPanel {
                         text: "hourglass_empty"; iconSize: 20
                         color: Appearance.colors.colSubtext
                     }
-                    Rectangle { // Downloading it, or in use
-                        anchors { right: parent.right; top: parent.top; margins: 6 }
+                    Rectangle { // In use (this opening), or downloading it
+                        anchors { left: parent.left; top: parent.top; margins: 8 }
                         visible: cell.inUse || cell.applying
-                        width: 26; height: 26; radius: 13
+                        width: useRow.implicitWidth + 14; height: 22
+                        radius: Appearance.rounding.chip
                         color: Appearance.colors.colPrimary
-                        MaterialSymbol {
+                        Row {
+                            id: useRow
                             anchors.centerIn: parent
-                            text: cell.applying ? "progress_activity" : "check"
-                            iconSize: 16; fill: 1
-                            color: Appearance.colors.colOnPrimary
-                            RotationAnimation on rotation { running: cell.applying; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
+                            spacing: 3
+                            MaterialSymbol {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: cell.applying ? "progress_activity" : "check"
+                                iconSize: 14
+                                color: Appearance.colors.colOnPrimary
+                                RotationAnimation on rotation { running: cell.applying; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
+                            }
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: cell.applying ? Translation.tr("Saving") : Translation.tr("In use")
+                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.weight: Font.DemiBold
+                                color: Appearance.colors.colOnPrimary
+                            }
                         }
                     }
                 }
-                Rectangle { // Hover ring, as the library's tiles
-                    anchors { fill: tile; margins: -3 }
-                    radius: tile.radius + 3
+                Rectangle { // The one in use: an accent ring; under the mouse: a light one
+                    anchors { fill: tile; margins: -2 }
+                    radius: tile.radius + 2
                     color: "transparent"
-                    border.width: 2
-                    border.color: Appearance.colors.colPrimary
+                    border.width: 2.5
+                    border.color: cell.inUse ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.2)
                     opacity: cellMa.containsMouse || cell.inUse ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 150 } }
                 }
