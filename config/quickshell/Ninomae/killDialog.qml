@@ -8,167 +8,131 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+
+/**
+ * Opened by services/ConflictKiller.qml when a program that takes the tray or notifications from the shell is
+ * running: NINOMAE_CONFLICTS names which ("trays,notifications"). One joined row each (Keep / Stop) and a switch
+ * to stop them every time. Closes when nothing is left to answer.
+ *   NINOMAE_CONFLICTS=trays,notifications qs -p killDialog.qml   (to see it)
+ */
 ApplicationWindow {
     id: root
-    property int conflictCount: 0
-    onConflictCountChanged: {
-        if (conflictCount === 0) {
-            root.close();
-        }
-    }
-    property real contentPadding: 8
-    visible: true
-    onClosing: {
-        Qt.quit()
-    }
-    title: Translation.tr("Shell conflicts killer")
-    Component.onCompleted: {
-        Config.readWriteDelay = 0;
-        Config.blockWrites = true;
-        MaterialThemeLoader.reapplyTheme();
-    }
-    minimumWidth: 400
-    minimumHeight: 300
-    maximumWidth: 400
-    maximumHeight: 300
-    width: 400
-    height: 300
+    title: Translation.tr("Shell conflicts")
+    visible: conflicts.length > 0
+    onClosing: Qt.quit()
     color: Appearance.colors.colLayer0
-    component ConflictingProgramGroup: ColumnLayout {
-        id: conflictGroup
+
+    readonly property list<string> conflicts: (Quickshell.env("NINOMAE_CONFLICTS") ?? "").split(",").filter(c => c)
+    property int answered: 0
+    property bool always: false
+    onAnsweredChanged: if (answered >= conflicts.length) Qt.quit()
+
+    readonly property int padding: 16
+    readonly property real fitHeight: content.implicitHeight + padding * 2
+    width: 460
+    height: fitHeight
+    minimumWidth: 460
+    maximumWidth: 460
+    minimumHeight: fitHeight
+    maximumHeight: fitHeight
+
+    Component.onCompleted: {
+        Config.readWriteDelay = 0; // One option at a time
+        MaterialThemeLoader.reapplyTheme();
+        if (conflicts.length === 0) Qt.callLater(Qt.quit); // Nothing to ask (quitting while loading is ignored)
+    }
+
+    component Conflict: SettingRow {
+        id: row
+        required property string kind // In NINOMAE_CONFLICTS
         required property list<string> programs
-        required property string description
-        visible: false
-        onVisibleChanged: {
-            conflictCount += visible ? 1 : -1
+        required property string option // Config.options.conflictKiller.<option>: stop them every time
+        property bool done: false
+        visible: root.conflicts.includes(kind) && !done
+        function answer() { done = true; root.answered++; }
+        DialogButton {
+            buttonText: Translation.tr("Keep")
+            onClicked: row.answer()
         }
-        signal alwaysSelected()
-        Process {
-            running: true
-            command: ["pidof", ...conflictGroup.programs]
-            onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                    conflictGroup.visible = true
-                }
-            }
-        }
-        StyledText {
-            text: conflictGroup.programs.join(", ")
-            font.pixelSize: Appearance.font.pixelSize.normal
-        }
-        StyledText {
-            font {
-                pixelSize: Appearance.font.pixelSize.smaller
-                italic: true
-            }
-            text: conflictGroup.description
-            color: Appearance.colors.colSubtext
-        }
-        RowLayout {
-            Layout.alignment: Qt.AlignRight
-            RippleButton {
-                colBackground: Appearance.colors.colLayer2
-                contentItem: StyledText {
-                    text: Translation.tr("Always")
-                }
-                onClicked: {
-                    Quickshell.execDetached(["killall", ...conflictGroup.programs])
-                    conflictGroup.alwaysSelected()
-                    conflictGroup.visible = false
-                }
-            }
-            RippleButton {
-                colBackground: Appearance.colors.colLayer2
-                contentItem: StyledText {
-                    text: Translation.tr("Yes")
-                }
-                onClicked: {
-                    Quickshell.execDetached(["killall", ...conflictGroup.programs])
-                    conflictGroup.visible = false
-                }
-            }
-            RippleButton {
-                colBackground: Appearance.colors.colLayer2
-                contentItem: StyledText {
-                    text: Translation.tr("No")
-                }
-                onClicked: conflictGroup.visible = false
+        DialogButton {
+            primary: true
+            buttonText: Translation.tr("Stop")
+            onClicked: {
+                Quickshell.execDetached(["killall", ...row.programs]);
+                if (root.always) Config.options.conflictKiller[row.option] = true;
+                row.answer();
             }
         }
     }
+
     ColumnLayout {
-        anchors {
-            fill: parent
-            margins: contentPadding
-        }
-        Item {
-            // Titlebar
+        id: content
+        anchors { left: parent.left; right: parent.right; top: parent.top; margins: root.padding }
+        spacing: 4
+
+        RowLayout {
             Layout.fillWidth: true
-            implicitHeight: Math.max(welcomeText.implicitHeight, windowControlsRow.implicitHeight)
-            StyledText {
-                id: welcomeText
-                anchors {
-                    horizontalCenter: parent.horizontalCenter
-                    verticalCenter: parent.verticalCenter
-                }
-                color: Appearance.colors.colOnLayer0
-                text: Translation.tr("Kill conflicting programs?")
-                font {
-                    family: Appearance.font.family.title
-                    pixelSize: Appearance.font.pixelSize.title
-                    variableAxes: Appearance.font.variableAxes.title
-                }
-            }
-            RowLayout { // Window controls row
-                id: windowControlsRow
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.right: parent.right
-                RippleButton {
-                    buttonRadius: Appearance.rounding.container
-                    implicitWidth: 35
-                    implicitHeight: 35
-                    onClicked: root.close()
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "close"
-                        iconSize: 20
-                    }
-                }
-            }
-        }
-        Rectangle {
-            // Content container
-            color: Appearance.colors.colSurfaceContainerLow
-            radius: Appearance.rounding.windowRounding - root.contentPadding
-            implicitHeight: contentColumn.implicitHeight
-            implicitWidth: contentColumn.implicitWidth
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.bottomMargin: 12
+            spacing: 12
             ColumnLayout {
-                id: contentColumn
-                anchors.fill: parent
-                spacing: 12
-                ConflictingProgramGroup {
-                    id: kded6Group
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.fillHeight: false
-                    programs: ["kded6"]
-                    description: Translation.tr("Conflicts with the shell's system tray implementation")
-                    onAlwaysSelected: Config.options.conflictKiller.autoKillTrays = true
+                Layout.fillWidth: true
+                spacing: 2
+                StyledText {
+                    text: Translation.tr("Programs in the way")
+                    font.family: Appearance.font.family.title
+                    font.pixelSize: Appearance.font.pixelSize.huge
+                    font.weight: Font.Black
+                    color: Appearance.colors.colOnLayer0
                 }
-                ConflictingProgramGroup {
-                    id: notificationDaemons
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.fillHeight: false
-                    programs: ["mako", "dunst"]
-                    description: Translation.tr("Conflicts with the shell's notification implementation")
-                    onAlwaysSelected: Config.options.conflictKiller.autoKillNotificationDaemons = true
+                StyledText {
+                    Layout.fillWidth: true
+                    text: Translation.tr("They do a job the shell already does.")
+                    font.pixelSize: Appearance.font.pixelSize.smallie
+                    color: Appearance.colors.colSubtext
+                    wrapMode: Text.Wrap
                 }
+            }
+            RippleButton {
+                Layout.alignment: Qt.AlignTop
+                implicitWidth: 34
+                implicitHeight: 34
+                buttonRadius: Appearance.rounding.segment
+                colBackground: Appearance.colors.colLayer2
+                colBackgroundHover: Appearance.colors.colLayer2Hover
+                colRipple: Appearance.colors.colLayer2Active
+                onClicked: root.close()
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    text: "close"
+                    iconSize: 20
+                }
+            }
+        }
+
+        Conflict {
+            text: Translation.tr("KDE services")
+            description: Translation.tr("Takes over the system tray")
+            kind: "trays"
+            programs: ["kded6"]
+            option: "autoKillTrays"
+        }
+        Conflict {
+            text: Translation.tr("Another notification app")
+            description: Translation.tr("Shows its own notifications (mako, dunst)")
+            kind: "notifications"
+            programs: ["mako", "dunst"]
+            option: "autoKillNotificationDaemons"
+        }
+        SettingRow {
+            text: Translation.tr("Stop them every time the shell starts")
+            description: Translation.tr("Can be turned off in Settings → Advanced")
+            StyledSwitch {
+                checked: root.always
+                onClicked: root.always = checked
             }
         }
     }
