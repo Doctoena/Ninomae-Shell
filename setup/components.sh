@@ -49,8 +49,10 @@ PACKAGES=(
     google-noto-color-emoji-fonts
     # Login screen (sddm-wayland-plasma is swapped in below)
     sddm
-    # Building the Ninomae.Blobs plugin and the shell's Python helpers
+    # Building the Ninomae.Blobs and Ninomae.Particles plugins (private-devel: Qt's GPU headers, for the
+    # launcher's particles) and the shell's Python helpers
     git-core cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtshadertools-devel
+    qt6-qtbase-private-devel
     python3
     # Settings → Keybinds names keys as your keyboard layout prints them (scripts/keyboard/xkb_layouts.py)
     xkbcomp

@@ -15,7 +15,7 @@ qs_config=Ninomae
 # Exact Qt package builds (a Fedora rebuild of the same version can still change what the plugin
 # links against) plus a hash of the sources, with relative paths so moving the dotfiles doesn't count
 stamp() {
-    rpm -q qt6-qtbase qt6-qtdeclarative
+    rpm -q qt6-qtbase qt6-qtdeclarative qt6-qtbase-private-devel # Installing the last one adds Ninomae.Particles
     (cd "$here" && find CMakeLists.txt src -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum)
 }
 if [[ ${1:-} == --stamp ]]; then stamp; exit; fi
@@ -35,7 +35,7 @@ if ! command -v cmake >/dev/null || ! command -v ninja >/dev/null || ! rpm -q qt
     warned="$cache/ninomae-blobs-missing-deps"
     if [[ "$(cat "$warned" 2>/dev/null)" != "$want" ]]; then
         notify "Gooey drawers need rebuilding" \
-            "Build tools are missing. Install them with: sudo dnf install cmake ninja-build qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtshadertools-devel"
+            "Build tools are missing. Install them with: sudo dnf install cmake ninja-build qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtshadertools-devel qt6-qtbase-private-devel"
         printf '%s\n' "$want" >"$warned"
     fi
     exit 1

@@ -359,7 +359,7 @@ The same folder works on a desktop and a laptop.
 │   ├── ninomae-shell/          config.default.json, copied to config.json (your settings, not in git)
 │   └── quickshell/
 │       ├── Ninomae/            the shell
-│       └── plugins/            ninomae-blobs, the gooey drawer animation
+│       └── plugins/            ninomae-blobs: the gooey drawers and the launcher's GPU particles
 ├── themes/                     login screen, boot splash, Steam, Zen, Discord, VS Code, YouTube Music
 └── assets/                     fonts, icons, cursors, wallpapers
 ```

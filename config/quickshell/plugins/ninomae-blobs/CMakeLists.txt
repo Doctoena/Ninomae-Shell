@@ -37,3 +37,31 @@ qt_add_shaders(ninomae-blobs "blob_shaders"
         src/shaders/blob.frag
         src/shaders/blob.vert
 )
+
+# Ninomae.Particles: the game launcher's particles drawn on the GPU (our own code, not from caelestia). It needs
+# Qt's GPU headers (qt6-qtbase-private-devel); without them it's left out and the launcher draws on a Canvas
+set(QT_NO_PRIVATE_MODULE_WARNING ON) # QRhi's headers are public in all but name since Qt 6.6
+find_package(Qt6 QUIET COMPONENTS GuiPrivate)
+if(NOT TARGET Qt::GuiPrivate)
+    message(WARNING "qt6-qtbase-private-devel not installed: Ninomae.Particles is left out")
+    return()
+endif()
+qt_add_library(ninomae-particles MODULE)
+qt_add_qml_module(ninomae-particles
+    URI Ninomae.Particles
+    VERSION 1.0
+    PLUGIN_TARGET ninomae-particles
+    SOURCES
+        src/particlelayer.cpp src/particlelayer.hpp
+)
+target_link_libraries(ninomae-particles PRIVATE Qt::Core Qt::Gui Qt::GuiPrivate Qt::Qml Qt::Quick)
+target_include_directories(ninomae-particles PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+qt_add_shaders(ninomae-particles "particle_shaders"
+    OPTIMIZED NOHLSL NOMSL
+    GLSL "300es,330"
+    PREFIX "/"
+    BASE src
+    FILES
+        src/shaders/particle.frag
+        src/shaders/particle.vert
+)

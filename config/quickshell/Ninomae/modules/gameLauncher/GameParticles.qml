@@ -814,8 +814,8 @@ Item {
             root._lastMs = now;
             root._time += dt;
             root._update(dt);
-            _softCanvas.requestPaint();
-            _mainCanvas.requestPaint();
+            if (root._gpuOn) { root._gpuSoft(); root._gpuMain(); }
+            else { _softCanvas.requestPaint(); _mainCanvas.requestPaint(); }
         }
     }
 
@@ -1144,12 +1144,304 @@ Item {
     }
 
     // ═════════════════════════════════════════════════════════
-    //  RENDER
+    //  GPU — the same drawing as the Canvases below, as primitives for Ninomae.Particles (ParticleGpuLayers.qml)
+    // ═════════════════════════════════════════════════════════
+    Loader { id: _gpu; anchors.fill: parent; source: "ParticleGpuLayers.qml" }
+    readonly property bool _gpuOn: _gpu.item !== null
+    // Shapes drawn from the plugin's atlas (its cells), the rest as discs and rectangles; diamond, petal and leaf flip
+    readonly property var _cellOf: ({ 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 6, 11: 7 })
+    // Fills a Float32Array, 24 floats a primitive (particlelayer.hpp has the layout); colours come as 0..255
+    function _makeEmitter() {
+        let buf = new Float32Array(24 * 512), n = 0;
+        function slot(kind, blend) {
+            if ((n + 1) * 24 > buf.length) { const nb = new Float32Array(buf.length * 2); nb.set(buf); buf = nb; }
+            const o = n * 24; n++;
+            buf[o] = kind; buf[o + 1] = blend;
+            return o;
+        }
+        function col(o, r, g, b, a) { buf[o] = r / 255; buf[o + 1] = g / 255; buf[o + 2] = b / 255; buf[o + 3] = a; }
+        return {
+            reset() { n = 0; },
+            data() { return buf.buffer.slice(0, n * 96); },
+            sprite(blend, cell, x, y, sz, rot, fx, r, g, b, a) {
+                const o = slot(0, blend);
+                buf[o + 2] = x; buf[o + 3] = y; buf[o + 4] = sz; buf[o + 5] = rot; buf[o + 6] = fx; buf[o + 7] = cell;
+                col(o + 8, r, g, b, a);
+            },
+            // profile: 0 fog, 1 glow, 2 bokeh, 3 disc
+            radial(blend, profile, x, y, rx, ry, r, g, b, a) {
+                const o = slot(1, blend);
+                buf[o + 2] = x; buf[o + 3] = y; buf[o + 4] = rx; buf[o + 5] = ry; buf[o + 6] = profile;
+                col(o + 8, r, g, b, a);
+            },
+            line(blend, x1, y1, x2, y2, w, r, g, b, a) {
+                const o = slot(2, blend);
+                buf[o + 2] = x1; buf[o + 3] = y1; buf[o + 4] = x2; buf[o + 5] = y2; buf[o + 6] = w; buf[o + 7] = 0.5;
+                col(o + 8, r, g, b, a); col(o + 12, r, g, b, a); col(o + 16, r, g, b, a);
+            },
+            // A line fading through three colours: c0 at the start, c1 at `mid`, c2 at the end ({r, g, b, a})
+            gradLine(blend, x1, y1, x2, y2, w, mid, c0, c1, c2) {
+                const o = slot(2, blend);
+                buf[o + 2] = x1; buf[o + 3] = y1; buf[o + 4] = x2; buf[o + 5] = y2; buf[o + 6] = w; buf[o + 7] = mid;
+                col(o + 8, c0.r, c0.g, c0.b, c0.a); col(o + 12, c1.r, c1.g, c1.b, c1.a); col(o + 16, c2.r, c2.g, c2.b, c2.a);
+            },
+            ring(blend, x, y, rad, ys, w, r, g, b, a) {
+                const o = slot(3, blend);
+                buf[o + 2] = x; buf[o + 3] = y; buf[o + 4] = rad; buf[o + 5] = ys; buf[o + 6] = w;
+                col(o + 8, r, g, b, a);
+            },
+            rect(blend, cx, cy, w, h, rot, r, g, b, a) {
+                const o = slot(4, blend);
+                buf[o + 2] = cx; buf[o + 3] = cy; buf[o + 4] = w; buf[o + 5] = h; buf[o + 6] = rot;
+                col(o + 8, r, g, b, a);
+            },
+            // One stroke through the points (each joint drawn once, as the Canvas's path)
+            polyline(blend, pts, w, r, g, b, a) {
+                for (let i = 1; i < pts.length; i++) {
+                    const o = slot(5, blend), p = pts[i - 1], q = pts[i];
+                    buf[o + 2] = p.x; buf[o + 3] = p.y; buf[o + 4] = q.x; buf[o + 5] = q.y; buf[o + 6] = w;
+                    buf[o + 7] = i < pts.length - 1 ? 1 : 0;
+                    col(o + 8, r, g, b, a);
+                    const prev = pts[i > 1 ? i - 2 : 0];
+                    buf[o + 12] = prev.x; buf[o + 13] = prev.y; buf[o + 14] = i > 1 ? 1 : 0;
+                }
+            }
+        };
+    }
+    property var _emit: null
+    function _emitter() { if (!_emit) _emit = _makeEmitter(); return _emit; }
+
+    // The soft Canvas's drawing: fog banks and dust clouds, then glow halos
+    function _gpuSoft() {
+        const E = _emitter();
+        E.reset();
+        if (root._ready) {
+            const cfg = root._cfg, cnt = root._count;
+            const px = root._px, py = root._py, sz = root._sz, al = root._al, dp = root._dp;
+            const cr = root._cr, cg = root._cg, cb = root._cb, sh = root._sh, tm = root._tm, gw = root._gw;
+            const snap = cfg.pixelSnap || 0;
+            for (let i = 0; i < cnt; i++) {
+                if (sh[i] !== root._sSoft) continue;
+                const a = al[i] * tm[i];
+                if (a < 0.005) continue;
+                const r = sz[i];
+                E.radial(0, 0, px[i], py[i], r * 1.5, r * 0.75, cr[i], cg[i], cb[i], Math.min(1, a * 2.5));
+            }
+            const glowBlend = cfg.additive ? 1 : 2;
+            for (let i = 0; i < cnt; i++) {
+                if (gw[i] <= 0 || sh[i] === root._sSoft) continue;
+                const a = al[i] * tm[i] * (0.5 + dp[i] * 0.5);
+                if (a < 0.1) continue;
+                let x = px[i], y = py[i];
+                if (snap) { x = Math.round(x / snap) * snap; y = Math.round(y / snap) * snap; }
+                const r = sz[i] * gw[i] + 2;
+                E.radial(glowBlend, 1, x, y, r, r, cr[i], cg[i], cb[i], Math.min(1, a * 0.95));
+            }
+        }
+        _gpu.item.soft.submit(E.data());
+    }
+
+    // The main Canvas's drawing, in the same order
+    function _gpuMain() {
+        const E = _emitter();
+        E.reset();
+        if (root._ready) _gpuMainBody(E, _gpu.item.main.width, _gpu.item.main.height);
+        _gpu.item.main.submit(E.data());
+    }
+    function _gpuMainBody(E, width, height) {
+        const cfg = root._cfg;
+        const base = cfg.additive ? 1 : 0;
+        const cnt = root._count;
+        const px = root._px, py = root._py, sz = root._sz, al = root._al;
+        const vx = root._vx, vy = root._vy;
+        const dp = root._dp, rt = root._rt, ph = root._ph;
+        const cr = root._cr, cg = root._cg, cb = root._cb;
+        const sh = root._sh, tm = root._tm;
+        const pal = root._colors;
+
+        // Crossfade remnants
+        const fo = root._fadeOut;
+        for (let i = 0; i < fo.length; i++) {
+            const f = fo[i];
+            E.radial(base, 3, f.x, f.y, f.sz, f.sz, f.r, f.g, f.b, f.al);
+        }
+
+        // Lightning / arcs
+        const bolts = root._bolts;
+        for (let i = 0; i < bolts.length; i++) {
+            const b = bolts[i];
+            const ba = b.life / b.maxLife;
+            const flick = ba * (0.7 + 0.3 * Math.random());
+            const rc = pal[0] || { r: 200, g: 200, b: 255 };
+            E.polyline(1, b.pts, b.w * 3.5, rc.r, rc.g, rc.b, flick * 0.35);
+            E.polyline(1, b.pts, b.w * ba + 0.4, 255, 255, 255, flick);
+            if (b.branch.length > 1) E.polyline(1, b.branch, b.w * 0.5, 255, 255, 255, flick * 0.55);
+        }
+
+        // Splashes, flattened onto a ground plane
+        const ripples = root._ripples;
+        if (ripples.length > 0) {
+            const rc = pal[0] || { r: 190, g: 205, b: 225 };
+            for (let i = 0; i < ripples.length; i++) {
+                const r = ripples[i];
+                const life = r.life / r.maxLife;
+                E.ring(base, r.x, r.y, Math.max(0.5, r.r), 0.28, 0.6 + life * 0.8, rc.r, rc.g, rc.b, life * 0.5);
+            }
+        }
+
+        // Drips
+        const drips = root._drips;
+        for (let i = 0; i < drips.length; i++) {
+            const d = drips[i];
+            E.line(base, d.x, d.y, d.x, d.y - Math.min(22, d.vy * 0.03), 1.6 * d.d, d.c.r, d.c.g, d.c.b, 0.75);
+        }
+
+        // Shooting star
+        const ss = root._shooting;
+        if (ss) {
+            const life = ss.life / ss.max;
+            const fade = Math.min(1, life * 3) * Math.min(1, (1 - life) * 6);
+            const tx = ss.x - Math.cos(ss.a) * ss.len, ty = ss.y - Math.sin(ss.a) * ss.len;
+            E.gradLine(base, ss.x, ss.y, tx, ty, 1.8, 0.25,
+                       { r: 255, g: 255, b: 255, a: fade }, { r: ss.c.r, g: ss.c.g, b: ss.c.b, a: 0.6 * fade },
+                       { r: ss.c.r, g: ss.c.g, b: ss.c.b, a: 0 });
+            E.radial(base, 1, ss.x, ss.y, 10, 10, ss.c.r, ss.c.g, ss.c.b, fade);
+        }
+
+        // Tracers / light trails
+        const trs = root._tracers;
+        for (let i = 0; i < trs.length; i++) {
+            const tr = trs[i];
+            E.gradLine(1, tr.x, tr.y, tr.x - tr.dx * tr.len, tr.y - tr.dy * tr.len, tr.w, 0.15,
+                       { r: 255, g: 255, b: 255, a: 0.95 * 0.9 }, { r: tr.c.r, g: tr.c.g, b: tr.c.b, a: 0.8 * 0.9 },
+                       { r: tr.c.r, g: tr.c.g, b: tr.c.b, a: 0 });
+        }
+
+        // Connections (spatial grid); remembers the links for data packets
+        if (cfg.connections) {
+            const cD = cfg.connDist || 120, cDSq = cD * cD;
+            const cols = Math.ceil(width / cD) + 1, rows = Math.ceil(height / cD) + 1, need = cols * rows;
+            if (!root._connGrid || root._connGrid.length < need) {
+                root._connGrid = new Array(need);
+                for (let gi = 0; gi < need; gi++) root._connGrid[gi] = [];
+            }
+            const grid = root._connGrid;
+            for (let gi = 0; gi < need; gi++) grid[gi].length = 0;
+            for (let i = 0; i < cnt; i++) {
+                if (al[i] < 0.05) continue;
+                const gc = Math.floor(px[i] / cD), gr = Math.floor(py[i] / cD);
+                if (gc >= 0 && gc < cols && gr >= 0 && gr < rows) grid[gr * cols + gc].push(i);
+            }
+            const links = [];
+            let drawn = 0;
+            for (let cy = 0; cy < rows && drawn < 100; cy++) {
+                for (let cx = 0; cx < cols && drawn < 100; cx++) {
+                    const cell = grid[cy * cols + cx];
+                    if (cell.length === 0) continue;
+                    for (let ni = 0; ni < 5 && drawn < 100; ni++) {
+                        let nx = cx, ny = cy;
+                        if (ni === 1) nx++; else if (ni === 2) ny++; else if (ni === 3) { nx++; ny++; } else if (ni === 4) { nx--; ny++; }
+                        if (nx < 0 || nx >= cols || ny >= rows) continue;
+                        const nb = ni === 0 ? cell : grid[ny * cols + nx];
+                        for (let ai = 0; ai < cell.length && drawn < 100; ai++) {
+                            const p1 = cell[ai];
+                            for (let bi = ni === 0 ? ai + 1 : 0; bi < nb.length && drawn < 100; bi++) {
+                                const p2 = nb[bi];
+                                const dx = px[p1] - px[p2], dy = py[p1] - py[p2], dSq = dx*dx + dy*dy;
+                                if (dSq >= cDSq) continue;
+                                const a = (1 - Math.sqrt(dSq) / cD) * Math.min(al[p1], al[p2]) * 0.75;
+                                if (a < 0.01) continue;
+                                E.line(base, px[p1], py[p1], px[p2], py[p2], 1, cr[p1], cg[p1], cb[p1], a);
+                                if (a > 0.08) links.push(px[p1], py[p1], px[p2], py[p2]);
+                                drawn++;
+                            }
+                        }
+                    }
+                }
+            }
+            root._links = links;
+        }
+
+        // Data packets
+        const pk = root._packets;
+        for (let i = 0; i < pk.length; i++) {
+            const p = pk[i];
+            const e = p.t < 0.5 ? 2 * p.t * p.t : 1 - 2 * (1 - p.t) * (1 - p.t);
+            const x = p.x1 + (p.x2 - p.x1) * e, y = p.y1 + (p.y2 - p.y1) * e;
+            const e0 = Math.max(0, e - 0.18);
+            const x0 = p.x1 + (p.x2 - p.x1) * e0, y0 = p.y1 + (p.y2 - p.y1) * e0;
+            const a = Math.sin(p.t * Math.PI);
+            E.line(1, x0, y0, x, y, 1.6, p.c.r, p.c.g, p.c.b, a * 0.8);
+            E.radial(1, 3, x, y, 1.6, 1.6, 255, 255, 255, a);
+            E.radial(1, 1, x, y, 9, 9, p.c.r, p.c.g, p.c.b, a * 0.8);
+        }
+
+        // Particles
+        const streak = !!cfg.streak;
+        const streakLen = (cfg.streakLen || 10) * root._sizeK, streakK = cfg.streakK || 0, streakMax = cfg.streakMax || 120;
+        const flip = !!cfg.flip;
+        const snap = cfg.pixelSnap || 0;
+        const windAng = (root._wx + root._gx * root._gStr) * 0.004;
+        const cellOf = root._cellOf;
+        for (let i = 0; i < cnt; i++) {
+            const shape = sh[i];
+            if (shape === root._sSoft) continue;
+            const a = al[i] * tm[i] * (0.5 + dp[i] * 0.5);
+            if (a < 0.01) continue;
+            const s = sz[i];
+            let x = px[i], y = py[i];
+            if (snap) { x = Math.round(x / snap) * snap; y = Math.round(y / snap) * snap; }
+            const r = cr[i], g = cg[i], b = cb[i];
+            if (shape === root._sBokeh) { E.radial(base, 2, x, y, s, s, r, g, b, a); continue; }
+            if (streak) {
+                const spd = Math.sqrt(vx[i]*vx[i] + vy[i]*vy[i]);
+                if (spd < 0.01) continue;
+                const len = streakK > 0 ? Math.min(streakMax, spd * streakK + 1) : streakLen * (0.4 + dp[i] * 0.6);
+                let ang = Math.atan2(vy[i], vx[i]);
+                if (!streakK) ang -= windAng * dp[i];
+                E.line(base, x, y, x - Math.cos(ang) * len, y - Math.sin(ang) * len,
+                       Math.max(0.8, s * (streakK ? 0.9 : 0.7)), r, g, b, a);
+                continue;
+            }
+            const rot = snap ? 0 : rt[i];
+            const cell = cellOf[shape];
+            if (cell !== undefined) {
+                const fx = (shape === 1 || shape === 2 || shape === 11) && flip
+                    ? root._fcos(rt[i] * 1.3 + ph[i]) * 0.85 + (rt[i] >= 0 ? 0.15 : -0.15) : 1;
+                E.sprite(base, cell, x, y, s, shape === 8 ? 0 : rot, fx, r, g, b, a);
+            } else if (shape === 7) { // Cross: two bars, as the Canvas's two fillRects
+                E.rect(base, x, y, s * 2, s * 0.5, rot, r, g, b, a);
+                E.rect(base, x, y, s * 0.5, s * 2, rot, r, g, b, a);
+            } else if (shape === 10) { // Pixel
+                E.rect(base, x, y, s, s, 0, r, g, b, a);
+            } else {
+                E.radial(base, 3, x, y, s, s, r, g, b, a);
+            }
+        }
+
+        // Pops
+        const sbs = root._sparkBursts;
+        for (let i = 0; i < sbs.length; i++) {
+            const sb = sbs[i];
+            for (let j = 0; j < sb.sparks.length; j++) {
+                const s = sb.sparks[j];
+                if (s.al < 0.01) continue;
+                E.line(1, s.x, s.y, s.x - s.vx * 0.04, s.y - s.vy * 0.04, s.sz, s.r, s.g, s.b, s.al);
+            }
+        }
+
+        // Lightning flash
+        if (root._flashAlpha > 0.003) E.rect(0, width / 2, height / 2, width, height, 0, 223, 232, 255, root._flashAlpha);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  RENDER (without Ninomae.Particles)
     // ═════════════════════════════════════════════════════════
     // Blurry layer (fog, dust clouds, glow halos) at a third of the resolution, scaled up on the GPU.
     // Soft content looks the same and fills ~9x fewer pixels, which is most of the paint cost
     Canvas {
         id: _softCanvas
+        visible: !root._gpuOn // The fallback, without Ninomae.Particles
         readonly property real k: 3
         width: Math.ceil(parent.width / k); height: Math.ceil(parent.height / k)
         scale: k; transformOrigin: Item.TopLeft
@@ -1207,6 +1499,7 @@ Item {
 
     Canvas {
         id: _mainCanvas
+        visible: !root._gpuOn // The fallback, without Ninomae.Particles
         anchors.fill: parent
         onPaint: {
             const ctx = getContext("2d");
