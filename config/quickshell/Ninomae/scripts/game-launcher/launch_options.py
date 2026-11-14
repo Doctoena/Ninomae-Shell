@@ -263,12 +263,22 @@ def cmd_get(appid):
 
 _window_was_open = False # Steam's own window was up when close_steam closed it: start_steam opens it again
 
-def steam_window_open():
+def steam_windows():
+    """Steam's main window(s) (class steam, title Steam), as Hyprland lists them"""
     try:
         clients = json.loads(subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=2).stdout)
     except Exception:
-        return False
-    return any(c.get("class", "").lower() == "steam" and c.get("title") == "Steam" for c in clients)
+        return []
+    return [c for c in clients if c.get("class", "").lower() == "steam" and c.get("title") == "Steam"]
+
+def steam_window_open():
+    return bool(steam_windows())
+
+def close_steam_window():
+    """Closes Steam's main window (Steam stays running, in the tray)"""
+    for c in steam_windows():
+        subprocess.run(["hyprctl", "dispatch", f'hl.dsp.window.close({{ window = "address:{c["address"]}" }})'],
+                       capture_output=True, timeout=2)
 
 def close_steam():
     """Quits Steam and waits for it to write its files; False if it won't close"""
@@ -464,9 +474,10 @@ def cmd_libraries():
     print(json.dumps(out))
 
 def cmd_install(appid, library, restart, dry_run=False):
-    """Installs a game you own without Steam's install dialog: a manifest saying the game needs an update
-    that has started (StateFlags 1026) goes into the chosen library, and Steam downloads it when it starts.
-    Steam only reads new manifests on start, so it's started in the tray (closed first if it's running).
+    """Installs a game you own without Steam's install dialog: through the plugin while Steam runs with it,
+    else a manifest saying the game needs an update that has started (StateFlags 1026) goes into the chosen
+    library, and Steam downloads it when it starts. Steam only reads new manifests on start, so it's started
+    in the tray (closed first if it's running).
     The folder name comes from Steam's app info, the same one its own install would use."""
     if not re.fullmatch(r"\d+", appid):
         print(json.dumps({"ok": False, "error": "bad-appid"})); return 1
@@ -494,6 +505,18 @@ def cmd_install(appid, library, restart, dry_run=False):
                           ["UserConfig", []], ["MountedConfig", []]]]]
     if dry_run:
         print(json.dumps({"ok": True, "dryRun": True, "manifest": manifest, "text": vdf_dump(tree)})); return 0
+    # Steam's own install, its dialog answered by the plugin: no restart. "eula": Steam is showing the
+    # game's licence, the download starts once it's accepted. Its wizard brings Steam's window up: back to
+    # the tray after, if that's where it was (not with a licence to accept)
+    sc = live() if steam_running() else None
+    if sc:
+        window_was_open = steam_window_open()
+        how, _ = sc.request("install", timeout=15, appid=int(appid), folder=library)
+        started = how in ("started", "eula") or bool(manifest_path(appid)) # Or Steam got there after all
+        if started and how != "eula" and not window_was_open:
+            close_steam_window()
+        if started:
+            print(json.dumps({"ok": True, "live": True, "eula": how == "eula"})); return 0
     err = steam_closed_or_error(restart)
     if err:
         print(json.dumps({"ok": False, "error": err[0]})); return err[1]

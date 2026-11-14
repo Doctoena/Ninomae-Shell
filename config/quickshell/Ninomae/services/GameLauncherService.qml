@@ -1051,7 +1051,9 @@ Singleton {
                     "unknown-library": "That Steam library folder is gone."
                 }[r?.error] ?? "Something went wrong; see the shell log.";
                 if (!r?.ok) console.warn("[GameLauncher]", action, game.id, _actionOut.text.trim());
-                const cmd = r?.ok
+                const cmd = r?.eula // Steam is showing its licence: the download starts once it's accepted
+                    ? ["notify-send", "-a", "Game Launcher", "Accept " + name + "'s licence in Steam", "Its download starts after that."]
+                    : r?.ok
                     ? ["notify-send", "-a", "Game Launcher", "Game Launcher", (action === "install" ? "Downloading " : "Uninstalled ") + name]
                     : ["notify-send", "-a", "Game Launcher", "-u", "critical", "Couldn't " + action + " " + name, why];
                 const icon = game.boxArt || game.icon || "";

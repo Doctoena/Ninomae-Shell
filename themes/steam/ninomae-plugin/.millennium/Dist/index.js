@@ -54,7 +54,42 @@ const commands = {
     },
     // Steam's Uninstall after you confirm (the true): no dialog
     uninstall: async a => { await SteamClient.Installs.OpenUninstallWizard([appid(a)], LOCAL, true); return true; },
+    install: async a => install(appid(a), typeof a.folder === "string" ? a.folder.replace(/\/+$/, "") : ""),
 };
+// Steam's Install with the library already picked: its install wizard, answered as its dialog would be
+// (the folder, then Install). A licence agreement is left on Steam's own screen ("eula"). Wizard states:
+// 0 closed, 7 asking for the folder, 8 a licence; the rest are Steam getting ready. Steam doesn't always say
+// the wizard closed, so a moment after Install with no licence shown, it's started
+const WIZARD_CLOSED = 0, WIZARD_CONFIG = 7, WIZARD_EULA = 8;
+async function install(id, path) {
+    const folders = await SteamClient.InstallFolder.GetInstallFolders();
+    const folder = path ? folders.find(f => f.strFolderPath.replace(/\/+$/, "") === path)
+                        : folders.find(f => f.bIsDefaultFolder) ?? folders[0];
+    if (!folder) throw new Error("unknown library");
+    return new Promise((resolve, reject) => {
+        let configured = false, done = false, timer = 0;
+        const finish = (fn, v) => { if (done) return; done = true; clearTimeout(timer); setTimeout(() => h?.unregister?.(), 0); fn(v); };
+        const h = SteamClient.Installs.RegisterForShowInstallWizard(async s => {
+            if (done) return;
+            try {
+                if (s.eInstallState === WIZARD_CONFIG && !configured) {
+                    configured = true;
+                    clearTimeout(timer);
+                    await SteamClient.Installs.SetInstallFolder(folder.nFolderIndex);
+                    await SteamClient.Installs.ContinueInstall();
+                    timer = setTimeout(() => finish(resolve, "started"), 1500);
+                } else if (s.eInstallState === WIZARD_EULA) {
+                    finish(resolve, "eula");
+                } else if (s.eInstallState === WIZARD_CLOSED) {
+                    configured ? finish(resolve, "started") : finish(reject, new Error("Steam closed the install"));
+                }
+            } catch (err) { finish(reject, err); }
+        });
+        // Steam never asking (no licence, app info that never comes): its wizard closed, the shell falls back
+        timer = setTimeout(() => { SteamClient.Installs.CancelInstall(); finish(reject, new Error("timed out")); }, 10000);
+        SteamClient.Installs.OpenInstallWizard([id], LOCAL);
+    });
+}
 async function run(body) {
     try {
         const req = JSON.parse(body);
@@ -95,7 +130,7 @@ check();
     }
 })();
 // Millennium's plugin list shows this page
-const Page = () => window.SP_REACT.createElement(api.Field, { label: "Ninomae launcher", description: "Lets the Ninomae launcher pause, resume and order downloads, skip shader processing, and save launch options and Proton without restarting Steam. Turns off Steam's screenshot key: F12 is the shell's. Nothing to set here.", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), bottomSeparator: "none", focusable: false });
+const Page = () => window.SP_REACT.createElement(api.Field, { label: "Ninomae launcher", description: "Lets the Ninomae launcher install games, pause, resume and order downloads, skip shader processing, and save launch options and Proton without restarting Steam. Turns off Steam's screenshot key: F12 is the shell's. Nothing to set here.", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), bottomSeparator: "none", focusable: false });
 exports.default = api.definePlugin(() => ({ title: "Ninomae Shell", icon: window.SP_REACT.createElement(api.IconsModule.Settings, null), content: window.SP_REACT.createElement(Page, null) }));
 Object.defineProperty(exports, "__esModule", { value: true });
 return exports;
