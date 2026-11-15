@@ -293,8 +293,9 @@ Item {
             }
         }
     }
-        Item { // Favourite: a bookmark hanging from the tile's top edge, its shoulders curving into it. At rest in
-            // the grid's own colour, as if the edge folds down; on hover in the accent, reaching up into the ring.
+        Item { // Favourite: a bookmark hanging from the tile's top edge, its shoulders curving into it. At rest a
+            // short tab in the grid's own colour, just the star, clear of the logo most covers put across the top;
+            // on hover it drops to full length in the accent, reaching up into the ring.
             // Not a favourite: the same plain bookmark on hover, an outline star to click
             id: favButton
             anchors { top: cardBackground.top; topMargin: -reach; right: cardBackground.right; rightMargin: 12 }
@@ -302,8 +303,10 @@ Item {
             readonly property real shoulder: 6
             readonly property real ribbonW: 24
             readonly property real reach: isFav ? 4 * focusRing.opacity : 0 // A favourite's: up into the ring as it comes in
-            readonly property real ribbonH: 36 + reach
-            readonly property real notch: 7
+            readonly property real drop: focusRing.opacity // 0 at rest (a 22 px tab), 1 on hover (36 px)
+            readonly property real ribbonH: 22 + 14 * drop + reach
+            readonly property real notch: 4 + 3 * drop
+            readonly property real starTop: 2 + 4 * drop + reach
             width: ribbonW + 2 * shoulder; height: ribbonH
             readonly property bool hovered: favMouseArea.containsMouse
             // How full the accent was when the pointer left (it fades from there with the ring)
@@ -329,8 +332,8 @@ Item {
                 z: 1
                 RibbonShape { fill: Appearance.colors.colPrimary }
                 MaterialSymbol { // The star over the accent
-                    anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 6 + favButton.reach }
-                    text: "star"; fill: 1; iconSize: 15
+                    anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: favButton.starTop }
+                    text: "star"; fill: 1; iconSize: starIcon.iconSize
                     color: Appearance.colors.colOnPrimary
                     transform: Scale { // Pops with the star under it
                         origin.x: starIcon.width / 2; origin.y: starIcon.height / 2
@@ -340,10 +343,10 @@ Item {
             }
             MaterialSymbol {
                 id: starIcon
-                anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 6 + favButton.reach }
+                anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: favButton.starTop }
                 text: "star"
                 fill: favButton.isFav ? 1 : 0
-                iconSize: 15
+                iconSize: Math.round(13 + 2 * favButton.drop)
                 color: favButton.isFav || favButton.hovered ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on fill { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }

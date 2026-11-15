@@ -164,7 +164,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 4
                     StyledText {
-                        text: Qt.locale().toString(DateTime.clock.date, "dddd d MMMM")
+                        text: Qt.locale().toString(DateTime.clock.date, "ddd d MMM")
                         textFormat: Text.PlainText
                         font.pixelSize: Appearance.font.pixelSize.smallest
                         color: Appearance.colors.colSubtext

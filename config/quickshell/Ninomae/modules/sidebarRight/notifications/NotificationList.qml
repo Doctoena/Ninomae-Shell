@@ -4,42 +4,48 @@ import qs.services
 import QtQuick
 import QtQuick.Layouts
 
-// The sidebar's notifications: "Notifications 3" above, Do not disturb and Clear all beside it, the cards under
-// joined into one list (the newest featured, see NotificationGroup), or an "All caught up" card when there are none
+// The sidebar's notifications: a header piece with "Notifications 3", Do not disturb and Clear all (solid, so
+// windows don't read through the see-through drawer), then the cards joined under it into one list (the newest
+// featured, see NotificationGroup), or an "All caught up" card when there are none
 ColumnLayout {
     id: root
-    spacing: 6
-    RowLayout {
+    spacing: 0
+    Rectangle {
         Layout.fillWidth: true
-        Layout.leftMargin: 4
-        spacing: 6
-        StyledText {
-            text: Translation.tr("Notifications")
-            font.family: Appearance.font.family.title
-            font.weight: Font.Black
-            font.pixelSize: Appearance.font.pixelSize.normal
-            color: Appearance.colors.colOnLayer1
-        }
-        StyledText {
-            Layout.fillWidth: true
-            visible: Notifications.list.length > 0
-            text: Notifications.list.length
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            color: Appearance.colors.colSubtext
-        }
-        Item { Layout.fillWidth: true; visible: Notifications.list.length === 0 }
-        HeaderButton {
-            symbol: Notifications.silent ? "notifications_paused" : "notifications"
-            toggled: Notifications.silent
-            tip: Notifications.silent ? Translation.tr("Do not disturb is on. Pop-ups are held back")
-                : Translation.tr("Do not disturb")
-            onClicked: Notifications.silent = !Notifications.silent
-        }
-        HeaderButton {
-            enabled: Notifications.list.length > 0
-            symbol: "clear_all"
-            tip: Translation.tr("Clear all")
-            onClicked: Notifications.discardAllNotifications()
+        implicitHeight: 40
+        color: Appearance.colors.colLayer3
+        topLeftRadius: Appearance.rounding.normal; topRightRadius: Appearance.rounding.normal
+        bottomLeftRadius: Appearance.rounding.joined; bottomRightRadius: Appearance.rounding.joined
+        RowLayout {
+            anchors { fill: parent; leftMargin: 14; rightMargin: 4 }
+            spacing: 6
+            StyledText {
+                text: Translation.tr("Notifications")
+                font.family: Appearance.font.family.title
+                font.weight: Font.Black
+                font.pixelSize: Appearance.font.pixelSize.normal
+                color: Appearance.colors.colOnLayer3
+            }
+            StyledText {
+                visible: Notifications.list.length > 0
+                text: Notifications.list.length
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colSubtext
+            }
+            Item { Layout.fillWidth: true }
+            HeaderButton {
+                symbol: Notifications.silent ? "notifications_paused" : "notifications"
+                toggled: Notifications.silent
+                tip: Notifications.silent ? Translation.tr("Do not disturb is on. Pop-ups are held back")
+                    : Translation.tr("Do not disturb")
+                onClicked: Notifications.silent = !Notifications.silent
+            }
+            HeaderButton {
+                enabled: Notifications.list.length > 0
+                symbol: "clear_all"
+                tip: Translation.tr("Clear all")
+                onClicked: Notifications.discardAllNotifications()
+            }
         }
     }
     Item {
@@ -63,6 +69,7 @@ ColumnLayout {
             anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 4 }
             height: 116
             radius: Appearance.rounding.normal
+            topLeftRadius: Appearance.rounding.joined; topRightRadius: Appearance.rounding.joined // Joined to the header
             color: Appearance.colors.colLayer3
             clip: true
             visible: opacity > 0
@@ -112,10 +119,10 @@ ColumnLayout {
             }
         }
     }
-    // A button by the title, the size and surface of the ones by your name at the top
+    // A button on the header, the size of the ones by your name at the top
     component HeaderButton: IconButton {
         size: 32
-        colBackground: Appearance.colors.colLayer3
+        colBackground: "transparent" // On the header piece
         colBackgroundHover: Appearance.colors.colLayer3Hover
         colRipple: Appearance.colors.colLayer3Active
     }

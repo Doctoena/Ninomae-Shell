@@ -122,7 +122,7 @@ MouseArea { // Notification group area
         id: background
         anchors.left: parent.left
         width: parent.width
-        topLeftRadius: root.listIndex === 0 ? Appearance.rounding.normal : Appearance.rounding.joined
+        topLeftRadius: root.listIndex === 0 && root.popup ? Appearance.rounding.normal : Appearance.rounding.joined // The sidebar's first joins its header
         topRightRadius: topLeftRadius
         bottomLeftRadius: root.listIndex === root.listCount - 1 ? Appearance.rounding.normal : Appearance.rounding.joined
         bottomRightRadius: bottomLeftRadius
