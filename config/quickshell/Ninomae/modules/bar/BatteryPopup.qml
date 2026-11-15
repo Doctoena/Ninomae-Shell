@@ -8,11 +8,6 @@ import QtQuick.Layouts
 // voltage, the chemistry, or the health once the firmware reports wear)
 BarDrawerPopup {
     id: root
-    function formatTime(seconds) {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        return h > 0 ? `${h}h ${m}m` : `${m}m`;
-    }
     // Unix seconds in whole minutes: with second precision (lock screen) the graph doesn't redraw each second
     readonly property real now: Math.floor(DateTime.clock.date.getTime() / 60000) * 60
     readonly property bool low: Battery.isLowAndUnplugged
@@ -39,13 +34,13 @@ BarDrawerPopup {
         if (Battery.isFullyCharged) return "";
         const t = Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty;
         if (!(t > 0)) return "";
-        return Battery.isCharging ? Translation.tr("%1 until full").arg(root.formatTime(t))
-                                  : Translation.tr("%1 left").arg(root.formatTime(t));
+        return Battery.isCharging ? Translation.tr("%1 until full").arg(Battery.formatTime(t))
+                                  : Translation.tr("%1 left").arg(Battery.formatTime(t));
     }
     readonly property string sinceText: {
         if (!(Battery.pluggedSince > 0)) return "";
         const elapsed = root.now - Battery.pluggedSince;
-        return elapsed < 60 ? Translation.tr("Just now") : root.formatTime(elapsed);
+        return elapsed < 60 ? Translation.tr("Just now") : Battery.formatTime(elapsed);
     }
     // The footer: what's known of it
     readonly property var footer: [

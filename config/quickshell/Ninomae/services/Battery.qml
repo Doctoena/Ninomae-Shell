@@ -122,15 +122,25 @@ Singleton {
     // The Settings window loads this service too, for its battery readouts. Only the shell warns, plays the
     // plug sounds and counts down to shutdown, or each would happen twice. open-settings.sh marks Settings
     readonly property bool inSettingsApp: Quickshell.env("NINOMAE_SETTINGS_APP") === "1"
+    function formatTime(seconds) { // "1h 5m", "24m"
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+    // "12% left, about 24m." (UPower's estimate can be missing right after unplugging: then just the percentage)
+    function leftLine() {
+        return timeToEmpty > 60 ? Translation.tr("%1% left, about %2.").arg(percent).arg(formatTime(timeToEmpty))
+            : Translation.tr("%1% left.").arg(percent);
+    }
     function warn(title, body, critical, sound) {
         if (root.inSettingsApp) return;
         Quickshell.execDetached(["notify-send", "-a", "Battery", "-u", critical ? "critical" : "normal", title, body]);
         if (root.soundEnabled) Audio.playSystemSound(sound);
     }
-    onIsLowAndUnpluggedChanged: if (isLowAndUnplugged) warn(lowTitle, Translation.tr("Consider plugging in your device"), true, "dialog-warning")
+    onIsLowAndUnpluggedChanged: if (isLowAndUnplugged) warn(lowTitle, leftLine() + " " + Translation.tr("Plug in soon."), true, "dialog-warning")
     onIsCriticalAndUnpluggedChanged: if (isCriticalAndUnplugged) warn(criticalTitle, allowAutomaticShutdown
-        ? Translation.tr("Please charge!\nShuts down automatically at %1%").arg(Config.options.battery.suspend)
-        : Translation.tr("Please charge!"), true, "suspend-error")
+        ? leftLine() + " " + Translation.tr("Please charge!\nShuts down automatically at %1%").arg(Config.options.battery.suspend)
+        : leftLine() + " " + Translation.tr("Please charge!"), true, "suspend-error")
     onIsFullAndChargingChanged: if (isFullAndCharging) warn(fullTitle, Translation.tr("Please unplug the charger"), false, "complete")
 
     // A minute's warning before shutting down: plugging in or pressing Cancel keeps it on

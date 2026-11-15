@@ -402,7 +402,7 @@ Item {
             out.push({ icon: "science", value: tier.charAt(0).toUpperCase() + tier.slice(1) });
         if (game.playtime > 0) {
             const h = Math.floor(game.playtime / 60);
-            out.push({ icon: "timer", value: h > 0 ? `${h} h` : "< 1 h", name: Translation.tr("played") });
+            out.push({ icon: "timer", value: h > 0 ? `${h} h` : `${game.playtime} min`, name: Translation.tr("played") });
         }
         // Players in it right now (Steam's count; not for games it doesn't count)
         const players = GameLauncherService.playerCount(game); // Re-read as the counts come in (the binding sees playerCounts)
@@ -1285,7 +1285,7 @@ Item {
                 readonly property string timeLine: {
                     if (!game || playing || root.installState !== "installed" || root._downloadPhase !== "") return "";
                     const h = Math.floor((game.playtime ?? 0) / 60);
-                    const hours = (game.playtime ?? 0) <= 0 ? "" : h > 0 ? Translation.tr("%1 h played").arg(h) : Translation.tr("< 1 h played");
+                    const hours = (game.playtime ?? 0) <= 0 ? "" : h > 0 ? Translation.tr("%1 h played").arg(h) : Translation.tr("%1 min played").arg(game.playtime);
                     return [hours, root._lastPlayedText].filter(t => t).join("  ·  ");
                 }
                 function activate() {
@@ -1501,7 +1501,7 @@ Item {
                         : ""
                     // The line under the name: what's inside
                     readonly property string subtitle: headline !== "" ? headline
-                        : modelData.type === "screenshots" ? (root._peekCount === 0 ? Translation.tr("None yet")
+                        : modelData.type === "screenshots" ? (root._peekCount === 0 ? root._captureKeysLine // None yet: how to take them
                             : root._peekCount === 1 ? Translation.tr("1 capture") : Translation.tr("%1 captures").arg(root._peekCount))
                         : achieved ? Translation.tr("%1 of %2 unlocked").arg(achieved.unlocked).arg(achieved.total)
                         : tier !== "" ? Translation.tr("Rated %1").arg(tier.charAt(0).toUpperCase() + tier.slice(1))
@@ -1606,6 +1606,10 @@ Item {
     // For the Captures row: how many screenshots (find_screenshots.py, newest first, its folder on the first line)
     // and clips (a last "clips" line) the game has
     property int _peekCount: 0
+    // No captures yet: the keys that take them in a game (F12 is bound in keybinds.lua, the clip key is yours)
+    readonly property string _captureKeysLine: GameClips.enabled
+        ? Translation.tr("F12 for a screenshot, %1 for a clip").arg(GameClips.keyLabel)
+        : Translation.tr("F12 for a screenshot")
     Process {
         id: capturesPeek
         command: ["bash", "-c", 'python3 -I "$1" "$2" "$3" "$4" "$5"; printf "clips\t%s\n" "$(find "$6" -maxdepth 1 -type f \\( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.webm" -o -iname "*.mov" \\) 2>/dev/null | wc -l)"',

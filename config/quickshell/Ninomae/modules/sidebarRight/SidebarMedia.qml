@@ -21,7 +21,7 @@ Rectangle {
     property bool withSliders: false
     readonly property MprisPlayer player: MprisController.activePlayer
     readonly property bool isPlaying: player?.isPlaying ?? false
-    readonly property string title: StringUtils.cleanMusicTitle(player?.trackTitle) || Translation.tr("Unknown title")
+    readonly property string title: StringUtils.cleanMusicTitle(player?.trackTitle, player?.trackArtist) || Translation.tr("Unknown title")
     readonly property string artist: player?.trackArtist ?? ""
     TrackTiming { id: timing; player: root.player }
     readonly property real progress: timing.hasLength ? Math.max(0, Math.min(1, timing.position / timing.length)) : 0
@@ -107,7 +107,7 @@ Rectangle {
             }
             StyledText {
                 Layout.fillWidth: true
-                text: root.player?.identity ?? ""
+                text: AppSearch.playerName(root.player)
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 font.pixelSize: Appearance.font.pixelSize.smallest

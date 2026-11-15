@@ -49,7 +49,7 @@ Scope {
             // Remove unecessary native buses from browsers if there's plasma integration
             !(hasPlasmaIntegration && player.dbusName.startsWith('org.mpris.MediaPlayer2.firefox')) && !(hasPlasmaIntegration && player.dbusName.startsWith('org.mpris.MediaPlayer2.chromium')) &&
             // playerctld just copies other buses and we don't need duplicates
-            !player.dbusName?.startsWith('org.mpris.MediaPlayer2.playerctld') &&
+            !MprisController.isRelay(player) &&
             // Non-instance mpd bus
             !(player.dbusName?.endsWith('.mpd') && !player.dbusName.endsWith('MediaPlayer2.mpd')));
     }

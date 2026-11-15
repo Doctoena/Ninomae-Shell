@@ -23,6 +23,11 @@ Singleton {
         const name = normalise(rawName);
         return (name !== "" && root.colours[name]) ? root.colours[name] : Appearance.colors.colPrimary;
     }
+    // Whether it has a colour of its own (false while unknown, and for a grey or black one: those get the accent)
+    function hasColour(rawName) {
+        const name = normalise(rawName);
+        return name !== "" && !!root.colours[name];
+    }
     // "file:///…" → the path, "image://icon/steam" → "steam"
     function normalise(name) {
         const n = String(name ?? "");

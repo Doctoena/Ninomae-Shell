@@ -16,6 +16,7 @@ Slider {
     id: root
     property color ringColor: Appearance.colors.colLayer2 // The card it sits on
     property real level: 0 // The setting's current value
+    property color accentColor: Appearance.colors.colPrimary // The fill and knob (the media drawer's follows the cover)
     Binding on value {
         when: !root.pressed
         value: root.level
@@ -45,8 +46,8 @@ Slider {
             radius: height / 2
             gradient: Gradient {
                 orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.45) }
-                GradientStop { position: 1; color: Appearance.colors.colPrimary }
+                GradientStop { position: 0; color: ColorUtils.transparentize(root.accentColor, 0.45) }
+                GradientStop { position: 1; color: root.accentColor }
             }
         }
     }
@@ -66,7 +67,7 @@ Slider {
             width: root.pressed ? 34 : root.hovered ? 30 : 18
             height: width
             radius: width / 2
-            color: Appearance.colors.colPrimary
+            color: root.accentColor
             opacity: root.pressed ? 0.22 : root.hovered ? 0.14 : 0
             Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: 160 } }
@@ -83,7 +84,7 @@ Slider {
             width: root.pressed ? 14 : 16
             height: width
             radius: width / 2
-            color: Appearance.colors.colPrimary
+            color: root.accentColor
             Behavior on width { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
         }
     }

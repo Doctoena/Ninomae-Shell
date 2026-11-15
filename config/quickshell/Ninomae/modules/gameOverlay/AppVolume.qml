@@ -90,7 +90,7 @@ RowLayout {
                 Layout.preferredWidth: Math.min(implicitWidth, 210) // Not from the row's width: that loops the layout
                 elide: Text.ElideRight
                 text: root.game ? (root.gameName || Translation.tr("The game"))
-                    : root.node.properties["application.name"] || root.node.description || root.node.name
+                    : AppSearch.streamAppName(root.node)
                 font.pixelSize: Appearance.font.pixelSize.smallie
                 font.weight: Font.Medium
                 color: Appearance.colors.colOnLayer3

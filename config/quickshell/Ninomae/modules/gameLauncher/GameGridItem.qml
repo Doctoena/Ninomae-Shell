@@ -194,7 +194,7 @@ Item {
                     }
                     StyledText {
                         readonly property int minutes: game?.playtime ?? 0
-                        text: minutes >= 60 ? Math.floor(minutes / 60) + " h" : minutes > 0 ? "< 1 h" : Translation.tr("New")
+                        text: minutes >= 60 ? Math.floor(minutes / 60) + " h" : minutes > 0 ? minutes + " min" : Translation.tr("New")
                         color: minutes > 0 ? Appearance.colors.colSubtext : Appearance.colors.colPrimary
                         font.pixelSize: Appearance.font.pixelSize.smaller - 1
                         font.family: Appearance.font.family.numbers

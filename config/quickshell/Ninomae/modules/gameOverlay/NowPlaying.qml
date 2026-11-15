@@ -36,7 +36,7 @@ Rectangle {
             StyledText {
                 Layout.fillWidth: true
                 elide: Text.ElideRight
-                text: root.player?.trackTitle || root.player?.identity || ""
+                text: root.player?.trackTitle || AppSearch.playerName(root.player)
                 font.pixelSize: Appearance.font.pixelSize.small
                 font.weight: Font.DemiBold
                 color: Appearance.colors.colOnLayer2

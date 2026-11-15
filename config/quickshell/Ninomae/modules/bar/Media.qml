@@ -5,28 +5,29 @@ import qs.services
 import qs
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import Quickshell.Widgets
 import Quickshell.Services.Mpris
 
 /**
- * Bar player, in the middle of the bar while something plays: the cover,
- * title and artist with the time, previous / play-pause / next, and the
- * track's progress along the bottom edge. As the sidebar's player. Left click opens the media panel, middle click
- * plays/pauses, right click (or mouse forward) skips, mouse back goes to the previous track.
+ * Bar player, in the middle of the bar while something plays, in the colour of its cover (CoverTint): the
+ * cover, the title, the artist with the time left, and play/pause with the track's progress as a ring round it.
+ * Left click opens the media panel (previous / next are there), middle click plays/pauses, right click (or mouse
+ * forward) skips, mouse back goes to the previous track.
  */
 Item {
     id: root
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property bool isPlaying: activePlayer?.isPlaying ?? false
-    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle)
-    readonly property string artistText: (activePlayer?.trackArtist ?? "") || (activePlayer?.identity ?? "")
+    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle, activePlayer?.trackArtist)
+    readonly property string artistText: (activePlayer?.trackArtist ?? "") || AppSearch.playerName(activePlayer)
     // Kept through the gaps where a browser drops the length (TrackTiming.qml); none at all: no progress or times
     TrackTiming { id: timing; player: root.activePlayer }
     readonly property real trackProgress: timing.hasLength ? Math.max(0, Math.min(1, timing.position / timing.length)) : 0
     readonly property string timeText: timing.hasLength
-        ? `${StringUtils.friendlyTimeForSeconds(timing.position)} / ${StringUtils.friendlyTimeForSeconds(timing.length)}` : ""
+        ? Translation.tr("%1 left").arg(StringUtils.friendlyTimeForSeconds(Math.max(0, timing.length - timing.position))) : ""
     readonly property real maxMediaWidth: 420
-    readonly property bool hovered: mouseArea.containsMouse || playMouse.containsMouse || prevButton.pointed || nextButton.pointed
+    readonly property bool hovered: mouseArea.containsMouse || playMouse.containsMouse
 
     // ── Album art (fetched by services/CoverArt.qml, shared with the media panel and the sidebar) ──
     readonly property string artUrl: activePlayer?.trackArtUrl ?? ""
@@ -36,6 +37,14 @@ Item {
     property string shownArt: ""
     onDisplayedArtFilePathChanged: if (displayedArtFilePath !== "" || artUrl === "") shownArt = displayedArtFilePath
     readonly property bool hasArt: shownArt !== ""
+    CoverTint { id: tint; cover: root.shownArt }
+    // The cover's colours, gliding to the next cover's (through hidden Rectangles' own colour, as in the drawer)
+    Rectangle { id: accentFade; visible: false; color: tint.accent; Behavior on color { ColorAnimation { duration: 450; easing.type: Easing.OutCubic } } }
+    Rectangle { id: subtextFade; visible: false; color: tint.subtext; Behavior on color { ColorAnimation { duration: 450; easing.type: Easing.OutCubic } } }
+    // The ring's progress, eased a quarter second at each step and sweeping back on a new track. Not a constant
+    // glide: one that never ends would redraw the bar at the full refresh rate the whole time music plays.
+    // Held in a hidden Item's width (×1000), a built-in property, as the colours are
+    Item { id: ringFade; visible: false; width: root.trackProgress * 1000; Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } } }
     Component.onCompleted: {
         shownArt = displayedArtFilePath;
         settle();
@@ -91,9 +100,9 @@ Item {
         height: 36 // As every card on the bar
         width: Math.min(root.maxMediaWidth, contentRow.implicitWidth + contentRow.anchors.leftMargin + contentRow.anchors.rightMargin)
         radius: Appearance.rounding.container
-        color: root.hovered ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+        color: tint.surface(root.hovered ? Appearance.m3colors.m3surfaceContainerHighest : Appearance.m3colors.m3surfaceContainerHigh, 0.2)
+        Behavior on color { ColorAnimation { duration: 450; easing.type: Easing.OutCubic } }
+        Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
 
         MouseArea {
             id: mouseArea
@@ -110,21 +119,6 @@ Item {
             }
         }
 
-        Rectangle { // Track progress along the bottom edge, on a faint track
-            visible: timing.hasLength
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 10; rightMargin: 10; bottomMargin: 2 }
-            height: 2
-            radius: 1
-            color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.85)
-            Rectangle {
-                width: parent.width * root.trackProgress
-                height: parent.height
-                radius: 1
-                color: Appearance.colors.colPrimary
-                // Steps once a second (~1-2 px) rather than gliding: a glide never ends while playing,
-                // so the bar redrew at the full refresh rate (240 Hz) the whole time music played
-            }
-        }
         RowLayout {
             id: contentRow
             // The art and the buttons as far from the card's sides as from its top and bottom
@@ -197,45 +191,80 @@ Item {
                     elide: Text.ElideRight
                     text: root.titleShown
                 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: subtitle.text.length > 0
+                    spacing: 3
+                    MaterialSymbol {
+                        id: stateSymbol
+                        text: root.isPlaying ? "graphic_eq" : "pause"
+                        fill: 1
+                        iconSize: 11
+                        color: accentFade.color
+                        // A new symbol (play ↔ pause) springs in from half size. A handler, not a Behavior on text:
+                        // StyledText already has one of those
+                        onTextChanged: stateSymbolPop.restart()
+                        NumberAnimation on scale { id: stateSymbolPop; running: false; from: 0.5; to: 1; duration: 280; easing.type: Easing.OutBack }
+                    }
                 StyledText {
                     id: subtitle
                     Layout.fillWidth: true
                     // Measured with every digit a 0: the time ticking doesn't nudge the card's width each second
                     Layout.preferredWidth: subtitleMetrics.advanceWidth
-                    visible: text.length > 0
                     font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
+                    color: subtextFade.color
                     elide: Text.ElideRight
-                    text: [root.artistShown, root.timeText].filter(t => t).join(" · ")
+                    text: [root.artistShown, root.timeText].filter(t => t).join("  ·  ")
                     TextMetrics {
                         id: subtitleMetrics
                         font: subtitle.font
                         text: subtitle.text.replace(/[0-9]/g, "0")
                     }
                 }
+                }
             }
 
-            // ── Previous / play-pause / next ──
-            SkipButton {
-                id: prevButton
-                symbol: "skip_previous"
-                enabled: root.activePlayer?.canGoPrevious ?? false
-                onClicked: root.activePlayer?.previous()
-            }
-            Rectangle {
+            // ── Play / pause, the track's progress as a ring round it ──
+            Item {
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth: 26
-                implicitHeight: 26
-                radius: playMouse.pressed ? 6 : 8
-                color: playMouse.containsMouse ? Qt.lighter(Appearance.colors.colPrimary, 1.08) : Appearance.colors.colPrimary
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on radius { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                implicitWidth: 28
+                implicitHeight: 28
+                Rectangle { // Soft fill while pointed at
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: accentFade.color
+                    opacity: playMouse.pressed ? 0.3 : playMouse.containsMouse ? 0.18 : 0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                }
+                Shape {
+                    anchors.fill: parent
+                    preferredRendererType: Shape.CurveRenderer
+                    ShapePath { // The track
+                        fillColor: "transparent"
+                        strokeColor: ColorUtils.transparentize(accentFade.color, 0.75)
+                        strokeWidth: 2.5
+                        capStyle: ShapePath.RoundCap
+                        PathAngleArc { centerX: 14; centerY: 14; radiusX: 12.5; radiusY: 12.5; startAngle: 0; sweepAngle: 360 }
+                    }
+                    ShapePath { // Played so far: steps once a second, no glide (a glide never ends while playing)
+                        fillColor: "transparent"
+                        strokeColor: accentFade.color
+                        strokeWidth: 2.5
+                        capStyle: ShapePath.RoundCap
+                        PathAngleArc { centerX: 14; centerY: 14; radiusX: 12.5; radiusY: 12.5; startAngle: -90; sweepAngle: 360 * ringFade.width / 1000 }
+                    }
+                }
                 MaterialSymbol {
+                    id: ringSymbol
                     anchors.centerIn: parent
                     text: root.isPlaying ? "pause" : "play_arrow"
                     fill: 1
                     iconSize: 16
-                    color: Appearance.colors.colOnPrimary
+                    color: accentFade.color
+                    // A new symbol (play ↔ pause) springs in from half size. A handler, not a Behavior on text:
+                    // StyledText already has one of those
+                    onTextChanged: ringSymbolPop.restart()
+                    NumberAnimation on scale { id: ringSymbolPop; running: false; from: 0.5; to: 1; duration: 280; easing.type: Easing.OutBack }
                 }
                 MouseArea {
                     id: playMouse
@@ -245,41 +274,6 @@ Item {
                     onClicked: root.activePlayer?.togglePlaying()
                 }
             }
-            SkipButton {
-                id: nextButton
-                symbol: "skip_next"
-                enabled: root.activePlayer?.canGoNext ?? false
-                onClicked: root.activePlayer?.next()
-            }
-        }
-    }
-
-    // A small previous / next button: just the glyph, a soft squircle behind it while pointed at
-    component SkipButton: Rectangle {
-        id: skip
-        property string symbol
-        signal clicked()
-        readonly property bool pointed: skipMouse.containsMouse
-        Layout.alignment: Qt.AlignVCenter
-        implicitWidth: 22
-        implicitHeight: 26
-        radius: Appearance.rounding.chip
-        opacity: enabled ? 1 : 0.4
-        color: pointed ? ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.9) : "transparent"
-        Behavior on color { ColorAnimation { duration: 150 } }
-        MaterialSymbol {
-            anchors.centerIn: parent
-            text: skip.symbol
-            fill: 1
-            iconSize: 16
-            color: skip.pointed ? Appearance.colors.colOnLayer0 : Appearance.colors.colSubtext
-        }
-        MouseArea {
-            id: skipMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: skip.clicked()
         }
     }
 }

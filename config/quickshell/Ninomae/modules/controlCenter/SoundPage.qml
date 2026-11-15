@@ -7,6 +7,8 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Pipewire
+import Quickshell.Services.Mpris
+import qs.modules.common.functions
 
 // Sound: the output and the mic, the apps playing or recording, and the devices to pick from
 ColumnLayout {
@@ -105,14 +107,22 @@ ColumnLayout {
         }
     }
 
-    // An app: its icon, name and what it's playing, its volume. Its node goes null for a moment as the app
+    // An app: its icon, name and what it's playing (its media player's track and artist in the accent, when one
+    // has the same app name, else the stream's own title unless it's a stock one), its volume. Its node goes null for a moment as the app
     // stops (the row is on its way out): everything reads it with ?.
     component AppRow: SliderRow {
         id: appRow
         required property PwNode modelData
         readonly property PwNode node: modelData
-        text: !node ? "" : node.properties["application.name"] ?? (node.description !== "" ? node.description : node.name)
-        description: node?.properties["media.name"] ?? ""
+        text: AppSearch.streamAppName(node)
+        readonly property MprisPlayer player: Mpris.players.values.find(p => p.trackTitle && AppSearch.playerName(p) === appRow.text) ?? null
+        readonly property string track: !player ? ""
+            : [StringUtils.cleanMusicTitle(player.trackTitle, player.trackArtist), player.trackArtist].filter(s => s).join(" · ")
+        readonly property string streamTitle: node?.properties["media.name"] ?? ""
+        description: track !== "" ? track
+            : /^(playback|audiostream|audio stream|recordstream|record stream|playstream)$/i.test(streamTitle) ? "" : streamTitle
+        descriptionSymbol: track === "" ? "" : player.isPlaying ? "graphic_eq" : "pause"
+        descriptionColor: track !== "" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
         level: node?.audio?.volume ?? 0
         dimmed: node?.audio?.muted ?? false
         onMoved: value => { if (appRow.node?.audio) appRow.node.audio.volume = value; }
@@ -122,6 +132,8 @@ ColumnLayout {
             sourceSize: Qt.size(28, 28)
             source: {
                 if (!appRow.node) return "";
+                const entryIcon = AppSearch.appEntry(AppSearch.streamNames(appRow.node))?.icon ?? ""; // Its launcher entry's
+                if (AppSearch.iconExists(entryIcon)) return Quickshell.iconPath(entryIcon, "image-missing");
                 const named = AppSearch.guessIcon(appRow.node.properties["application.icon-name"]);
                 if (AppSearch.iconExists(named)) return Quickshell.iconPath(named, "image-missing");
                 return Quickshell.iconPath(AppSearch.guessIcon(appRow.node.properties["node.name"]), "image-missing");

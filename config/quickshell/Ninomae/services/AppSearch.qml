@@ -89,6 +89,38 @@ Singleton {
         return (Quickshell.iconPath(iconName, true).length > 0)
             && !iconName.includes("image-missing");
     }
+    // An app's proper name, its launcher entry's ("Vesktop", "Zen Browser"), from the names it gives itself
+    // (PipeWire's "vesktop", MPRIS's "zen", a Flatpak id): the first that matches an entry, else the first given
+    function appName(names) {
+        const entry = appEntry(names);
+        if (entry?.name) return entry.name;
+        const first = String((names ?? []).find(n => n) ?? "");
+        return first.charAt(0).toUpperCase() + first.slice(1);
+    }
+    // The launcher entry behind those names, null when none: the first name that matches one, by Quickshell's
+    // lookup or as the end of an entry's id (the program youtube-music is com.github.th-ch.youtube-music)
+    function appEntry(names) {
+        for (const n of (names ?? []).filter(n => n)) {
+            const tail = "." + String(n).toLowerCase();
+            const entry = DesktopEntries.heuristicLookup(n)
+                ?? DesktopEntries.applications.values.find(e => e.id.toLowerCase().endsWith(tail));
+            if (entry) return entry;
+        }
+        return null;
+    }
+    function playerName(player) { // A media player's ("Mozilla zen" → "Zen Browser")
+        return player ? appName([player.desktopEntry, player.identity]) : "";
+    }
+    // A PipeWire stream's name, its app's: the Flatpak id first (Zen calls itself just "Zen"), then the program
+    // (Electron apps' streams are all named "Chromium": YouTube Music's program is youtube-music)
+    function streamAppName(node) {
+        return appName(streamNames(node));
+    }
+    function streamNames(node) {
+        const p = node?.properties ?? {};
+        return [p["pipewire.access.portal.app_id"], p["application.process.binary"], p["application.name"],
+            node?.description, node?.name];
+    }
     function getReverseDomainNameAppName(str) {
         return str.split('.').slice(-1)[0]
     }

@@ -43,11 +43,13 @@ Singleton {
         .replace(/'/g, "'\\''");
     }
     /**
-     * Cleans up a music title by removing bracketed and special characters.
+     * Cleans up a music title: leading bracketed bits, the tags videos carry ("[uncensored]",
+     * "(Official Music Video)", "(Lyrics)") and, given the artist, the artist repeated in it ("Song - Artist")
      * @param { string } title
+     * @param { string } artist
      * @returns { string }
      */
-    function cleanMusicTitle(title) {
+    function cleanMusicTitle(title, artist = "") {
         if (!title)
             return "";
         // Brackets
@@ -59,6 +61,15 @@ Singleton {
         title = title.replace(/^ *《[^》]*》/, ""); // ??
         title = title.replace(/^ *「[^」]*」/, ""); // OP/ED thingie
         title = title.replace(/^ *『[^』]*』/, ""); // OP/ED thingie
+        // Video tags, anywhere: (Official Video), [Official HD Music Video], (Lyrics), [uncensored], (4K)…
+        title = title.replace(/\s*[\[(][^\])]*\b(?:official|lyrics?|audio|visuali[sz]er|uncensored|explicit|hd|hq|4k|mv|m\/v|music video|video clip)\b[^\])]*[\])]/gi, "");
+        // The artist repeated: "Song - Artist" or "Artist - Song"
+        const a = String(artist ?? "").trim();
+        if (a !== "") {
+            const esc = a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const cut = title.replace(new RegExp(`\\s+[-–—|]\\s+${esc}\\s*$`, "i"), "").replace(new RegExp(`^${esc}\\s+[-–—]\\s+`, "i"), "");
+            if (cut.trim() !== "") title = cut;
+        }
         return title.trim();
     }
     /**

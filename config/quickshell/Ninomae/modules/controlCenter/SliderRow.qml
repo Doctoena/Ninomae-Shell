@@ -14,6 +14,8 @@ SettingsCard {
     id: root
     property string text
     property string description
+    property alias descriptionSymbol: rowText.descriptionSymbol
+    property alias descriptionColor: rowText.descriptionColor
     property real level: 0
     property real from: 0
     property real to: 1
@@ -36,6 +38,7 @@ SettingsCard {
                 spacing: 8
             }
             RowText {
+                id: rowText
                 text: root.text
                 description: root.description
                 color: root.dimmed ? Appearance.colors.colSubtext : Appearance.colors.colOnLayer1

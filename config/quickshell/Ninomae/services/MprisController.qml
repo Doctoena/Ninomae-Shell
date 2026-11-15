@@ -16,13 +16,18 @@ import "../modules/common/trackTimingCache.js" as TimingCache
 Singleton {
 	id: root;
 	property MprisPlayer trackedPlayer: null;
-	property MprisPlayer activePlayer: trackedPlayer ?? Mpris.players.values[0] ?? null;
+	// playerctld only relays another player: left alone (no player behind it) it's an empty one, which kept an
+	// untitled "Zen Browser" in the bar after the tab closed
+	function isRelay(player) { return player?.dbusName?.startsWith("org.mpris.MediaPlayer2.playerctld") ?? false; }
+	readonly property var players: Mpris.players.values.filter(p => !root.isRelay(p))
+	property MprisPlayer activePlayer: trackedPlayer ?? players[0] ?? null;
 	Instantiator {
 		model: Mpris.players;
 		Connections {
 			required property MprisPlayer modelData;
 			target: modelData;
 			Component.onCompleted: {
+				if (root.isRelay(modelData)) return;
 				if (root.trackedPlayer == null || modelData.isPlaying) {
 					root.trackedPlayer = modelData;
 				}
@@ -32,11 +37,11 @@ Singleton {
 			Component.onDestruction: {
 				const tracked = root.trackedPlayer;
 				if (tracked && tracked !== modelData && tracked.isPlaying) return;
-				const others = Mpris.players.values.filter(p => p !== modelData);
+				const others = root.players.filter(p => p !== modelData);
 				root.trackedPlayer = others.find(p => p.isPlaying) ?? others[0] ?? null;
 			}
 			function onPlaybackStateChanged() {
-				if (root.trackedPlayer !== modelData) root.trackedPlayer = modelData;
+				if (root.trackedPlayer !== modelData && !root.isRelay(modelData)) root.trackedPlayer = modelData;
 			}
 			// Real timing from the player (play, pause, seek, a new track): worth keeping over a restart
 			function onIsPlayingChanged() { timingSave.start(); }

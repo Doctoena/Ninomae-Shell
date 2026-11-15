@@ -471,7 +471,7 @@ MouseArea {
             spacing: 0
             StyledText {
                 Layout.fillWidth: true
-                text: StringUtils.cleanMusicTitle(lockPlayer.player?.trackTitle) || Translation.tr("Unknown title")
+                text: StringUtils.cleanMusicTitle(lockPlayer.player?.trackTitle, lockPlayer.player?.trackArtist) || Translation.tr("Unknown title")
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 font.family: Appearance.font.family.title
