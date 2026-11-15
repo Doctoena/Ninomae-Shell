@@ -8,15 +8,16 @@ import Quickshell.Io
  * The most vivid colour in an app's icon, for tinted cards and halos (the app search's chosen result, the
  * sidebar's newest notification). The accent for grey icons or no icon. Worked out once per icon and
  * remembered for the session: ask with request(name) as an item is built, read colourFor(name), which is the
- * accent until it's known. One icon at a time goes through the quantizer (a queue). Icon files are found by a
- * short shell lookup (ColorQuantizer can't read `image://icon/…`); absolute paths are read as they are.
+ * accent until it's known. One icon is worked out at a time (a queue), each by its own quantizer so a late result
+ * can only land on its own icon (a shared one once handed Zen's grey rings the green of the icon before it).
+ * Icon files are found by a short shell lookup (ColorQuantizer can't read `image://icon/…`); absolute paths are
+ * read as they are.
  */
 Singleton {
     id: root
     property var colours: ({}) // icon name → its colour, or null for "use the accent"
-    property var iconFiles: ({}) // icon name → its file, "" when none was found
     property var queue: []
-    property string current: "" // The icon in the quantizer now
+    property string current: "" // The icon being worked out now
 
     function colourFor(rawName) {
         const name = normalise(rawName);
@@ -43,23 +44,20 @@ Singleton {
     function pump() {
         if (root.current !== "" || root.queue.length === 0) return;
         root.current = root.queue.shift();
-        const name = root.current;
-        if (name.startsWith("/")) quantize(name);
-        else if (root.iconFiles[name] !== undefined) quantize(root.iconFiles[name]);
-        else lookupComp.createObject(root, { name: name }).running = true;
+        if (root.current.startsWith("/")) quantize(root.current);
+        else lookupComp.createObject(root, { name: root.current }).running = true;
     }
     function quantize(file) {
         if (file === "") { remember(root.current, null); return; }
-        if (quantizer.source === "file://" + file) { pick(); return; } // Same file as the last one: no change signal
-        quantizer.source = "file://" + file;
+        quantComp.createObject(root, { name: root.current, source: "file://" + file });
     }
-    function pick() {
+    function pick(name, colours) {
         let best = null, bestScore = 0.12; // Below this it's grey or black: the accent
-        for (const c of (quantizer.colors ?? [])) {
+        for (const c of (colours ?? [])) {
             const score = c.hsvSaturation * c.hsvValue;
             if (score > bestScore) { bestScore = score; best = c; }
         }
-        remember(root.current, best);
+        remember(name, best);
     }
     Component {
         id: lookupComp
@@ -86,18 +84,29 @@ done
 for e in svg png; do [ -f "/usr/share/pixmaps/$n.$e" ] && { echo "/usr/share/pixmaps/$n.$e"; exit; }; done`, "icon-lookup", lookup.name]
             stdout: StdioCollector {
                 onStreamFinished: {
-                    const file = text.trim();
-                    root.iconFiles = Object.assign({}, root.iconFiles, { [lookup.name]: file });
-                    if (root.current === lookup.name) root.quantize(file);
+                    if (root.current === lookup.name) root.quantize(text.trim());
                     lookup.destroy(); // Once its output is read: on exit it could still be on its way
                 }
             }
         }
     }
-    ColorQuantizer {
-        id: quantizer
-        depth: 2 // Four colours
-        rescaleSize: 32
-        onColorsChanged: if (root.current !== "") root.pick()
+    Component {
+        id: quantComp
+        ColorQuantizer {
+            id: q
+            required property string name
+            depth: 2 // Four colours
+            rescaleSize: 32
+            property bool done: false
+            onColorsChanged: if ((q.colors ?? []).length > 0) finish(q.colors)
+            function finish(colours) {
+                if (q.done) return; // Colours and the time-out can both come
+                q.done = true;
+                root.pick(q.name, colours);
+                q.destroy();
+            }
+            // An icon that won't load never reports colours: the accent after a while, and the queue moves on
+            property Timer giveUp: Timer { interval: 4000; running: true; onTriggered: q.finish([]) }
+        }
     }
 }
