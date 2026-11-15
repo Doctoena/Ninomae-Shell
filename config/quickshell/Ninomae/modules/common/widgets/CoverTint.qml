@@ -7,15 +7,18 @@ import QtQuick
  * The colours a player takes from its cover (the bar's player, the media drawer): the cover's most vivid colour
  * (IconColours), and from it a light accent, the text on that accent, a soft line colour and surfaces mixed
  * towards it. A cover with no colour of its own (black and white, grey) or none leaves everything as the shell's
- * own: neutral surfaces and the accent, not surfaces washed in the accent.
+ * own: neutral surfaces and the accent, not surfaces washed in the accent. So does turning the colours off
+ * (Settings → Bar, media.coverColours).
  */
 QtObject {
     id: root
     property string cover: "" // The cover's file
-    onCoverChanged: IconColours.request(cover)
-    Component.onCompleted: IconColours.request(cover)
+    readonly property bool enabled: Config.options.media.coverColours
+    onCoverChanged: if (enabled) IconColours.request(cover)
+    onEnabledChanged: if (enabled) IconColours.request(cover)
+    Component.onCompleted: if (enabled) IconColours.request(cover)
 
-    readonly property bool vivid: IconColours.hasColour(cover)
+    readonly property bool vivid: enabled && IconColours.hasColour(cover)
     readonly property color source: vivid ? IconColours.colourFor(cover) : Appearance.colors.colPrimary
     readonly property real hue: Math.max(0, source.hslHue)
     readonly property real saturation: Math.min(source.hslSaturation, 0.85)

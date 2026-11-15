@@ -62,6 +62,11 @@ ContentPage {
             visible: Battery.available
             option: "bar.indicators.battery.show"
         }
+        ConfigSwitch {
+            text: Translation.tr("Player in the cover's colours")
+            description: Translation.tr("The player and its drop-down take the colours of what's playing. Off: the shell's own colours")
+            option: "media.coverColours"
+        }
     }
     ContentSection {
         title: Translation.tr("System tray")
