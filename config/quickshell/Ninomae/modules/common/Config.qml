@@ -96,7 +96,7 @@ Singleton {
             id: configOptionsJsonAdapter
             property JsonObject appearance: JsonObject {
                 property bool extraBackgroundTint: true
-                property bool themeTransition: true // Circular reveal when the wallpaper/colours change
+                property bool themeTransition: true // The new look opens from the cursor when the wallpaper/colours change (modules/themeTransition)
                 property JsonObject wallpaperTheming: JsonObject {
                     property bool enableAppsAndShell: true
                     property bool enableQtApps: true

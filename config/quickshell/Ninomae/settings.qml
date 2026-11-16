@@ -82,6 +82,8 @@ ApplicationWindow {
     // scripts/open-settings.sh calls this when Settings is already open: switch page and come forward
     IpcHandler {
         target: "settings"
+        // The background colour it shows: switchwall.sh waits for the new one before a theme change is revealed
+        function background(): string { return Appearance.m3colors.m3background.toString(); }
         // `qs -p settings.qml ipc call settings search "blur"`: fills the search box
         function search(text: string): void {
             headerBar.searchField.text = text;

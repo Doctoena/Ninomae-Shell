@@ -141,16 +141,28 @@ refresh_gtk_services() {
     return 0
 }
 
-# Smooth theme change (modules/themeTransition). prepare: the shell keeps its current look while the new
-# colours are generated. reveal: the old wallpaper fades off the new one as the shell colours fade.
+# Smooth theme change (modules/themeTransition). prepare: the shell and its wallpaper keep their look while the
+# new colours are worked out (the screen stays live). cover: a still picture of the screen goes over everything,
+# so the apps can be switched under it. reveal: it opens from the cursor straight away.
 prepare_theme_transition() {
     [[ $cfg_transition == false ]] && return 0
     command -v qs >/dev/null || return 0
     qs -c "$QUICKSHELL_CONFIG_NAME" ipc call themeTransition prepare >/dev/null 2>&1 && THEME_TRANSITION=1
     return 0
 }
-reveal_theme_transition() {
+cover_theme_transition() {
     [[ -n "${THEME_TRANSITION:-}" ]] || return 0
+    qs -c "$QUICKSHELL_CONFIG_NAME" ipc call themeTransition cover >/dev/null 2>&1 || return 0
+    local i
+    for i in {1..20}; do # The picture takes a frame or two; give up after ~0.5 s (the change is then instant)
+        [[ "$(qs -c "$QUICKSHELL_CONFIG_NAME" ipc call themeTransition ready 2>/dev/null)" == true ]] && break
+        sleep 0.02
+    done
+    return 0
+}
+reveal_theme_transition() { # Once: main calls it again at the end, in case switch() returned early
+    [[ -n "${THEME_TRANSITION:-}" ]] || return 0
+    unset THEME_TRANSITION
     local cx cy
     read -r cx cy < <(hyprctl cursorpos -j 2>/dev/null | jq -r '"\(.x) \(.y)"') || true
     qs -c "$QUICKSHELL_CONFIG_NAME" ipc call themeTransition reveal "${cx:-960}" "${cy:-540}" >/dev/null 2>&1
@@ -160,6 +172,7 @@ reveal_theme_transition() {
 switch() {
     local imgpath="$1" mode_flag="$2" type_flag="$3" color_flag="$4" color="$5"
     local matugen_args gcm_args # gcm: generate_colors_material.py
+    local stop_video="" start_video="" # mpvpaper, at the reveal
 
     if [[ $color_flag == 1 ]]; then
         matugen_args=(color hex "$color")
@@ -175,7 +188,7 @@ switch() {
         [[ -n $noswitch_flag ]] && keep_wallpaper=1
         if [[ -z $keep_wallpaper ]]; then
             check_and_prompt_upscale "$imgpath" &
-            pkill -f -9 mpvpaper
+            stop_video=1
         fi
 
         if is_video "$imgpath"; then
@@ -185,12 +198,8 @@ switch() {
                 offer_install "Can't switch to video wallpaper" "Missing: ${missing[*]##*/}" "${missing[@]}"
                 exit 0
             fi
-            local monitor
             if [[ -z $keep_wallpaper ]] || ! pgrep -x mpvpaper >/dev/null; then
-                for monitor in $(hyprctl monitors -j | jq -r '.[] | .name'); do
-                    mpvpaper -o "$VIDEO_OPTS" "$monitor" "$imgpath" &
-                    sleep 0.1
-                done
+                start_video=1
             fi
             # Colours come from the first frame (already extracted if auto scheme detection needed it)
             mkdir -p "$THUMBNAIL_DIR"
@@ -223,36 +232,82 @@ switch() {
         [[ "$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)" == "'prefer-dark'" ]] \
             && mode_flag=dark || mode_flag=light
     fi
-    gsettings set org.gnome.desktop.interface color-scheme "prefer-$mode_flag"
     matugen_args+=(--mode "$mode_flag")
     [[ $cfg_force_dark == true ]] && gcm_args+=(--mode dark) || gcm_args+=(--mode "$mode_flag")
     [[ -n $type_flag ]] && matugen_args+=(--type "$type_flag") && gcm_args+=(--scheme "$type_flag")
     gcm_args+=(--termscheme)
     # Pick the first source colour rather than asking
     [[ ${matugen_args[0]} == image ]] && matugen_args+=(--source-color-index 0)
+    local render_args=(--mode "$mode_flag" ${type_flag:+--type "$type_flag"})
 
     if [[ $cfg_apps_shell == false ]]; then
         echo "App and shell theming disabled, skipping matugen and color generation"
+        apply_wallpaper_video
         return
     fi
 
-    # matugen (shell, apps) and the terminal/Qt palette are independent: generate both at once
+    # ── Worked out with the screen live: nothing on screen changes yet ──
+    # The scheme (reading the picture is the slow part, ~1 s for a 4K one) and the terminal/Qt palette, at once
     mkdir -p "$GENERATED"
-    matugen "${matugen_args[@]}" &
+    local scheme="$GENERATED/scheme.json"
+    matugen "${matugen_args[@]}" --dry-run --json hex >"$scheme.new" 2>/dev/null &
     local matugen_pid=$!
     "$PYTHON" "$SCRIPT_DIR/generate_colors_material.py" "${gcm_args[@]}" \
         >"$GENERATED/material_colors.scss.new" \
         && mv -f "$GENERATED/material_colors.scss.new" "$GENERATED/material_colors.scss"
-    wait "$matugen_pid"
-    "$SCRIPT_DIR"/applycolor.sh
-    # Hyprland's border and background colours, set on the running Hyprland: they're written outside its config
-    # folder (matugen/config.toml), so it doesn't reload everything and flash
-    local hypr_live="$GENERATED/hyprland/colors-live.lua"
-    # Without its comments: one starting with "--" would be taken as a hyprctl flag
-    [[ -f $hypr_live ]] && hyprctl eval "$(grep -v '^[[:space:]]*--' -- "$hypr_live" | tr '\n' ' ')" >/dev/null 2>&1
+    wait "$matugen_pid" && mv -f "$scheme.new" "$scheme" || { rm -f "$scheme.new"; echo "[switchwall] matugen failed" >&2; return 1; }
+    # The shell's own colours, to colors.next.json: the shell holds them till the reveal
+    local next="$GENERATED/colors.next.json"
+    matugen json "$scheme" "${render_args[@]}" -c "$SCRIPT_DIR/matugen-shell.toml" >/dev/null 2>&1 \
+        && [[ -n "${THEME_TRANSITION:-}" ]] \
+        && qs -c "$QUICKSHELL_CONFIG_NAME" ipc call themeTransition stage >/dev/null 2>&1
 
-    refresh_gtk_services &
-    # VS Code follows through matugen's hook (themes/vscode/apply-live.sh)
+    # ── Applied under the cover, then revealed at once: the apps repaint while the circle is still small ──
+    cover_theme_transition
+    # colors.json first: Settings and the other shell windows (their own processes) take their colours from it
+    [[ -f $next ]] && cp -f "$next" "$GENERATED/colors.json.tmp" && mv -f "$GENERATED/colors.json.tmp" "$GENERATED/colors.json"
+    wait_for_settings "$next"
+    apply_wallpaper_video
+    gsettings set org.gnome.desktop.interface color-scheme "prefer-$mode_flag"
+    {
+        # Every template (the same output as reading the picture again) and their hooks: VS Code, Zen, Steam…
+        matugen json "$scheme" "${render_args[@]}" >/dev/null 2>&1
+        "$SCRIPT_DIR"/applycolor.sh
+        # Hyprland's border and background colours, set on the running Hyprland: they're written outside its
+        # config folder (matugen/config.toml), so it doesn't reload everything and flash. Without its comments:
+        # one starting with "--" would be taken as a hyprctl flag
+        local hypr_live="$GENERATED/hyprland/colors-live.lua"
+        [[ -f $hypr_live ]] && hyprctl eval "$(grep -v '^[[:space:]]*--' -- "$hypr_live" | tr '\n' ' ')" >/dev/null 2>&1
+        refresh_gtk_services
+    } &
+    local apply_pid=$!
+    reveal_theme_transition
+    wait "$apply_pid"
+}
+
+# Settings (its own process) repaints in its new colours under the cover before the reveal: it's under the
+# cursor when the change comes from there, so the circle reaches it first. Not open: no wait
+wait_for_settings() {
+    [[ -n "${THEME_TRANSITION:-}" ]] || return 0
+    local settings want have i
+    settings="$(realpath "$SCRIPT_DIR/../../settings.qml" 2>/dev/null)" || return 0 # As open-settings.sh: qs finds it by path
+    want="$(jq -r .background "$1" 2>/dev/null)" || return 0
+    for i in {1..15}; do # ~0.5 s at most
+        have="$(qs -p "$settings" ipc call settings background 2>/dev/null)" || return 0 # Not open
+        [[ ${have,,} == "${want,,}" ]] && { sleep 0.02; return 0; } # One more frame to paint it
+        sleep 0.02
+    done
+}
+
+# A video wallpaper starts (or the old one stops) with the rest of the change
+apply_wallpaper_video() {
+    [[ -n $stop_video ]] && pkill -f -9 mpvpaper
+    [[ -n $start_video ]] || return 0
+    local monitor
+    for monitor in $(hyprctl monitors -j | jq -r '.[] | .name'); do
+        mpvpaper -o "$VIDEO_OPTS" "$monitor" "$imgpath" &
+        sleep 0.1
+    done
 }
 
 main() {
@@ -306,8 +361,8 @@ main() {
         [[ -n $imgpath ]] && imgpath="$(move_into_wallpapers "$imgpath" "$pictures/Wallpapers")"
     fi
 
-    # From here nothing on screen changes until the reveal: hold the current look first, so the shell can
-    # start loading the new wallpaper while the scheme is picked and the colours are made
+    # From here nothing on screen changes until the reveal, though all of it stays live: hold the shell's look
+    # first, so it can load the new wallpaper while the scheme is picked and the colours are made
     prepare_theme_transition
 
     # auto: pick the scheme that suits the image

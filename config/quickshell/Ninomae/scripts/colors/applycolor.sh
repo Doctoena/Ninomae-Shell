@@ -79,5 +79,10 @@ fi
 
 # Icons: the folders (Ninomae-Icons-accent) and GNOME's accent-color follow the new accent
 python3 -I "$SCRIPT_DIR/recolor_icons.py" &
-# The cursor too (Ninomae-Cursor-accent)
-python3 -I "$SCRIPT_DIR/recolor_cursor.py" &
+
+# All of the above done before switchwall.sh reveals the change (each well under a second), so nothing on screen
+# changes after it
+wait
+
+# The cursor too (Ninomae-Cursor-accent): left to finish on its own (~1 s), it's drawn above the reveal anyway
+( python3 -I "$SCRIPT_DIR/recolor_cursor.py" & )

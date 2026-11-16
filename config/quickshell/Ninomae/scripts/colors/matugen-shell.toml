@@ -1,0 +1,9 @@
+# switchwall.sh renders only the shell's own colours with this, ahead of the rest, to a file of their own: the
+# shell takes them from there (themeTransition stage) and holds them till the reveal. Not to colors.json itself:
+# Settings and the other windows run as their own processes and would switch to it at once
+[config]
+version_check = false
+
+[templates.m3colors]
+input_path = '~/.config/matugen/templates/colors.json'
+output_path = '~/.local/state/quickshell/user/generated/colors.next.json'

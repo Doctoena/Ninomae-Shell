@@ -21,13 +21,11 @@ Singleton {
     // Where a drawer's top goes: right below the bar, or near the screen's top edge while there's none
     readonly property real barBottom: Appearance.sizes.barHeight - (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
     function drawerTopOn(screen) { return barShownOn(screen) ? barBottom : 10; }
-    // Theme transition: while true the wallpaper and colours keep their current look (the new ones are
-    // generated in the background), so the change can be revealed in one go
+    // Theme change (modules/themeTransition): the wallpaper keeps its look while true, and where the new look
+    // opens from, the cursor (global coordinates)
     property bool themeHold: false
-    // Where the old wallpaper zooms from as it fades (global coordinates); bumping the serial starts a reveal
     property real themeRevealX: 0
     property real themeRevealY: 0
-    property int themeRevealSerial: 0
     property bool gameLauncherOpen: false
     property bool gameOverlayOpen: false // The in-game overlay (modules/gameOverlay, Super+Shift+G)
     property bool gameLauncherFilePickerActive: false

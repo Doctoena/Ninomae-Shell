@@ -94,7 +94,7 @@ ContentPage {
             title: Translation.tr("Shell")
             ConfigSwitch {
                 text: Translation.tr("Smooth transition when colours change")
-                description: Translation.tr("The new colours fade in from where you clicked")
+                description: Translation.tr("The new look, apps included, spreads out from where you clicked")
                 option: "appearance.themeTransition"
             }
             ConfigSwitch {
