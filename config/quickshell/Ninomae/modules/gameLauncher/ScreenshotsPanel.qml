@@ -350,6 +350,7 @@ LauncherTopPanel {
             game: root.game
             showCover: false
             shadeMid: 0.62; shadeEnd: 0.85 // Darker again on the right, under the buttons
+            lightShadeStart: 0.35; lightScale: 0.25 // Light mode: every control here sits on its own chip
         }
         SheetIconButton { // Close, or back to the grid
             id: closeButton

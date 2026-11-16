@@ -174,7 +174,8 @@ ColumnLayout {
                     Rectangle { // The neighbours sit back: dimmed
                         anchors.fill: parent
                         color: Appearance.colors.colLayer0
-                        opacity: (tileMouse.containsMouse ? 0.25 : 0.5) * Math.min(1, tile.distance) // Lighter pointed at
+                        // Lighter pointed at, and in light mode (a white veil washes a picture out more than a dark one dims it)
+                        opacity: (tileMouse.containsMouse ? 0.25 : 0.5) * (Appearance.m3colors.darkmode ? 1 : 0.55) * Math.min(1, tile.distance)
                         Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
                     }
                     Rectangle { // Making its colours

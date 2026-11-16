@@ -310,6 +310,7 @@ Item {
                 // The most played in the last two weeks (else of all time). Not "top": an Item's own
                 game: (root._stats?.lately ?? root._stats?.mostPlayed?.[0])?.game ?? null
                 shadeMid: 0.72; shadeEnd: 0.55 // Lighter on the right: the numbers there carry their own card
+                lightShadeStart: 0.6 // Light mode: the big number reads without much, the rest sit on chips
                 opacity: root.animationReady ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
                 TapHandler { enabled: !!banner.game; onTapped: root.gameSelected(banner.game) }

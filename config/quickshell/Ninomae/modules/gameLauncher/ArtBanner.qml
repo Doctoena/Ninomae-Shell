@@ -18,6 +18,11 @@ ClippingRectangle {
     property string coverIcon: "sports_esports"
     property real shadeMid: 0.78 // The shade's opacity in the middle and at the right edge
     property real shadeEnd: 0.6
+    // Light mode: the shade is near white, and a white veil washes art out far more than a dark one darkens it, so
+    // there the left edge is lighter and the middle and right are scaled down. Panels whose controls sit on their own
+    // chips go lower still (Captures, Stats)
+    property real lightShadeStart: 0.82
+    property real lightScale: 0.5
     property bool showLogo: false // The game's logo in the cover's place (News), when it has one
     property real coverInset: 0 // Room left of the cover, for something of the panel's own (the stats page's back button)
     property string art: "" // A picture of its own (a URL or path), over the game's art
@@ -113,11 +118,13 @@ ClippingRectangle {
         z: -3
         readonly property color base: Appearance.m3colors.m3background
         function at(a) { return Qt.rgba(base.r, base.g, base.b, a); }
+        readonly property bool light: !Appearance.m3colors.darkmode
+        function across(a) { return light ? a * root.lightScale : a; }
         gradient: Gradient {
             orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: shade.at(0.9) }
-            GradientStop { position: 0.5; color: shade.at(root.shadeMid) }
-            GradientStop { position: 1.0; color: shade.at(root.shadeEnd) }
+            GradientStop { position: 0.0; color: shade.at(shade.light ? root.lightShadeStart : 0.9) }
+            GradientStop { position: 0.5; color: shade.at(shade.across(root.shadeMid)) }
+            GradientStop { position: 1.0; color: shade.at(shade.across(root.shadeEnd)) }
         }
     }
     Rectangle { // With a stack: a dark wash behind it, so the covers stand off the art

@@ -255,9 +255,9 @@ Item {
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.05) }
-                GradientStop { position: 0.28; color: ColorUtils.transparentize(Appearance.colors.colLayer0, bannerFrame._light ? 0.5 : 0.25) }
-                GradientStop { position: 0.6; color: ColorUtils.transparentize(Appearance.colors.colLayer0, bannerFrame._light ? 0.95 : 0.75) }
-                GradientStop { position: 1.0; color: ColorUtils.transparentize(Appearance.colors.colLayer0, bannerFrame._light ? 0.95 : 0.6) }
+                GradientStop { position: 0.28; color: ColorUtils.transparentize(Appearance.colors.colLayer0, bannerFrame._light ? 0.8 : 0.25) }
+                GradientStop { position: 0.6; color: ColorUtils.transparentize(Appearance.colors.colLayer0, bannerFrame._light ? 1 : 0.75) }
+                GradientStop { position: 1.0; color: ColorUtils.transparentize(Appearance.colors.colLayer0, bannerFrame._light ? 1 : 0.6) }
             }
         }
         Rectangle { // Slight shading at the bottom
