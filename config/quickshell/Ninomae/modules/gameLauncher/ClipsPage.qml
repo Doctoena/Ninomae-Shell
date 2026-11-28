@@ -1,0 +1,772 @@
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions
+import QtQuick
+import QtMultimedia
+import Quickshell
+import Quickshell.Io
+import Quickshell.Widgets
+
+/**
+ * The Screenshots sheet's Clips page: the game's saved gameplay clips (services/GameClips.qml puts them
+ * in <clips folder>/<game>/), newest first in a grid of joined 16:9 tiles (CaptureGrid) with their length; clicking one
+ * plays it in the sheet, its controls joined under it and the other clips in a slim well on its right (GlassWell), the
+ * two centred together. scripts/clips/list_clips.py lists them and makes the thumbnails (cached).
+ * Keys (from ScreenshotsPanel.handleKey): on the grid the arrows move a ring and Enter plays; in the player
+ * Space plays/pauses, ←/→ jump 5 s, Page Up/Down go to the previous/next clip, Esc goes back to the grid.
+ * Delete (twice) is the panel's: ScreenshotsPanel.requestTrash asks before trashCurrent.
+ *
+ * Trim (T, or the banner's scissors): [ and ] mark where it starts and ends at the playhead, it loops
+ * in that part, and Save makes it a new clip (scripts/clips/export_clip.py; the original is kept).
+ * Copy (Ctrl+C, the banner's button, or right-click on the grid) puts the clip on the clipboard as a
+ * file, to paste into Discord or a file manager, as the screenshots' copy does.
+ */
+Item {
+    id: root
+    property bool settled: true // Its panel's: hover picks a clip only once the panel is out and still
+    required property var game
+    property bool active: false // The page is showing (the sheet is open on it)
+
+    property var clips: [] // [{ path, time, duration, width, height, size, thumb }], newest first
+    readonly property bool loading: lister.running && clips.length === 0
+    property int playerIndex: -1
+    readonly property bool viewing: playerIndex >= 0 && playerIndex < clips.length
+    readonly property var current: viewing ? clips[playerIndex] : null
+    readonly property string folder: GameClips.folderFor(game?.name ?? "")
+    // How to get clips (or what's missing for them): the empty page's hint and the grid's last tile
+    readonly property string howTo: !GameClips.available ? Translation.tr("Install gpu-screen-recorder to record clips")
+        : !(Config.options.gameLauncher.clipsEnabled ?? false) ? Translation.tr("Turn on clips in Settings → In game")
+        : Translation.tr("Press %1 while playing to save the last %2").arg(GameClips.keyLabel).arg(GameClips.seconds >= 60
+            ? (GameClips.seconds === 60 ? Translation.tr("minute") : Translation.tr("%1 minutes").arg(GameClips.seconds / 60))
+            : Translation.tr("%1 seconds").arg(GameClips.seconds))
+    // The player (videoLoader), or a stopped stand-in while none is loaded, so everything can use it as is
+    readonly property var video: videoLoader.item ?? idleVideo
+    QtObject {
+        id: idleVideo
+        property real position: 0
+        property real duration: 0
+        readonly property int playbackState: MediaPlayer.StoppedState
+        function play() {}
+        function pause() {}
+        function stop() {}
+    }
+
+    onActiveChanged: if (active) refresh(); else playerIndex = -1; // Leaving the player unloads it
+    // What was found for it last time (GameLauncherService.clipsCache): opens filled in, looks again behind that
+    onGameChanged: { clips = GameLauncherService.clipsCache[game?.id ?? ""] ?? []; playerIndex = -1; if (active) refresh(); }
+    Component.onCompleted: clips = GameLauncherService.clipsCache[game?.id ?? ""] ?? []
+    function refresh() {
+        if (!game?.name) return;
+        lister.running = false;
+        lister.running = true;
+    }
+    Process {
+        id: lister
+        command: ["python3", "-I", Quickshell.shellPath("scripts/clips/list_clips.py"), root.folder,
+                  `${GameLauncherService.cacheDir}/clip-thumbs`]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const list = text.split("\n").map(l => l.split("\t")).filter(f => f.length >= 7).map(f => ({
+                    time: parseFloat(f[0]), duration: parseFloat(f[1]), width: parseInt(f[2]), height: parseInt(f[3]),
+                    size: parseInt(f[4]), thumb: f[5], path: f.slice(6).join("\t")
+                }));
+                if (root.game?.id) GameLauncherService.clipsCache[root.game.id] = list;
+                if (JSON.stringify(list) === JSON.stringify(root.clips)) return; // Unchanged: the grid isn't rebuilt
+                // Stay on the one playing, or go to one just made (a trim)
+                const cur = root._openAfterRefresh || (root.current?.path ?? "");
+                root._openAfterRefresh = "";
+                root.clips = list;
+                if (cur !== "") root.playerIndex = Math.max(0, list.findIndex(c => c.path === cur));
+            }
+        }
+    }
+
+    // ── Actions ──
+    function back() { playerIndex = -1; }
+    function openFolder() { Quickshell.execDetached(["sh", "-c", 'mkdir -p -- "$1" && xdg-open "$1"', "open-folder", folder]); }
+    function openExternally() { if (current) { root.video.pause(); Quickshell.execDetached(["xdg-open", current.path]); } }
+    function trashCurrent() {
+        if (!current) return;
+        const i = playerIndex, path = current.path;
+        root.video.stop();
+        Quickshell.execDetached(["gio", "trash", "--", path]);
+        clips = clips.filter(c => c.path !== path);
+        if (game?.id) GameLauncherService.clipsCache[game.id] = clips; // Or it'd show again next time, for a moment
+        playerIndex = clips.length === 0 ? -1 : Math.min(i, clips.length - 1);
+    }
+    function togglePlay() {
+        if (root.video.playbackState === MediaPlayer.PlayingState) root.video.pause();
+        else {
+            if (root.video.duration > 0 && root.video.position >= root.video.duration - 50) root.video.position = 0; // Ended: from the start
+            root.video.play();
+        }
+    }
+    function seekBy(ms) { root.video.position = Math.max(0, Math.min(root.video.duration, root.video.position + ms)); }
+
+    // ── Trim ──
+    // Trimming: the part between trimStart and trimEnd (ms) is what Save keeps
+    property bool trimming: false
+    property real trimStart: 0
+    property real trimEnd: 0
+    readonly property real clipLength: root.video.duration > 0 ? root.video.duration : (current?.duration ?? 0) * 1000
+    readonly property bool hasRange: trimming && (trimStart > 50 || trimEnd < clipLength - 50)
+    function toggleTrim() {
+        if (!current || exportKind !== "") return;
+        trimming = !trimming;
+        if (trimming) { trimStart = 0; trimEnd = clipLength; }
+    }
+    function markStart() { if (!trimming) toggleTrim(); trimStart = Math.max(0, Math.min(root.video.position, trimEnd - 500)); }
+    function markEnd() { if (!trimming) toggleTrim(); trimEnd = Math.min(clipLength, Math.max(root.video.position, trimStart + 500)); }
+    Connections { // While trimming, playing loops in the part kept
+        target: root.video
+        function onPositionChanged() {
+            if (root.trimming && root.video.playbackState === MediaPlayer.PlayingState
+                && (root.video.position >= root.trimEnd || root.video.position < root.trimStart - 250))
+                root.video.position = root.trimStart;
+        }
+    }
+
+    // Made by GameClips, so closing the launcher doesn't stop one halfway; this page shows how it's going
+    readonly property string exportKind: GameClips.exportKind // "trim" while one is being made
+    readonly property real exportProgress: GameClips.exportProgress
+    property string _openAfterRefresh: ""
+    Binding { target: GameClips; property: "pageOpen"; value: root.active } // It notifies only when no page shows it
+    // What the last one made says, for a few seconds in the controls card
+    property string status: ""
+    property bool statusIsError: false
+    Timer { id: statusTimer; interval: 5000; onTriggered: root.status = "" }
+    function showStatus(text, isError) { status = text; statusIsError = isError; statusTimer.restart(); }
+    function exportClip(kind) {
+        if (!current || exportKind !== "") return;
+        root.video.pause();
+        const start = hasRange ? trimStart / 1000 : 0, end = hasRange ? trimEnd / 1000 : clipLength / 1000;
+        status = "";
+        GameClips.exportClip(kind, current.path, start, end);
+    }
+    Connections {
+        target: GameClips
+        function onExportFinished(kind, ok, message, path, bytes) {
+            if (!ok) { root.showStatus(message, true); return; }
+            root.trimming = false;
+            root._openAfterRefresh = path; // The new clip, once the list has it
+            root.refresh();
+            root.showStatus(Translation.tr("Saved as a new clip"), false);
+        }
+    }
+
+    // ── Copy: the clip as a file (text/uri-list), what file managers put on the clipboard ──
+    property string copiedPath: "" // Its tick (banner) or "Copied" badge (grid) for a moment
+    readonly property bool copied: copiedPath !== "" && copiedPath === (current?.path ?? "")
+    Timer { id: copiedTimer; interval: 1500; onTriggered: root.copiedPath = "" }
+    function copyClip(path) {
+        if (!path) return;
+        copier.running = false;
+        copier.path = path;
+        copier.command = ["sh", "-c", 'printf "%s\r\n" "$1" | wl-copy --type text/uri-list', "copy-clip",
+                          "file://" + path.split("/").map(encodeURIComponent).join("/")];
+        copier.running = true;
+    }
+    Process {
+        id: copier
+        property string path
+        onExited: exitCode => { if (exitCode === 0) { root.copiedPath = copier.path; copiedTimer.restart(); } }
+    }
+
+    // Keys from the sheet. Returns whether it used the key
+    function handleKey(key, modifiers) {
+        if (key === Qt.Key_C && (modifiers & Qt.ControlModifier)) { // The one playing, or the grid's ring/hovered one
+            if (viewing) copyClip(current.path);
+            else if (gridIndex >= 0 && gridIndex < clips.length) copyClip(clips[gridIndex].path);
+            return true;
+        }
+        if (key === Qt.Key_Escape) {
+            if (trimming) { trimming = false; return true; } // Out of trimming first
+            if (viewing) { back(); return true; }
+            return false;
+        }
+        if (viewing) {
+            if (key === Qt.Key_Space) { togglePlay(); return true; }
+            if (key === Qt.Key_T) { toggleTrim(); return true; }
+            if (key === Qt.Key_BracketLeft) { markStart(); return true; }
+            if (key === Qt.Key_BracketRight) { markEnd(); return true; }
+            if (key === Qt.Key_Left || key === Qt.Key_Right) { seekBy(key === Qt.Key_Left ? -5000 : 5000); return true; }
+            if (key === Qt.Key_PageUp) { playerIndex = Math.max(0, playerIndex - 1); return true; }
+            if (key === Qt.Key_PageDown) { playerIndex = Math.min(clips.length - 1, playerIndex + 1); return true; }
+            return key === Qt.Key_Up || key === Qt.Key_Down || key === Qt.Key_Return || key === Qt.Key_Enter;
+        }
+        const isArrow = key === Qt.Key_Left || key === Qt.Key_Right || key === Qt.Key_Up || key === Qt.Key_Down;
+        if (clips.length > 0 && isArrow) {
+            if (!keyboardNav || gridIndex < 0) gridIndex = Math.max(0, Math.min(clips.length - 1, gridIndex));
+            else if (key === Qt.Key_Left) gridIndex = Math.max(0, gridIndex - 1);
+            else if (key === Qt.Key_Right) gridIndex = Math.min(clips.length - 1, gridIndex + 1);
+            else gridIndex = Math.max(0, Math.min(clips.length - 1, gridIndex + (key === Qt.Key_Up ? -grid.columns : grid.columns)));
+            keyboardNav = true;
+            grid.positionViewAtIndex(gridIndex, GridView.Contain);
+            return true;
+        }
+        if (key === Qt.Key_Return || key === Qt.Key_Enter) {
+            if (keyboardNav && gridIndex >= 0 && gridIndex < clips.length) playerIndex = gridIndex;
+            return true; // Not on to the details page (Enter there plays the game)
+        }
+        return isArrow;
+    }
+    property int gridIndex: -1
+    property bool keyboardNav: false
+    onPlayerIndexChanged: {
+        trimming = false; // Another clip: its own range
+        if (playerIndex >= 0) gridIndex = playerIndex;
+    }
+
+    // ── Labels ──
+    function durationLabel(s) {
+        const t = Math.max(0, Math.round(s));
+        return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+    }
+    function dateLabel(t) {
+        if (!(t > 0)) return "";
+        const d = new Date(t * 1000), now = new Date();
+        const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const days = Math.round((day(now) - day(d)) / 86400000);
+        const when = days === 0 ? Translation.tr("Today") : days === 1 ? Translation.tr("Yesterday")
+            : days > 1 && days < 7 ? d.toLocaleDateString(Qt.locale(), "dddd")
+            : d.toLocaleDateString(Qt.locale(), d.getFullYear() === now.getFullYear() ? "MMMM d" : "MMMM d, yyyy");
+        return `${when} · ${d.toLocaleTimeString(Qt.locale(), Locale.ShortFormat)}`;
+    }
+    function sizeLabel(bytes) { return bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB" : Math.round(bytes / 1e6) + " MB"; }
+
+    // ── Grid ──
+    CaptureGrid { // As the Screenshots page's
+        id: grid
+        anchors { fill: parent; topMargin: 16 - pad; bottomMargin: 16; leftMargin: 26 - pad; rightMargin: 26 - pad } // In the panel's well
+        visible: !root.viewing && root.clips.length > 0
+        model: root.clips.length > 0 ? root.clips.concat([null]) : [] // Last, how to save more (null)
+        delegate: Item {
+            id: cell
+            required property var modelData
+            required property int index
+            width: grid.cellWidth; height: grid.cellHeight
+            Loader { // Only the tile it shows (the last across the rest of its row)
+                width: grid.tileWidth(cell.index); height: grid.cellHeight - grid.gap
+                sourceComponent: cell.modelData === null ? howToTile : clipTile
+            }
+            Component {
+                id: howToTile
+                CaptureAddTile {
+                    icon: "videocam"; text: root.howTo
+                    topLeftRadius: grid.corner(cell.index, "tl"); topRightRadius: grid.corner(cell.index, "tr")
+                    bottomLeftRadius: grid.corner(cell.index, "bl"); bottomRightRadius: grid.corner(cell.index, "br")
+                }
+            }
+            Component {
+                id: clipTile
+                ClipTile {
+                    clipData: cell.modelData
+                    tl: grid.corner(cell.index, "tl"); tr: grid.corner(cell.index, "tr")
+                    bl: grid.corner(cell.index, "bl"); br: grid.corner(cell.index, "br")
+                    order: grid.atYBeginning ? cell.index : 0
+                    current: root.keyboardNav && cell.index === root.gridIndex
+                    onHoveredChanged: if (hovered && root.settled) { root.gridIndex = cell.index; root.keyboardNav = false; }
+                    onClicked: root.playerIndex = cell.index
+                    onRightClicked: root.copyClip(cell.modelData.path)
+                }
+            }
+        }
+    }
+    SheetEmptyState {
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: -8
+        visible: !root.viewing && root.clips.length === 0
+        icon: root.loading ? "hourglass_empty" : "movie"
+        text: root.loading ? Translation.tr("Looking for clips…") : Translation.tr("No clips yet")
+        hint: root.loading ? "" : root.howTo
+    }
+
+    // ── Player: the video, its controls joined under it, the other clips in a well on its right, the two centred
+    //    together (the player keeps all the room the well leaves, moved so the video centred in it sits beside it) ──
+    readonly property real stripGap: 14
+    readonly property real stripSpace: clipWell.visible ? clipWell.width + stripGap : 0
+    Item {
+        id: player
+        readonly property real screenWidth: Math.round(Math.min(width, height * aspect))
+        readonly property real contentWidth: Math.max(screenWidth, Math.min(width, 560)) // The controls are 560 at least
+        readonly property real groupLeft: 20 + (root.width - 40 - contentWidth - root.stripSpace) / 2
+        anchors { top: parent.top; topMargin: 12; bottom: controls.top; bottomMargin: 3 }
+        x: groupLeft + contentWidth / 2 - width / 2
+        width: root.width - 40 - root.stripSpace
+        visible: root.viewing
+        readonly property real aspect: (root.current?.width ?? 0) > 0 && (root.current?.height ?? 0) > 0
+            ? Math.max(0.5, Math.min(3, root.current.width / root.current.height)) : 16 / 9
+        ClippingRectangle {
+            id: screen
+            anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom } // On its controls
+            width: Math.round(Math.min(parent.width, parent.height * player.aspect))
+            height: Math.round(width / player.aspect)
+            topLeftRadius: Appearance.rounding.small; topRightRadius: Appearance.rounding.small
+            bottomLeftRadius: Appearance.rounding.joined; bottomRightRadius: Appearance.rounding.joined
+            color: "black"
+            Image { // Its thumbnail until the first frame is up
+                anchors.fill: parent
+                source: root.current?.thumb ? "file://" + root.current.thumb : ""
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                visible: root.video.position === 0 && root.video.playbackState !== MediaPlayer.PlayingState
+            }
+            // Made only while a clip is open: the panel opens without building a media player
+            Loader {
+                id: videoLoader
+                anchors.fill: parent
+                active: root.viewing
+                sourceComponent: Video {
+                    source: root.current ? "file://" + root.current.path : ""
+                    fillMode: VideoOutput.PreserveAspectFit
+                    onSourceChanged: if (source != "") play()
+                    Component.onCompleted: if (source != "") play()
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.togglePlay()
+            }
+            Rectangle { // Paused or ended: a play mark in the middle
+                anchors.centerIn: parent
+                width: 64; height: 64
+                radius: Appearance.rounding.container + 6
+                color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.3)
+                opacity: root.video.playbackState !== MediaPlayer.PlayingState ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: root.video.duration > 0 && root.video.position >= root.video.duration - 50 ? "replay" : "play_arrow"
+                    fill: 1; iconSize: 34
+                    color: Appearance.colors.colOnLayer0
+                }
+            }
+        }
+        SheetNavButton {
+            anchors { left: screen.left; leftMargin: 10; verticalCenter: screen.verticalCenter }
+            iconName: "chevron_left"; enabled: root.playerIndex > 0
+            onClicked: root.playerIndex--
+        }
+        SheetNavButton {
+            anchors { right: screen.right; rightMargin: 10; verticalCenter: screen.verticalCenter }
+            iconName: "chevron_right"; enabled: root.playerIndex < root.clips.length - 1
+            onClicked: root.playerIndex++
+        }
+    }
+    // Play/pause, where it is, and what it is: a piece joined under the video, as wide as it
+    Rectangle {
+        id: controls
+        anchors { bottom: parent.bottom; bottomMargin: 16; horizontalCenter: player.horizontalCenter }
+        width: Math.min(player.width, Math.max(screen.width, 560))
+        height: 44
+        color: Appearance.colors.colWindowGlassCard
+        topLeftRadius: Appearance.rounding.joined; topRightRadius: Appearance.rounding.joined
+        bottomLeftRadius: Appearance.rounding.small; bottomRightRadius: Appearance.rounding.small
+        visible: root.viewing
+        RippleButton {
+            id: playButton
+            anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
+            implicitWidth: 34; implicitHeight: 34
+            buttonRadius: Appearance.rounding.segment
+            focusPolicy: Qt.NoFocus
+            colBackground: Appearance.colors.colLayer3Accent
+            colBackgroundHover: Appearance.colors.colLayer3AccentHover
+            colRipple: Appearance.colors.colLayer3Active
+            onClicked: root.togglePlay()
+            contentItem: Item {
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: root.video.playbackState === MediaPlayer.PlayingState ? "pause" : "play_arrow"
+                    fill: 1; iconSize: 22
+                    color: Appearance.colors.colPrimary
+                }
+            }
+        }
+        StyledText {
+            id: timeText
+            anchors { left: playButton.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
+            text: `${root.durationLabel(root.video.position / 1000)} / ${root.durationLabel((root.video.duration || (root.current?.duration ?? 0) * 1000) / 1000)}`
+            font.pixelSize: Appearance.font.pixelSize.small
+            font.features: { "tnum": 1 } // Digits keep their width as it counts
+            color: Appearance.colors.colOnLayer1
+        }
+        StyledSlider {
+            id: seek
+            anchors { left: timeText.right; leftMargin: 12; right: chips.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            from: 0; to: 1
+            value: root.video.duration > 0 ? root.video.position / root.video.duration : 0
+            stopIndicatorValues: []
+            tooltipContent: root.durationLabel(value * root.video.duration / 1000)
+            focusPolicy: Qt.NoFocus
+            onMoved: root.video.position = value * root.video.duration
+        }
+        // Trimming: the parts cut away dimmed, the part kept framed between two grips to drag. Dragging one
+        // pauses and scrubs the video to it, so the cut lands on the frame you see; the rest of the bar
+        // still seeks
+        Item {
+            id: range
+            visible: root.trimming && root.clipLength > 0
+            anchors.fill: parent
+            readonly property real startX: xOf(root.trimStart)
+            readonly property real endX: xOf(root.trimEnd)
+            function xOf(ms) { return seek.x + seek.handleMargins + ms / root.clipLength * seek.effectiveDraggingWidth; }
+            function msAt(x) { return Math.max(0, Math.min(root.clipLength, (x - seek.x - seek.handleMargins) / seek.effectiveDraggingWidth * root.clipLength)); }
+            component CutAway: Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                height: seek.trackWidth
+                color: ColorUtils.transparentize(controls.color, 0.3)
+            }
+            CutAway {
+                x: seek.x; width: root.trimStart > 0 ? range.startX - x : 0 // None until that end moves
+                topLeftRadius: seek.trackRadius; bottomLeftRadius: seek.trackRadius
+            }
+            CutAway {
+                x: range.endX; width: root.trimEnd < root.clipLength ? seek.x + seek.width - x : 0
+                topRightRadius: seek.trackRadius; bottomRightRadius: seek.trackRadius
+            }
+            Rectangle { // The frame round the part kept
+                x: range.startX; width: Math.max(0, range.endX - x)
+                anchors.verticalCenter: parent.verticalCenter
+                height: seek.trackWidth + 8
+                radius: seek.trackRadius + 2
+                color: "transparent"
+                border { width: 2; color: Appearance.colors.colPrimary }
+            }
+            TrimHandle { isEnd: false }
+            TrimHandle { isEnd: true }
+        }
+        // Right side: what's being made, what was just made, the trim controls, or the clip's details
+        Item {
+            id: chips
+            anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+            implicitWidth: (root.exportKind !== "" ? progressRow : root.status !== "" ? statusChip
+                : root.trimming ? trimRow : detailsRow).implicitWidth
+            implicitHeight: 28
+            width: implicitWidth; height: implicitHeight
+            Row { // Being made
+                id: progressRow
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                visible: root.exportKind !== ""
+                spacing: 8
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Translation.tr("Saving trim…") + `  ${Math.round(root.exportProgress * 100)}%`
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.features: { "tnum": 1 }
+                    color: Appearance.colors.colOnLayer1
+                }
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 110; height: 6; radius: 3
+                    color: Appearance.colors.colLayer4
+                    Rectangle {
+                        width: parent.width * root.exportProgress; height: parent.height; radius: 3
+                        color: Appearance.colors.colPrimary
+                        Behavior on width { NumberAnimation { duration: 200 } }
+                    }
+                }
+            }
+            Rectangle { // Just made (or why it couldn't be)
+                id: statusChip
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                visible: root.exportKind === "" && root.status !== ""
+                implicitWidth: statusRow.implicitWidth + 16
+                implicitHeight: 28
+                radius: Appearance.rounding.chip
+                color: root.statusIsError ? Appearance.colors.colErrorContainer : Appearance.colors.colPrimary
+                Row {
+                    id: statusRow
+                    anchors.centerIn: parent
+                    spacing: 5
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.statusIsError ? "error" : "check"; iconSize: 15
+                        color: root.statusIsError ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnPrimary
+                    }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.status
+                        width: Math.min(implicitWidth, 320); elide: Text.ElideRight
+                        font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
+                        color: root.statusIsError ? Appearance.colors.colOnErrorContainer : Appearance.colors.colOnPrimary
+                    }
+                }
+            }
+            Row { // Trimming: set each end at the playhead, then save
+                id: trimRow
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                visible: root.exportKind === "" && root.status === "" && root.trimming
+                spacing: 6
+                ChipButton {
+                    chipIcon: "first_page"; label: root.durationLabel(root.trimStart / 1000)
+                    tip: Translation.tr("Start here ( [ )")
+                    onClicked: root.markStart()
+                }
+                ChipButton {
+                    chipIcon: "last_page"; label: root.durationLabel(root.trimEnd / 1000)
+                    tip: Translation.tr("End here ( ] )")
+                    onClicked: root.markEnd()
+                }
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Translation.tr("%1 s").arg(Math.round((root.trimEnd - root.trimStart) / 1000))
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+                ChipButton {
+                    accent: true
+                    enabled: root.hasRange
+                    chipIcon: "content_cut"; label: Translation.tr("Save")
+                    tip: Translation.tr("Save this part as a new clip (the original stays)")
+                    onClicked: root.exportClip("trim")
+                }
+            }
+            Row { // The clip's details
+                id: detailsRow
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                visible: root.exportKind === "" && root.status === "" && !root.trimming
+                spacing: 6
+                SheetInfoChip { icon: "schedule"; text: root.dateLabel(root.current?.time ?? 0) }
+                SheetInfoChip { visible: (root.current?.size ?? 0) > 0; icon: "save"; text: root.sizeLabel(root.current?.size ?? 0) }
+            }
+        }
+    }
+
+    // The other clips, a joined column in a slim well beside it, centred on the video's height: the one playing
+    // ringed, slid to the middle
+    GlassWell {
+        id: clipWell
+        visible: root.viewing && root.clips.length > 1
+        readonly property real room: root.height - 12 - 16
+        x: player.groupLeft + player.contentWidth + root.stripGap
+        y: Math.max(12, Math.min(12 + room - height, player.y + player.height - player.screenWidth / player.aspect / 2 - height / 2))
+        width: 150 + 12
+        height: Math.min(room, root.clips.length * (clipList.tileHeight + 3) - 3 + 12)
+        ListView {
+            id: clipList
+            anchors { fill: parent; margins: 6 }
+            readonly property int tileHeight: Math.round(width * 9 / 16)
+            spacing: 3
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            model: root.viewing ? root.clips : [] // Built only while one plays
+            currentIndex: root.playerIndex
+            highlightFollowsCurrentItem: true
+            highlightRangeMode: ListView.ApplyRange
+            preferredHighlightBegin: height / 2 - tileHeight
+            preferredHighlightEnd: height / 2 + tileHeight
+            highlightMoveDuration: 260
+            highlight: Item {}
+            delegate: ClipTile {
+                required property var modelData
+                required property int index
+                width: clipList.width
+                height: clipList.tileHeight
+                clipData: modelData
+                compact: true
+                current: index === root.playerIndex
+                tl: index === 0 ? Appearance.rounding.small : Appearance.rounding.joined; tr: tl
+                bl: index === root.clips.length - 1 ? Appearance.rounding.small : Appearance.rounding.joined; br: bl
+                onClicked: root.playerIndex = index
+            }
+        }
+    }
+
+    // ── Pieces ──
+    // A clip's tile: its thumbnail, how long it is, and when on hover. Hovered or current: the accent ring
+    // and a slight zoom, as the screenshot tiles. compact: the player's column (no date, the others dimmed). Its
+    // corners are its group's (joined); the ring is drawn inside it, clear of the ones beside it
+    component ClipTile: Item {
+        id: tile
+        property var clipData
+        property bool current: false
+        property bool compact: false
+        property int order: 0
+        property real tl: Appearance.rounding.small
+        property real tr: Appearance.rounding.small
+        property real bl: Appearance.rounding.small
+        property real br: Appearance.rounding.small
+        signal clicked()
+        signal rightClicked()
+        readonly property bool hovered: tileMa.containsMouse
+        property real appear: compact ? 1 : 0
+        opacity: appear
+        transform: Translate { y: (1 - tile.appear) * 12 }
+        SequentialAnimation {
+            running: !tile.compact
+            PauseAnimation { duration: Math.min(tile.order, 10) * 40 }
+            NumberAnimation { target: tile; property: "appear"; to: 1; duration: 320; easing.type: Easing.OutCubic }
+        }
+        ClippingRectangle {
+            id: frame
+            anchors.fill: parent
+            topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
+            color: Appearance.colors.colLayer1
+            scale: tileMa.pressed ? 0.98 : 1.0
+            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Image {
+                id: thumb
+                anchors.fill: parent
+                source: tile.clipData?.thumb ? "file://" + tile.clipData.thumb : ""
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                sourceSize.width: 480
+                opacity: status !== Image.Ready ? 0 : tile.compact && !tile.current && !tile.hovered ? 0.5 : 1
+                Behavior on opacity { NumberAnimation { duration: 180 } }
+                scale: !tile.compact && (tile.hovered || tile.current) ? 1.04 : 1.0
+                Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            }
+            Rectangle { // A faint edge, so dark clips don't melt into the panel
+                anchors.fill: parent
+                topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
+                color: "transparent"
+                border.width: 1
+                border.color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.88)
+            }
+            MaterialSymbol {
+                anchors.centerIn: parent
+                visible: thumb.status !== Image.Ready
+                text: "movie"
+                iconSize: 22
+                color: Appearance.colors.colSubtext
+            }
+            Rectangle { // When it was saved, along the bottom while hovered (or the keyboard ring is on it)
+                visible: !tile.compact
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: 44
+                opacity: tile.hovered || tile.current ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                gradient: Gradient {
+                    GradientStop { position: 0; color: "transparent" }
+                    GradientStop { position: 1; color: ColorUtils.transparentize("black", 0.4) }
+                }
+                StyledText {
+                    anchors { left: parent.left; leftMargin: 10; bottom: parent.bottom; bottomMargin: 8 }
+                    text: root.dateLabel(tile.clipData?.time ?? 0)
+                    font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
+                    color: "white"
+                }
+            }
+            Rectangle { // How long it is
+                anchors { right: parent.right; bottom: parent.bottom; margins: 6 }
+                implicitWidth: lengthRow.implicitWidth + 12
+                implicitHeight: 24
+                radius: Appearance.rounding.chip
+                color: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.25)
+                Row {
+                    id: lengthRow
+                    anchors.centerIn: parent
+                    spacing: 3
+                    MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "play_arrow"; fill: 1; iconSize: 14; color: Appearance.colors.colOnLayer0 }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.durationLabel(tile.clipData?.duration ?? 0)
+                        font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
+                        color: Appearance.colors.colOnLayer0
+                    }
+                }
+            }
+        }
+        Rectangle { // The ring
+            anchors.fill: parent
+            topLeftRadius: tile.tl; topRightRadius: tile.tr; bottomLeftRadius: tile.bl; bottomRightRadius: tile.br
+            color: "transparent"
+            border.width: 2
+            border.color: Appearance.colors.colPrimary
+            opacity: tile.current || tile.hovered ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 150 } }
+        }
+        MouseArea {
+            id: tileMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => mouse.button === Qt.RightButton ? tile.rightClicked() : tile.clicked()
+        }
+        CopiedBadge {
+            anchors { top: parent.top; right: parent.right; margins: 8 }
+            visible: !tile.compact
+            shown: root.copiedPath !== "" && root.copiedPath === tile.clipData?.path
+        }
+    }
+
+    // One end of the trim range on the seek bar: a grip on the frame's edge to drag (wider hit area than it looks)
+    component TrimHandle: Item {
+        id: th
+        property bool isEnd: false
+        readonly property real ms: isEnd ? root.trimEnd : root.trimStart
+        readonly property bool engaged: thMa.containsMouse || thMa.pressed
+        x: range.xOf(ms) - width / 2
+        width: 20; height: parent.height
+        Rectangle {
+            anchors.centerIn: parent
+            width: th.engaged ? 10 : 8; height: seek.trackWidth + (th.engaged ? 14 : 10)
+            radius: Appearance.rounding.unsharpenmore
+            color: Appearance.colors.colPrimary
+            Behavior on width { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Rectangle { // Grip line
+                anchors.centerIn: parent
+                width: 2; height: parent.height * 0.45; radius: 1
+                color: Appearance.colors.colOnPrimary
+            }
+        }
+        MouseArea {
+            id: thMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.SizeHorCursor
+            preventStealing: true
+            onPressed: root.video.pause()
+            onPositionChanged: mouse => {
+                if (!pressed) return;
+                const at = range.msAt(mapToItem(range, mouse.x, 0).x);
+                if (th.isEnd) root.trimEnd = Math.max(root.trimStart + 500, at);
+                else root.trimStart = Math.min(root.trimEnd - 500, at);
+                root.video.position = th.ms; // Scrub: the frame where it cuts
+            }
+        }
+    }
+
+    // A chip you can press (the trim controls): neutral, or accent for the action
+    component ChipButton: RippleButton {
+        id: cb
+        property string chipIcon
+        property string label
+        property string tip: ""
+        property bool accent: false
+        focusPolicy: Qt.NoFocus // The details page keeps the keys
+        implicitWidth: cbRow.implicitWidth + 16
+        implicitHeight: 28
+        buttonRadius: Appearance.rounding.chip
+        opacity: enabled ? 1 : 0.5
+        colBackground: accent ? Appearance.colors.colPrimary : Appearance.colors.colLayer4 // On the controls (colLayer3)
+        colBackgroundHover: accent ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer4Hover
+        colRipple: accent ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer4Active
+        contentItem: Item {
+            Row {
+                id: cbRow
+                anchors.centerIn: parent
+                spacing: 5
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: cb.chipIcon; iconSize: 15
+                    color: cb.accent ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer4
+                }
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: cb.label
+                    font.pixelSize: Appearance.font.pixelSize.smaller; font.weight: Font.Medium
+                    font.features: { "tnum": 1 }
+                    color: cb.accent ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer4
+                }
+            }
+        }
+        StyledToolTip { text: cb.tip; visible: cb.tip !== "" && cb.hovered }
+    }
+
+
+}

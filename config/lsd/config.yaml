@@ -1,0 +1,4 @@
+# lsd (ls replacement, aliased in fish). Everything else stays at lsd's defaults
+color:
+  # colors.yaml: the terminal palette's own colours, so ls follows the wallpaper like the rest
+  theme: custom

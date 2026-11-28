@@ -1,0 +1,117 @@
+pragma Singleton
+import qs.modules.common
+import QtQuick
+import Quickshell
+import Quickshell.Io
+
+/**
+ * The most vivid colour in an app's icon, for tinted cards and halos (the app search's chosen result, the
+ * sidebar's newest notification). The accent for grey icons or no icon. Worked out once per icon and
+ * remembered for the session: ask with request(name) as an item is built, read colourFor(name), which is the
+ * accent until it's known. One icon is worked out at a time (a queue), each by its own quantizer so a late result
+ * can only land on its own icon (a shared one once handed Zen's grey rings the green of the icon before it).
+ * Icon files are found by a short shell lookup (ColorQuantizer can't read `image://icon/…`); absolute paths are
+ * read as they are.
+ */
+Singleton {
+    id: root
+    property var colours: ({}) // icon name → its colour, or null for "use the accent"
+    property var queue: []
+    property string current: "" // The icon being worked out now
+
+    function colourFor(rawName) {
+        const name = normalise(rawName);
+        return (name !== "" && root.colours[name]) ? root.colours[name] : Appearance.colors.colPrimary;
+    }
+    // Whether it has a colour of its own (false while unknown, and for a grey or black one: those get the accent)
+    function hasColour(rawName) {
+        const name = normalise(rawName);
+        return name !== "" && !!root.colours[name];
+    }
+    // "file:///…" → the path, "image://icon/steam" → "steam"
+    function normalise(name) {
+        const n = String(name ?? "");
+        if (n.startsWith("file://")) return n.slice(7);
+        if (n.startsWith("image://icon/")) return n.slice(13).replace(/\?.*$/, ""); // (Tray icons add "?path=…")
+        return n;
+    }
+    function request(rawName) {
+        const name = normalise(rawName);
+        if (name === "" || root.colours[name] !== undefined || root.queue.includes(name) || root.current === name) return;
+        root.queue.push(name);
+        pump();
+    }
+    function remember(name, colour) {
+        root.colours = Object.assign({}, root.colours, { [name]: colour });
+        root.current = "";
+        pump();
+    }
+    function pump() {
+        if (root.current !== "" || root.queue.length === 0) return;
+        root.current = root.queue.shift();
+        if (root.current.startsWith("/")) quantize(root.current);
+        else lookupComp.createObject(root, { name: root.current }).running = true;
+    }
+    function quantize(file) {
+        if (file === "") { remember(root.current, null); return; }
+        quantComp.createObject(root, { name: root.current, source: "file://" + file });
+    }
+    function pick(name, colours) {
+        let best = null, bestScore = 0.12; // Below this it's grey or black: the accent
+        for (const c of (colours ?? [])) {
+            const score = c.hsvSaturation * c.hsvValue;
+            if (score > bestScore) { bestScore = score; best = c; }
+        }
+        remember(name, best);
+    }
+    Component {
+        id: lookupComp
+        Process {
+            id: lookup
+            required property string name
+            // The icon theme and the themes it inherits from first, then hicolor (system, Flatpak, your own) and
+            // pixmaps; the name goes in as an argument, never into the script. In this template string a bash \(
+            // has to be written \\( (the string would turn \( into a bare bracket, a syntax error for bash)
+            command: ["bash", "-c", `n=$1
+theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'")
+themes=$theme
+for t in "$HOME/.local/share/icons/$theme" "/usr/share/icons/$theme"; do # And the themes it inherits from
+  [ -f "$t/index.theme" ] && themes="$themes $(sed -n 's/^Inherits=//p' "$t/index.theme" | tr ',' ' ')"
+done
+for th in $themes; do [ "$th" = hicolor ] && continue
+  for t in "$HOME/.local/share/icons/$th" "/usr/share/icons/$th"; do
+    [ -d "$t" ] && f=$(find -L "$t" -path "*apps*" \\( -name "$n.svg" -o -name "$n.png" \\) -print -quit 2>/dev/null) && [ -n "$f" ] && { echo "$f"; exit; }
+  done
+done
+for d in "$HOME/.local/share/icons/hicolor" "$HOME/.local/share/flatpak/exports/share/icons/hicolor" /var/lib/flatpak/exports/share/icons/hicolor /usr/share/icons/hicolor; do
+  for s in scalable 512x512 256x256 128x128 64x64 48x48; do for e in svg png; do [ -f "$d/$s/apps/$n.$e" ] && { echo "$d/$s/apps/$n.$e"; exit; }; done; done
+done
+for e in svg png; do [ -f "/usr/share/pixmaps/$n.$e" ] && { echo "/usr/share/pixmaps/$n.$e"; exit; }; done`, "icon-lookup", lookup.name]
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    if (root.current === lookup.name) root.quantize(text.trim());
+                    lookup.destroy(); // Once its output is read: on exit it could still be on its way
+                }
+            }
+        }
+    }
+    Component {
+        id: quantComp
+        ColorQuantizer {
+            id: q
+            required property string name
+            depth: 2 // Four colours
+            rescaleSize: 32
+            property bool done: false
+            onColorsChanged: if ((q.colors ?? []).length > 0) finish(q.colors)
+            function finish(colours) {
+                if (q.done) return; // Colours and the time-out can both come
+                q.done = true;
+                root.pick(q.name, colours);
+                q.destroy();
+            }
+            // An icon that won't load never reports colours: the accent after a while, and the queue moves on
+            property Timer giveUp: Timer { interval: 4000; running: true; onTriggered: q.finish([]) }
+        }
+    }
+}

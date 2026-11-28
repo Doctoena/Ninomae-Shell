@@ -1,0 +1,178 @@
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions
+import QtQuick
+import QtQuick.Controls
+/**
+ * A button with ripple effect similar to in Material Design.
+ */
+Button {
+    id: root
+    // A click doesn't take the keys (Tab still reaches it): Space and Enter then go where they were going,
+    // not to press the clicked button again (the launcher's panels and pages keep theirs)
+    focusPolicy: Qt.TabFocus
+    property bool toggled
+    property string buttonText
+    property bool pointingHandCursor: true
+    property real buttonRadius: Appearance?.rounding?.small ?? 4
+    property real buttonRadiusPressed: buttonRadius
+    property real buttonEffectiveRadius: root.down ? root.buttonRadiusPressed : root.buttonRadius
+    // One side's corners apart (a split button's inner side); -1: as the rest
+    property real buttonRadiusLeft: -1
+    property real buttonRadiusRight: -1
+    readonly property real _radiusLeft: buttonRadiusLeft >= 0 ? buttonRadiusLeft : buttonEffectiveRadius
+    readonly property real _radiusRight: buttonRadiusRight >= 0 ? buttonRadiusRight : buttonEffectiveRadius
+    property real buttonRadiusTop: -1 // Top and bottom corners apart (a settings row in its group); -1: as the sides
+    property real buttonRadiusBottom: -1
+    // Each corner apart (a piece at a corner of a joined group, as the session menu's); -1: as above
+    property real buttonRadiusTopLeft: -1
+    property real buttonRadiusTopRight: -1
+    property real buttonRadiusBottomLeft: -1
+    property real buttonRadiusBottomRight: -1
+    property int rippleDuration: 1200
+    property bool rippleEnabled: true
+    property var downAction // When left clicking (down)
+    property var releaseAction // When left clicking (release)
+    property var altAction // When right clicking
+    property var middleClickAction // When middle clicking
+    property color colBackground: ColorUtils.transparentize(Appearance?.colors.colLayer1Hover, 1) || "transparent"
+    property color colBackgroundHover: Appearance?.colors.colLayer1Hover ?? "#E5DFED"
+    property color colBackgroundToggled: Appearance?.colors.colPrimary ?? "#65558F"
+    property color colBackgroundToggledHover: Appearance?.colors.colPrimaryHover ?? "#77699C"
+    property color colRipple: Appearance?.colors.colLayer1Active ?? "#D6CEE2"
+    property color colRippleToggled: Appearance?.colors.colPrimaryActive ?? "#D6CEE2"
+    opacity: root.enabled ? 1 : 0.4
+    readonly property color _restColor: root.toggled ? colBackgroundToggled : colBackground
+    readonly property color _hoverColor: root.toggled ? colBackgroundToggledHover : colBackgroundHover
+    // A fully transparent resting colour (often "transparent", i.e. black) fades from the hover colour's
+    // own tint instead: fading from black dipped darker than the background first, a dark flash on hover
+    property color buttonColor: ColorUtils.transparentize(root.hovered ? _hoverColor
+        : (Qt.color(_restColor).a === 0 ? ColorUtils.transparentize(_hoverColor, 1) : _restColor), root.enabled ? 0 : 1)
+    property color rippleColor: root.toggled ? colRippleToggled : colRipple
+    function startRipple(x, y) {
+        const stateY = buttonBackground.y;
+        rippleAnim.x = x;
+        rippleAnim.y = y - stateY;
+        const dist = (ox,oy) => ox*ox + oy*oy
+        const stateEndY = stateY + buttonBackground.height
+        rippleAnim.radius = Math.sqrt(Math.max(dist(0, stateY), dist(0, stateEndY), dist(width, stateY), dist(width, stateEndY)))
+        rippleFadeAnim.complete();
+        rippleAnim.restart();
+    }
+    component RippleAnim: NumberAnimation {
+        duration: rippleDuration
+        easing.type: Appearance?.animation.elementMoveEnter.type
+        easing.bezierCurve: Appearance?.animationCurves.standardDecel
+    }
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: root.pointingHandCursor ? Qt.PointingHandCursor : Qt.ArrowCursor
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        onPressed: (event) => {
+            if(event.button === Qt.RightButton) {
+                if (root.altAction) root.altAction(event);
+                return;
+            }
+            if(event.button === Qt.MiddleButton) {
+                if (root.middleClickAction) root.middleClickAction();
+                return;
+            }
+            root.down = true
+            if (root.downAction) root.downAction();
+            if (!root.rippleEnabled) return;
+            const {x,y} = event
+            startRipple(x, y)
+        }
+        onReleased: (event) => {
+            root.down = false
+            if (event.button != Qt.LeftButton) return;
+            if (root.releaseAction) root.releaseAction();
+            root.click() // Because the MouseArea already consumed the event
+            if (!root.rippleEnabled) return;
+            rippleFadeAnim.restart();
+        }
+        onCanceled: () => {
+            root.down = false
+            if (!root.rippleEnabled) return;
+            rippleFadeAnim.restart();
+        }
+    }
+    RippleAnim {
+        id: rippleFadeAnim
+        duration: rippleDuration * 2
+        target: ripple
+        property: "opacity"
+        to: 0
+    }
+    SequentialAnimation {
+        id: rippleAnim
+        property real x
+        property real y
+        property real radius
+        PropertyAction {
+            target: ripple
+            property: "x"
+            value: rippleAnim.x
+        }
+        PropertyAction {
+            target: ripple
+            property: "y"
+            value: rippleAnim.y
+        }
+        PropertyAction {
+            target: ripple
+            property: "opacity"
+            value: 1
+        }
+        ParallelAnimation {
+            RippleAnim {
+                target: ripple
+                properties: "implicitWidth,implicitHeight"
+                from: 0
+                to: rippleAnim.radius * 2
+            }
+        }
+    }
+    background: Rectangle {
+        id: buttonBackground
+        radius: root.buttonEffectiveRadius
+        // The first one set (>= 0) wins: the corner's own, then its top/bottom, then its side
+        function corner(own, edge, side) { return own >= 0 ? own : edge >= 0 ? edge : side; }
+        topLeftRadius: corner(root.buttonRadiusTopLeft, root.buttonRadiusTop, root._radiusLeft)
+        bottomLeftRadius: corner(root.buttonRadiusBottomLeft, root.buttonRadiusBottom, root._radiusLeft)
+        topRightRadius: corner(root.buttonRadiusTopRight, root.buttonRadiusTop, root._radiusRight)
+        bottomRightRadius: corner(root.buttonRadiusBottomRight, root.buttonRadiusBottom, root._radiusRight)
+        implicitHeight: 30
+        color: root.buttonColor
+        Behavior on color {
+            animation: Appearance?.animation.elementMoveFast.colorAnimation.createObject(this)
+        }
+        // Clip only while a ripple shows: a permanent layer cost an offscreen texture per button
+        layer.enabled: ripple.visible && ripple.opacity > 0
+        // The ripple clipped to the background's own corners, each of them (a joined group's piece has its own)
+        layer.effect: RoundedMask { maskWidth: buttonBackground.width; maskHeight: buttonBackground.height
+            topLeftRadius: buttonBackground.topLeftRadius; topRightRadius: buttonBackground.topRightRadius
+            bottomLeftRadius: buttonBackground.bottomLeftRadius; bottomRightRadius: buttonBackground.bottomRightRadius }
+        Item {
+            id: ripple
+            width: ripple.implicitWidth
+            height: ripple.implicitHeight
+            opacity: 0
+            visible: width > 0 && height > 0
+            Behavior on opacity {
+                animation: Appearance?.animation.elementMoveFast.colorAnimation.createObject(this)
+            }
+            RippleGlow {
+                anchors.fill: parent
+                color: root.rippleColor
+            }
+            transform: Translate {
+                x: -ripple.width / 2
+                y: -ripple.height / 2
+            }
+        }
+    }
+    contentItem: StyledText {
+        text: root.buttonText
+    }
+}

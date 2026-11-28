@@ -1,0 +1,80 @@
+/* Ninomae theme for Zen's own pages (new tab, settings, about:*). Colours from ninomae-colors.css, which
+   Zen reads at startup; the new tab's main colours also follow the live theme as they change (below). */
+@import "ninomae-colors.css";
+
+/* New tab / home / private window */
+@-moz-document url-prefix("about:newtab"), url-prefix("about:home"), url-prefix("about:privatebrowsing") {
+  /* Live colours: the browser theme from the Ninomae live theme extension reaches these pages as
+     their three new-tab colours (on the root; the rules below set the body's from --nino-*) */
+  :root[lwt-newtab] {
+    --nino-bg: var(--newtab-background-color);
+    --nino-surface-2: var(--newtab-background-color-secondary);
+    --nino-text: var(--newtab-text-primary-color);
+  }
+  body {
+    --newtab-background-color: var(--nino-bg) !important;
+    --newtab-background-color-secondary: var(--nino-surface-2) !important;
+    --newtab-text-primary-color: var(--nino-text) !important;
+    --newtab-text-secondary-color: var(--nino-subtext) !important;
+    --newtab-primary-action-background: var(--nino-primary) !important;
+    --newtab-element-hover-color: var(--nino-surface-3) !important;
+    background-color: var(--nino-bg) !important;
+    font-family: "Roboto Flex", "Roboto", sans-serif !important;
+  }
+  .search-handoff-button, .search-wrapper input {
+    background-color: var(--nino-surface-2) !important;
+    border: none !important;
+    border-radius: 999px !important;
+    color: var(--nino-text) !important;
+    box-shadow: none !important;
+  }
+  .search-handoff-button:hover, .search-wrapper input:focus {
+    background-color: var(--nino-surface-3) !important;
+    outline: 2px solid var(--nino-primary-ring) !important;
+  }
+  .top-site-outer .tile {
+    background-color: var(--nino-surface-2) !important;
+    border-radius: 18px !important;
+    box-shadow: none !important;
+  }
+  .top-site-outer:hover .tile {
+    background-color: var(--nino-surface-3) !important;
+  }
+  .top-site-outer .title {
+    color: var(--nino-subtext) !important;
+  }
+}
+
+/* Settings and other about: pages */
+@-moz-document url-prefix("about:") {
+  :root {
+    --in-content-page-background: var(--nino-bg) !important;
+    --in-content-box-background: var(--nino-surface-2) !important;
+    --in-content-box-background-hover: var(--nino-surface-3) !important;
+    --in-content-box-border-color: transparent !important;
+    --in-content-text-color: var(--nino-text) !important;
+    --in-content-deemphasized-text: var(--nino-subtext) !important;
+    --in-content-primary-button-background: var(--nino-primary) !important;
+    --in-content-primary-button-text-color: var(--nino-on-primary) !important;
+    --in-content-primary-button-background-hover: color-mix(in srgb, var(--nino-primary) 88%, white) !important;
+    --in-content-accent-color: var(--nino-primary) !important;
+    --in-content-item-selected: var(--nino-primary-soft) !important;
+    --in-content-item-selected-text: var(--nino-primary) !important;
+    --color-accent-primary: var(--nino-primary) !important;
+    --color-accent-primary-hover: color-mix(in srgb, var(--nino-primary) 88%, white) !important;
+    --background-color-box: var(--nino-surface-2) !important;
+    --border-radius-medium: 12px !important;
+    --border-radius-small: 8px !important;
+    font-family: "Roboto Flex", "Roboto", sans-serif !important;
+    accent-color: var(--nino-primary) !important;
+  }
+  button, select, input:not([type="checkbox"], [type="radio"]) {
+    border-radius: 10px !important;
+  }
+  .category[selected], .category:hover {
+    border-radius: 10px !important;
+  }
+  ::selection {
+    background-color: var(--nino-primary-soft) !important;
+  }
+}

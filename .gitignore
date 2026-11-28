@@ -1,0 +1,48 @@
+# Python and editor leftovers
+__pycache__/
+*.pyc
+*~
+*.swp
+# fontconfig writes one into every font folder it caches
+.uuid
+# Temporary files scripts write before moving them into place
+*.tmp
+*.part
+# Written by switchwall.sh at runtime (video wallpaper restore + thumbnails)
+config/hypr/custom/scripts/
+
+# Colours written by matugen from the wallpaper on every change (config/matugen/config.toml).
+# install.sh makes them, so a fresh clone doesn't need them
+config/fuzzel/fuzzel_theme.ini
+config/gtk-3.0/gtk.css
+config/gtk-4.0/gtk.css
+config/btop/themes/ninomae.theme
+config/Kvantum/MaterialAdw/MaterialAdw.kvconfig
+themes/sddm/Ninomae/theme.conf
+themes/sddm/Ninomae/wallpaper.jpg
+themes/steam/matugen.css
+themes/discord/ninomae.theme.css
+themes/zen/chrome/ninomae-colors.css
+themes/vscode/ninomae-theme/themes/ninomae-color-theme.json
+
+# Per-machine state. config.json starts as a copy of config.default.json (the shell or install.sh makes it)
+config/ninomae-shell/config.json
+config/ninomae-shell/displays.json
+config/ninomae-shell/keybinds.json
+config/ninomae-shell/window-rules.json
+# Your keyboard layout (from hypr/hyprland/keyboard.default.lua; ./install.sh and Settings → Input write it)
+config/hypr/hyprland/keyboard.lua
+config/fish/fish_variables
+# Nautilus writes your bookmarked folders here (~/.config/gtk-3.0 is this folder): personal, never in git
+config/gtk-3.0/bookmarks
+# Configs the apps rewrite themselves (btop, qt6ct, Kvantum Manager, GTK settings tools). Each starts as a copy of
+# the .default one beside it (setup/components.sh, LOCAL_COPIES), then it's yours
+config/btop/btop.conf
+config/qt6ct/qt6ct.conf
+config/Kvantum/kvantum.kvconfig
+config/gtk-3.0/settings.ini
+config/gtk-4.0/settings.ini
+
+# Wallpapers: only the default one is shared (the rest of ~/Pictures/Wallpapers stays local)
+assets/wallpapers/*
+!assets/wallpapers/purpgirl.png

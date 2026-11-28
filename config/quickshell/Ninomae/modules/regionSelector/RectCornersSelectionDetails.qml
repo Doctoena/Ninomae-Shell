@@ -1,0 +1,149 @@
+import qs.modules.common
+import qs.modules.common.widgets
+import QtQuick
+Item {
+    id: root
+    required property real regionX
+    required property real regionY
+    required property real regionWidth
+    required property real regionHeight
+    required property real mouseX
+    required property real mouseY
+    required property color color
+    required property color overlayColor
+    property real pixelRatio: 1 // The monitor's scale: the card says the image's size in pixels
+    property var action // What letting go does (RegionSelection.SnipAction), for the card
+    property real bottomReserve: 0 // The toolbar's height: the card goes over the box rather than under it
+    property bool showAimLines: Config.options.regionSelector.rect.showAimLines
+    // Overlay to darken screen
+    // Base dark overlay around region
+    Rectangle {
+        id: darkenOverlay
+        z: 1
+        anchors {
+            left: parent.left
+            top: parent.top
+            leftMargin: root.regionX - darkenOverlay.border.width
+            topMargin: root.regionY - darkenOverlay.border.width
+        }
+        width: root.regionWidth + darkenOverlay.border.width * 2
+        height: root.regionHeight + darkenOverlay.border.width * 2
+        color: "transparent"
+        border.color: root.overlayColor
+        border.width: Math.max(root.width, root.height)
+    }
+    // Selection border
+    Rectangle {
+        id: selectionBorder
+        z: 1
+        anchors {
+            left: parent.left
+            top: parent.top
+            leftMargin: root.regionX
+            topMargin: root.regionY
+        }
+        width: root.regionWidth
+        height: root.regionHeight
+        color: "transparent"
+        border.color: root.color
+        border.width: 2
+        radius: Appearance.rounding.verysmall
+    }
+    // Corner handles
+    Repeater {
+        model: [
+            { cx: root.regionX, cy: root.regionY, sx: 1, sy: 1 },                              // top-left
+            { cx: root.regionX + root.regionWidth, cy: root.regionY, sx: -1, sy: 1 },           // top-right
+            { cx: root.regionX, cy: root.regionY + root.regionHeight, sx: 1, sy: -1 },          // bottom-left
+            { cx: root.regionX + root.regionWidth, cy: root.regionY + root.regionHeight, sx: -1, sy: -1 }  // bottom-right
+        ]
+        Item {
+            required property var modelData
+            z: 2
+            x: modelData.cx - (modelData.sx > 0 ? 0 : _handleSize)
+            y: modelData.cy - (modelData.sy > 0 ? 0 : _handleSize)
+            width: _handleSize
+            height: _handleSize
+            readonly property real _handleSize: 18
+            readonly property real _handleThickness: 4
+            // Horizontal arm
+            Rectangle {
+                width: parent._handleSize
+                height: parent._handleThickness
+                y: parent.modelData.sy > 0 ? 0 : parent.height - height
+                color: root.color
+                radius: 2
+            }
+            // Vertical arm
+            Rectangle {
+                width: parent._handleThickness
+                height: parent._handleSize
+                x: parent.modelData.sx > 0 ? 0 : parent.width - width
+                color: root.color
+                radius: 2
+            }
+        }
+    }
+    // What letting go does, on a card under the box (over it when there's no room under it, inside its foot when
+    // there's none either): the action, the size in the image's pixels, and the release
+    readonly property var actionInfo: RegionFunctions.actionInfo(root.action)
+    SelectionCard {
+        id: card
+        z: 2
+        visible: root.regionWidth > 0 && root.regionHeight > 0
+        readonly property real below: root.regionY + root.regionHeight + 8
+        readonly property real above: root.regionY - 8 - height
+        x: Math.max(8, Math.min(root.width - width - 8, root.regionX + (root.regionWidth - width) / 2))
+        y: below + height <= root.height - root.bottomReserve ? below
+            : above >= 8 ? above
+            : root.regionY + root.regionHeight - height - 8
+        actionIcon: root.actionInfo.icon
+        actionName: root.actionInfo.name
+        size: `${Math.round(root.regionWidth * root.pixelRatio)} × ${Math.round(root.regionHeight * root.pixelRatio)}`
+        release: root.actionInfo.release
+    }
+    // Aim lines
+    Rectangle { // Vertical
+        visible: root.showAimLines
+        opacity: 0.35
+        z: 2
+        x: root.mouseX
+        anchors {
+            top: parent.top
+            bottom: parent.bottom
+        }
+        width: 1
+        color: root.color
+    }
+    Rectangle { // Horizontal
+        visible: root.showAimLines
+        opacity: 0.35
+        z: 2
+        y: root.mouseY
+        anchors {
+            left: parent.left
+            right: parent.right
+        }
+        height: 1
+        color: root.color
+    }
+    // Mouse coordinate badge
+    Rectangle {
+        visible: root.showAimLines
+        z: 3
+        x: root.mouseX + 12
+        y: root.mouseY + 12
+        color: Appearance.colors.colGlassUnblurred
+        border { width: 1; color: Appearance.colors.colGlassFieldRim }
+        radius: 8
+        implicitWidth: coordText.implicitWidth + 14
+        implicitHeight: 24
+        StyledText {
+            id: coordText
+            anchors.centerIn: parent
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            color: Appearance.colors.colSubtextGlass
+            text: `${Math.round(root.mouseX)}, ${Math.round(root.mouseY)}`
+        }
+    }
+}

@@ -1,0 +1,769 @@
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions
+import Qt.labs.synchronizer
+import QtQuick
+import QtQuick.Shapes
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
+Item { // Wrapper
+    id: root
+    property string searchingText: ""
+    property string mathResult: ""
+    // The query without its prefix, for highlighting matched letters: worked out once, not in every row
+    readonly property string matchQuery: {
+        const prefix = Config.options.search.prefix;
+        return StringUtils.cleanOnePrefix(searchingText, [prefix.action, prefix.app, prefix.clipboard, prefix.emojis,
+            prefix.math, prefix.shellCommand, prefix.webSearch]);
+    }
+    // The shell's own windows: not installed apps, so they're added here, above the apps ("settings" opens
+    // these Settings rather than GNOME's). Built once, names prepared once and matched every keystroke
+    function shellEntry(name, shortName, comment, symbol, words, execute) {
+        return {
+            key: "ninomae-" + symbol,
+            name: name,
+            shortName: shortName, // On its button under the search field
+            comment: comment,
+            clickActionName: Translation.tr("Open"),
+            type: Translation.tr("Shell"),
+            shellSymbol: symbol, // ShellAppIcon
+            targets: words.map(w => Fuzzy.prepare(w)),
+            execute: execute
+        };
+    }
+    readonly property var shellEntries: [
+        shellEntry(Translation.tr("Volume control"), Translation.tr("Volume"), Translation.tr("Control centre · Sound"), "volume_up",
+            ["Volume control", "Control centre"], () => GlobalStates.openControlCenter("sound")),
+        shellEntry(Translation.tr("Wi-Fi"), Translation.tr("Wi-Fi"), Translation.tr("Control centre · Wi-Fi"), "wifi",
+            ["Wi-Fi", "Wifi", "Internet", "Network"], () => GlobalStates.openControlCenter("wifi")),
+        shellEntry(Translation.tr("Bluetooth"), Translation.tr("Bluetooth"), Translation.tr("Control centre · Bluetooth"), "bluetooth",
+            ["Bluetooth"], () => GlobalStates.openControlCenter("bluetooth")),
+        shellEntry(Translation.tr("Ninomae Settings"), Translation.tr("Settings"), "", "settings",
+            ["Ninomae Settings"], () => Quickshell.execDetached([Quickshell.shellPath("scripts/open-settings.sh")])),
+    ]
+    // pavucontrol's own entry is called "Volume Control" too: it only shows for its program name, so that name
+    // opens the control centre and "pavucontrol" opens pavucontrol
+    readonly property string pavucontrolId: "org.pulseaudio.pavucontrol"
+    readonly property var pavucontrolTarget: Fuzzy.prepare("pavucontrol")
+    property var searchActions: [
+        {
+            action: "accentcolor",
+            execute: args => {
+                Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--noswitch", "--color", ...(args != '' ? [`${args}`] : [])]);
+            }
+        },
+        {
+            action: "dark",
+            execute: () => {
+                Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "dark", "--noswitch"]);
+            }
+        },
+        {
+            action: "konachanwallpaper",
+            execute: () => {
+                Quickshell.execDetached([Quickshell.shellPath("scripts/colors/random/random_konachan_wall.sh")]);
+            }
+        },
+        {
+            action: "light",
+            execute: () => {
+                Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "light", "--noswitch"]);
+            }
+        },
+        {
+            action: "superpaste",
+            execute: args => {
+                if (!/^(\d+)/.test(args.trim())) { // Invalid if doesn't start with numbers
+                    Quickshell.execDetached([
+                        "notify-send",
+                        Translation.tr("Superpaste"),
+                        Translation.tr("Usage: <tt>%1superpaste NUM_OF_ENTRIES[i]</tt>\nSupply <tt>i</tt> when you want images\nExamples:\n<tt>%1superpaste 4i</tt> for the last 4 images\n<tt>%1superpaste 7</tt> for the last 7 entries").arg(Config.options.search.prefix.action),
+                        "-a", "Shell"
+                    ]);
+                    return;
+                }
+                const syntaxMatch = /^(?:(\d+)(i)?)/.exec(args.trim());
+                const count = syntaxMatch[1] ? parseInt(syntaxMatch[1]) : 1;
+                const isImage = !!syntaxMatch[2];
+                Cliphist.superpaste(count, isImage);
+            }
+        },
+        {
+            action: "wallpaper",
+            execute: () => {
+                Quickshell.execDetached(["bash", Directories.wallpaperSwitchScriptPath]);
+            }
+        },
+        {
+            action: "wipeclipboard",
+            execute: () => {
+                Cliphist.wipe();
+            }
+        },
+    ]
+    function focusFirstItem() {
+        appResults.currentIndex = 0;
+    }
+    function focusSearchInput() {
+        searchBar.forceFocus();
+    }
+    function cancelSearch() { // Opening starts with an empty search (it used to keep the last query, selected)
+        searchBar.searchInput.text = "";
+        root.searchingText = "";
+        // And on the first result: the text may have been empty already, so nothing else resets it
+        appResults.currentIndex = 0;
+        appResults.positionViewAtBeginning();
+    }
+    function setSearchingText(text) {
+        searchBar.searchInput.text = text;
+        root.searchingText = text;
+    }
+    Timer {
+        id: nonAppResultsTimer
+        interval: Config.options.search.nonAppResultDelay
+        onTriggered: {
+            let expr = root.searchingText;
+            if (expr.startsWith(Config.options.search.prefix.math)) {
+                expr = expr.slice(Config.options.search.prefix.math.length);
+            }
+            mathProcess.calculateExpression(expr);
+        }
+    }
+    Process {
+        id: mathProcess
+        property list<string> baseCommand: ["qalc", "-t"]
+        function calculateExpression(expression) {
+            mathProcess.running = false;
+            mathProcess.command = baseCommand.concat(expression);
+            mathProcess.running = true;
+        }
+        stdout: SplitParser {
+            onRead: data => {
+                root.mathResult = data;
+                root.focusFirstItem();
+            }
+        }
+    }
+    Keys.onPressed: event => {
+        // Prevent Esc and Backspace from registering
+        if (event.key === Qt.Key_Escape)
+            return;
+        // Handle Backspace: focus and delete character if not focused
+        if (event.key === Qt.Key_Backspace) {
+            if (!searchBar.searchInput.activeFocus) {
+                root.focusSearchInput();
+                if (event.modifiers & Qt.ControlModifier) {
+                    // Delete word before cursor
+                    let text = searchBar.searchInput.text;
+                    let pos = searchBar.searchInput.cursorPosition;
+                    if (pos > 0) {
+                        // Find the start of the previous word
+                        let left = text.slice(0, pos);
+                        let match = left.match(/(\s*\S+)\s*$/);
+                        let deleteLen = match ? match[0].length : 1;
+                        searchBar.searchInput.text = text.slice(0, pos - deleteLen) + text.slice(pos);
+                        searchBar.searchInput.cursorPosition = pos - deleteLen;
+                    }
+                } else {
+                    // Delete character before cursor if any
+                    if (searchBar.searchInput.cursorPosition > 0) {
+                        searchBar.searchInput.text = searchBar.searchInput.text.slice(0, searchBar.searchInput.cursorPosition - 1) + searchBar.searchInput.text.slice(searchBar.searchInput.cursorPosition);
+                        searchBar.searchInput.cursorPosition -= 1;
+                    }
+                }
+                // Always move cursor to end after programmatic edit
+                searchBar.searchInput.cursorPosition = searchBar.searchInput.text.length;
+                event.accepted = true;
+            }
+            // If already focused, let TextField handle it
+            return;
+        }
+        // Only handle visible printable characters (ignore control chars, arrows, etc.)
+        if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) // ignore control chars like Backspace, Tab, etc.
+        {
+            if (!searchBar.searchInput.activeFocus) {
+                root.focusSearchInput();
+                // Insert the character at the cursor position
+                searchBar.searchInput.text = searchBar.searchInput.text.slice(0, searchBar.searchInput.cursorPosition) + event.text + searchBar.searchInput.text.slice(searchBar.searchInput.cursorPosition);
+                searchBar.searchInput.cursorPosition += 1;
+                event.accepted = true;
+                root.focusFirstItem();
+            }
+        }
+    }
+    // ════════════════════════════════════════════════════════════════════
+    // Drawer that slides out of the bar (inspired by caelestia-dots/shell):
+    // same colour and border as the bar, joined to it by concave corners.
+    // ════════════════════════════════════════════════════════════════════
+    // Games have their own launcher (Super+Shift+O): hide Steam/Lutris game shortcuts here.
+    // The Steam and Lutris apps themselves still show.
+    function isGameShortcut(entry) {
+        const cmd = (entry?.execString ?? entry?.command?.join(" ") ?? "");
+        return cmd.includes("steam://rungameid/") || cmd.includes("lutris:rungame");
+    }
+    readonly property real panelWidth: 540 // One column: the chosen result grows in place
+    readonly property real panelPadding: 14
+    readonly property real cornerRadius: Appearance.rounding.windowRounding // matches the bar's rounding
+    readonly property real sideMargin: 40 // Room for the gooey bulge beside the drawer
+    readonly property bool useBlobs: blobBg.status === Loader.Ready
+    // No bar on this screen (a fullscreen game): a free-standing card instead of a drawer joined to nothing
+    readonly property bool barAttached: GlobalStates.barShownOn(root.QsWindow.window?.screen ?? null)
+    readonly property real bottomRadius: 28
+    readonly property int maxShown: 7 // Plain rows under the chosen one before the list scrolls
+    readonly property real itemHeight: 50
+    readonly property real fullHeight: content.implicitHeight
+    // 0 = fully out, 1 = tucked behind the bar. Overview.qml keeps the window
+    // mapped while this animates so the drawer can slide back in on close.
+    property bool windowReady: true // Set by Overview.qml once the window has rendered
+    property real offsetScale: (GlobalStates.overviewOpen && windowReady) ? 0 : 1
+    Behavior on offsetScale {
+        NumberAnimation {
+            // Open: gentle start so it visibly eases out of the bar (the expressive curve put the drawer
+            // ~60px out on its first frame), then a slight overshoot. Close: decelerate into the bar.
+            duration: GlobalStates.overviewOpen ? Appearance.animationCurves.drawerOpenDuration : Appearance.animationCurves.drawerCloseDuration
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: GlobalStates.overviewOpen ? Appearance.animationCurves.drawerOpen : Appearance.animationCurves.drawerClose
+        }
+    }
+    // Opening: the shell buttons and results cascade in, top to bottom, as the drawer slides out
+    property real openReveal: 1
+    function entrance(index) {
+        return Math.max(0, Math.min(1, root.openReveal * 1.8 - Math.min(index, 10) * 0.09));
+    }
+    NumberAnimation {
+        id: openRevealAnim
+        target: root
+        property: "openReveal"
+        from: 0
+        to: 1
+        duration: 560
+        easing.type: Easing.BezierSpline
+        easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
+    }
+    Connections {
+        target: GlobalStates
+        function onOverviewOpenChanged() {
+            if (GlobalStates.overviewOpen) openRevealAnim.restart(); // Closing leaves it at 1: it slides back whole
+            listHover.armed = false; // Hover waits for the pointer to move again
+            hoverChoose.stop();
+        }
+    }
+    // When hidden, tuck the drawer this far past the bar edge so the blob merge leaves no bump
+    readonly property real hiddenExtra: 60
+    readonly property real drawerTop: -(fullHeight + hiddenExtra) * offsetScale
+    // The open curve overshoots (offsetScale < 0): stretch the drawer instead of pulling it off the bar
+    readonly property real drawerY: Math.min(0, drawerTop)
+    readonly property real drawerHeight: fullHeight + Math.max(0, drawerTop)
+    readonly property real visibleHeight: Math.max(0, drawerY + drawerHeight)
+
+    implicitWidth: panelWidth + sideMargin * 2
+    BarJoin { // Lets the bar skip its bottom border where the drawer joins it
+        name: "launcher"
+        active: root.visibleHeight > 0
+        joinX: active ? root.mapToItem(null, root.sideMargin, 0).x : 0
+        joinWidth: root.panelWidth
+    }
+    implicitHeight: fullHeight
+
+    Item { // Clips everything above the bar's bottom edge, so the drawer emerges from under it
+        id: clipper
+        anchors.fill: parent
+        clip: true
+        transform: BarSideFlip { size: clipper.height } // Bar along the bottom: rises from it
+
+        // Preferred: caelestia's blob renderer, so the drawer oozes out of the bar
+        Loader {
+            id: blobBg
+            anchors.fill: parent
+            visible: root.barAttached // Hidden, not unloaded, while it's a card
+            source: "BlobDrawerBackground.qml"
+            onLoaded: {
+                // The clipper starts on the bar's 1px bottom border row. End the stand-in just
+                // above it so only the drawer covers that row (hiding the seam), not the whole width
+                item.barBottom = 0;
+                item.barHeight = Appearance.sizes.baseBarHeight;
+                item.barRadius = Config.options.bar.cornerStyle === 1 ? Appearance.rounding.windowRounding : 0;
+                item.drawerX = Qt.binding(() => root.sideMargin);
+                item.drawerY = Qt.binding(() => root.drawerY);
+                item.drawerWidth = Qt.binding(() => root.panelWidth);
+                item.drawerHeight = Qt.binding(() => root.drawerHeight);
+                // While only a sliver is out, shrink the corners so it reads as a strip leaving
+                // the bar rather than a shallow bump (rounded corners meeting the joins)
+                item.drawerRadius = Qt.binding(() => Math.min(root.bottomRadius, root.visibleHeight / 2));
+                item.fillOpacity = Qt.binding(() => Appearance.colors.glassOn ? 0.8 : 0.92); // Glass: the bar's 80 %, over Hyprland's blur
+            }
+        }
+
+        Rectangle { // No bar to join: a card where the drawer is
+            visible: !root.barAttached && root.visibleHeight > 0
+            x: root.sideMargin
+            y: root.drawerY
+            width: root.panelWidth
+            height: root.drawerHeight
+            radius: Math.min(root.bottomRadius, root.drawerHeight / 2)
+            color: Appearance.colors.colLayer0
+            opacity: Appearance.colors.glassOn ? 0.8 : 0.92
+        }
+        Item { // Fallback background (no plugin): corners + panel as one translucent surface
+            visible: !root.useBlobs && root.barAttached
+            anchors.fill: parent
+            opacity: Appearance.colors.glassOn ? 0.8 : 0.92
+            layer.enabled: visible // Group opacity, so the corners and panel don't double up where they meet
+
+            ConcaveCorner {
+                anchors { top: parent.top; right: drawer.left }
+                size: Math.min(root.cornerRadius, root.visibleHeight)
+            }
+            ConcaveCorner {
+                anchors { top: parent.top; left: drawer.right }
+                size: Math.min(root.cornerRadius, root.visibleHeight)
+                transform: Scale { xScale: -1; origin.x: root.cornerRadius / 2 }
+            }
+            Shape {
+                id: drawer
+                x: root.sideMargin
+                y: root.drawerY
+                width: root.panelWidth
+                height: root.drawerHeight
+                preferredRendererType: Shape.CurveRenderer
+                readonly property real r: Math.min(root.bottomRadius, height / 2)
+                // The side border begins where the concave corner's arc ends
+                readonly property real borderStart: height - root.visibleHeight + Math.min(root.cornerRadius, root.visibleHeight)
+                ShapePath { // Fill
+                    strokeWidth: 0
+                    strokeColor: "transparent"
+                    fillColor: Appearance.colors.colLayer0
+                    startX: 0; startY: 0
+                    PathLine { x: 0; y: drawer.height - drawer.r }
+                    PathArc { x: drawer.r; y: drawer.height; radiusX: drawer.r; radiusY: drawer.r; direction: PathArc.Counterclockwise }
+                    PathLine { x: drawer.width - drawer.r; y: drawer.height }
+                    PathArc { x: drawer.width; y: drawer.height - drawer.r; radiusX: drawer.r; radiusY: drawer.r; direction: PathArc.Counterclockwise }
+                    PathLine { x: drawer.width; y: 0 }
+                }
+                ShapePath { // Border on the sides and bottom only, continuing the bar's outline
+                    strokeWidth: 1
+                    strokeColor: Appearance.colors.colLayer0Border
+                    fillColor: "transparent"
+                    startX: 0; startY: drawer.borderStart
+                    PathLine { x: 0; y: drawer.height - drawer.r }
+                    PathArc { x: drawer.r; y: drawer.height; radiusX: drawer.r; radiusY: drawer.r; direction: PathArc.Counterclockwise }
+                    PathLine { x: drawer.width - drawer.r; y: drawer.height }
+                    PathArc { x: drawer.width; y: drawer.height - drawer.r; radiusX: drawer.r; radiusY: drawer.r; direction: PathArc.Counterclockwise }
+                    PathLine { x: drawer.width; y: drawer.borderStart }
+                }
+            }
+        }
+
+        Item { // Content slides with the drawer
+            id: content
+            x: root.sideMargin
+            y: root.drawerY
+            width: root.panelWidth
+            implicitHeight: columnLayout.implicitHeight + root.panelPadding * 2
+            opacity: 1 - root.offsetScale // Fade in step with the drawer so it never slides in empty
+            transform: [
+                BarSideFlip { size: content.height }, // Upright in a flipped stage
+                Matrix4x4 { // Wobble with the blob, as caelestia does for its panels
+                    matrix: root.useBlobs && root.barAttached ? blobBg.item.deformMatrix : Qt.matrix4x4()
+                }
+            ]
+
+            ColumnLayout {
+                id: columnLayout
+                anchors {
+                    top: parent.top
+                    left: parent.left
+                    right: parent.right
+                    margins: root.panelPadding
+                }
+                spacing: 4
+
+                SearchBar {
+                    id: searchBar
+                    Layout.fillWidth: true
+                    resultCount: appResults.count
+                    Synchronizer on searchingText {
+                        property alias source: root.searchingText
+                    }
+                }
+
+                RowLayout { // The shell's own pages, a click away: one line of parts with dots between, as the bar's right side
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: 2
+                    Layout.bottomMargin: 2
+                    spacing: 6
+                    Repeater {
+                        model: root.shellEntries
+                        delegate: RowLayout {
+                            id: shellPart
+                            required property var modelData
+                            required property int index
+                            readonly property real enter: root.entrance(index * 0.6)
+                            opacity: enter
+                            transform: Translate { y: (1 - shellPart.enter) * 10 }
+                            spacing: 6
+                            Rectangle { // The dot before each but the first
+                                visible: shellPart.index > 0
+                                Layout.alignment: Qt.AlignVCenter
+                                implicitWidth: 3
+                                implicitHeight: 3
+                                radius: 1.5
+                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.6)
+                            }
+                            RippleButton { // Its symbol on a squircle and its name, the accent line under while pointed at
+                                id: shellButton
+                                implicitWidth: shellRow.implicitWidth + 16
+                                implicitHeight: 40
+                                buttonRadius: Appearance.rounding.segment
+                                colBackground: "transparent"
+                                colBackgroundHover: "transparent"
+                                colRipple: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.9)
+                                onClicked: {
+                                    GlobalStates.overviewOpen = false;
+                                    shellPart.modelData.execute();
+                                }
+                                contentItem: Item {
+                                    RowLayout {
+                                        id: shellRow
+                                        anchors.centerIn: parent
+                                        spacing: 8
+                                        Rectangle {
+                                            implicitWidth: 28
+                                            implicitHeight: 28
+                                            radius: 9
+                                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.9)
+                                            MaterialSymbol {
+                                                anchors.centerIn: parent
+                                                text: shellPart.modelData.shellSymbol
+                                                iconSize: 17
+                                                fill: 1
+                                                color: Appearance.colors.colPrimary
+                                            }
+                                        }
+                                        StyledText {
+                                            text: shellPart.modelData.shortName
+                                            font.pixelSize: Appearance.font.pixelSize.smallie
+                                            color: Appearance.colors.colOnLayer3
+                                        }
+                                    }
+                                }
+                                HoverLine { shown: shellButton.hovered }
+                            }
+                        }
+                    }
+                }
+
+                ListView { // Results (all apps, most used first, when the query is empty)
+                    id: appResults
+                    visible: count > 0
+                    Layout.fillWidth: true
+                    // The chosen result's card and up to maxShown rows under it
+                    readonly property real maxHeight: 140 + (root.itemHeight + spacing) * root.maxShown
+                    implicitHeight: Math.min(contentHeight, maxHeight)
+                    Behavior on implicitHeight { // The drawer resizes smoothly as results come and go
+                        enabled: GlobalStates.overviewOpen && root.windowReady
+                        NumberAnimation { duration: 300; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animationCurves.emphasizedDecel }
+                    }
+                    clip: true
+                    spacing: 4
+                    // No add/move transitions: they work out where each row goes when they start, and the chosen card
+                    // growing at the same moment left rows stranded on top of each other while typing fast
+                    highlightFollowsCurrentItem: false
+                    onCurrentIndexChanged: positionTimer.restart()
+                    // Hovering chooses a result. Only after the pointer itself moves and settles: the chosen card
+                    // grows, so rows slide under a still pointer, and those slides mustn't choose anything
+                    HoverHandler {
+                        id: listHover
+                        property point lastScenePos: Qt.point(-1, -1)
+                        property bool armed: false // The first event after opening only notes where the pointer is
+                        onPointChanged: {
+                            const p = point.scenePosition;
+                            if (!hovered || (p.x === lastScenePos.x && p.y === lastScenePos.y)) return;
+                            lastScenePos = p;
+                            if (!armed) { armed = true; return; }
+                            hoverChoose.restart();
+                        }
+                    }
+                    Timer {
+                        id: hoverChoose
+                        interval: 80
+                        onTriggered: {
+                            // indexAt wants the list's content coordinates: mapped from the pointer's place on screen
+                            // (adding contentY to a position isn't enough: rows of different heights move the content's origin)
+                            const sp = listHover.point.scenePosition;
+                            const p = appResults.contentItem.mapFromItem(null, sp.x, sp.y);
+                            const i = appResults.indexAt(p.x, p.y);
+                            if (listHover.hovered && i >= 0) appResults.currentIndex = i;
+                        }
+                    }
+                    Timer { // Once the chosen card has grown, so it fits whole
+                        id: positionTimer
+                        interval: 230
+                        onTriggered: { // Glides there rather than jumping
+                            const from = appResults.contentY;
+                            appResults.positionViewAtIndex(appResults.currentIndex, ListView.Contain);
+                            const to = appResults.contentY;
+                            if (from === to) return;
+                            appResults.contentY = from;
+                            scrollAnim.to = to;
+                            scrollAnim.restart();
+                        }
+                    }
+                    NumberAnimation {
+                        id: scrollAnim
+                        target: appResults
+                        property: "contentY"
+                        duration: 260
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
+                    }
+                    model: ScriptModel {
+                        id: model
+                        objectProp: "key"
+                        // New results: the top one is chosen. The list would otherwise follow the chosen row as rows are
+                        // inserted above it, leaving the card on an old result halfway down
+                        onValuesChanged: {
+                            appResults.currentIndex = 0;
+                            hoverChoose.stop();
+                            scrollAnim.stop();
+                            appResults.positionViewAtBeginning();
+                        }
+                        values: {
+                            // Search results are handled here
+                            ////////////////// Skip? //////////////////
+                            if (root.searchingText == "") // Like caelestia: show every app right away, the most used first (then A–Z)
+                                return AppSearch.list.filter(e => !root.isGameShortcut(e))
+                                    .map(entry => ({ entry: entry, score: AppSearch.usageScore(entry) }))
+                                    .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))
+                                    .map(({ entry }) => {
+                                    entry.clickActionName = Translation.tr("Launch");
+                                    entry.type = Translation.tr("App");
+                                    entry.key = entry.execute;
+                                    return entry;
+                                });
+                            ///////////// Special cases ///////////////
+                            if (root.searchingText.startsWith(Config.options.search.prefix.clipboard)) {
+                                // Clipboard
+                                const searchString = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.clipboard);
+                                return Cliphist.fuzzyQuery(searchString).map(entry => {
+                                    const type = `#${entry.match(/^\s*(\S+)/)?.[1] || ""}`
+                                    return {
+                                        key: type,
+                                        cliphistRawString: entry,
+                                        name: StringUtils.cleanCliphistEntry(entry),
+                                        clickActionName: "",
+                                        type: type,
+                                        execute: () => {
+                                            Cliphist.copy(entry)
+                                        },
+                                        actions: [
+                                            {
+                                                name: "Copy",
+                                                materialIcon: "content_copy",
+                                                execute: () => {
+                                                    Cliphist.copy(entry);
+                                                }
+                                            },
+                                            {
+                                                name: "Delete",
+                                                materialIcon: "delete",
+                                                execute: () => {
+                                                    Cliphist.deleteEntry(entry);
+                                                }
+                                            }
+                                        ]
+                                    };
+                                }).filter(Boolean);
+                            }
+                            else if (root.searchingText.startsWith(Config.options.search.prefix.emojis)) {
+                                // Clipboard
+                                const searchString = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.emojis);
+                                return Emojis.fuzzyQuery(searchString).map(entry => {
+                                    const emoji = entry.match(/^\s*(\S+)/)?.[1] || ""
+                                    return {
+                                        key: emoji,
+                                        cliphistRawString: entry,
+                                        bigText: emoji,
+                                        name: entry.replace(/^\s*\S+\s+/, ""),
+                                        clickActionName: "",
+                                        type: "Emoji",
+                                        execute: () => {
+                                            Quickshell.clipboardText = entry.match(/^\s*(\S+)/)?.[1];
+                                        }
+                                    };
+                                }).filter(Boolean);
+                            }
+                            ////////////////// Init ///////////////////
+                            // qalc only when the result is shown (a number or the maths prefix), not on every keystroke
+                            if (/^\d/.test(root.searchingText) || root.searchingText.startsWith(Config.options.search.prefix.math))
+                                nonAppResultsTimer.restart();
+                            const mathResultObject = {
+                                key: `Math result: ${root.mathResult}`,
+                                name: root.mathResult,
+                                clickActionName: Translation.tr("Copy"),
+                                type: Translation.tr("Math result"),
+                                fontType: "monospace",
+                                materialSymbol: 'calculate',
+                                execute: () => {
+                                    Quickshell.clipboardText = root.mathResult;
+                                }
+                            };
+                            const appQuery = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.app);
+                            const appResultObjects = AppSearch.fuzzyQuery(appQuery).filter(e => !root.isGameShortcut(e) && e.id !== root.pavucontrolId).map(entry => {
+                                entry.clickActionName = Translation.tr("Launch");
+                                entry.type = Translation.tr("App");
+                                entry.key = entry.execute
+                                return entry;
+                            })
+                            const shellObjects = root.shellEntries.filter(e => Fuzzy.go(appQuery, e.targets).length > 0);
+                            const pavucontrol = DesktopEntries.byId(root.pavucontrolId);
+                            const pavucontrolObjects = pavucontrol && Fuzzy.go(appQuery, [root.pavucontrolTarget]).length > 0 ? [{
+                                key: "pavucontrol",
+                                name: "pavucontrol",
+                                comment: pavucontrol.comment,
+                                icon: pavucontrol.icon,
+                                clickActionName: Translation.tr("Launch"),
+                                type: Translation.tr("App"),
+                                execute: () => pavucontrol.execute()
+                            }] : [];
+                            const commandResultObject = {
+                                key: `cmd ${root.searchingText}`,
+                                name: StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.shellCommand).replace("file://", ""),
+                                clickActionName: Translation.tr("Run"),
+                                type: Translation.tr("Run command"),
+                                fontType: "monospace",
+                                materialSymbol: 'terminal',
+                                execute: () => {
+                                    let cleanedCommand = root.searchingText.replace("file://", "");
+                                    cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
+                                    if (cleanedCommand.startsWith(Config.options.search.prefix.shellCommand)) {
+                                        cleanedCommand = cleanedCommand.slice(Config.options.search.prefix.shellCommand.length);
+                                    }
+                                    // sudo needs a terminal for the password; the command goes in as an argument so
+                                    // quotes in it reach fish intact
+                                    if (cleanedCommand.trim().startsWith("sudo"))
+                                        Quickshell.execDetached(["bash", "-c", `${Config.options.apps.terminal} fish -C "$1"`, "run-in-terminal", cleanedCommand]);
+                                    else
+                                        Quickshell.execDetached(["bash", "-c", cleanedCommand]);
+                                }
+                            };
+                            const webSearchResultObject = {
+                                key: `website ${root.searchingText}`,
+                                name: StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.webSearch),
+                                clickActionName: Translation.tr("Search"),
+                                type: Translation.tr("Search the web"),
+                                materialSymbol: 'travel_explore',
+                                execute: () => {
+                                    let query = StringUtils.cleanPrefix(root.searchingText, Config.options.search.prefix.webSearch);
+                                    for (let site of Config.options.search.excludedSites) {
+                                        query += ` -site:${site}`;
+                                    }
+                                    // Encoded, so "c++", "a & b" or "#tag" reach the search engine as typed
+                                    Qt.openUrlExternally(Config.options.search.engineBaseUrl + encodeURIComponent(query));
+                                }
+                            }
+                            const launcherActionObjects = root.searchActions.map(action => {
+                                const actionString = `${Config.options.search.prefix.action}${action.action}`;
+                                if (actionString.startsWith(root.searchingText) || root.searchingText.startsWith(actionString)) {
+                                    return {
+                                        key: `Action ${actionString}`,
+                                        name: root.searchingText.startsWith(actionString) ? root.searchingText : actionString,
+                                        clickActionName: Translation.tr("Run"),
+                                        type: Translation.tr("Action"),
+                                        materialSymbol: 'settings_suggest',
+                                        execute: () => {
+                                            action.execute(root.searchingText.split(" ").slice(1).join(" "));
+                                        }
+                                    };
+                                }
+                                return null;
+                            }).filter(Boolean);
+                            //////// Prioritized by prefix /////////
+                            let result = [];
+                            const startsWithNumber = /^\d/.test(root.searchingText);
+                            const startsWithMathPrefix = root.searchingText.startsWith(Config.options.search.prefix.math);
+                            const startsWithShellCommandPrefix = root.searchingText.startsWith(Config.options.search.prefix.shellCommand);
+                            const startsWithWebSearchPrefix = root.searchingText.startsWith(Config.options.search.prefix.webSearch);
+                            if (startsWithNumber || startsWithMathPrefix) {
+                                result.push(mathResultObject);
+                            } else if (startsWithShellCommandPrefix) {
+                                result.push(commandResultObject);
+                            } else if (startsWithWebSearchPrefix) {
+                                result.push(webSearchResultObject);
+                            }
+                            //////////////// Apps //////////////////
+                            result = result.concat(shellObjects, pavucontrolObjects, appResultObjects);
+                            ////////// Launcher actions ////////////
+                            result = result.concat(launcherActionObjects);
+                            /// Math result, command, web search ///
+                            if (Config.options.search.prefix.showDefaultActionsWithoutPrefix) {
+                                if (!startsWithShellCommandPrefix) result.push(commandResultObject);
+                                if (!startsWithNumber && !startsWithMathPrefix) result.push(mathResultObject);
+                                if (!startsWithWebSearchPrefix) result.push(webSearchResultObject);
+                            }
+                            return result;
+                        }
+                    }
+                    delegate: SearchItem {
+                        required property var modelData
+                        required property int index
+                        anchors.left: parent?.left
+                        anchors.right: parent?.right
+                        entry: modelData
+                        grown: ListView.isCurrentItem
+                        enter: root.entrance(index)
+                        onBackRequested: root.focusSearchInput()
+                        query: root.matchQuery
+                    }
+                }
+
+                StyledText { // Nothing found
+                    visible: appResults.count === 0
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: 14
+                    Layout.bottomMargin: 10
+                    text: Translation.tr("No results")
+                    color: Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.small
+                }
+            }
+        }
+    }
+
+    // Quarter-circle cut-out that blends the drawer into the bar's bottom edge
+    component ConcaveCorner: Shape {
+        id: corner
+        property real size: 18
+        width: root.cornerRadius
+        height: root.cornerRadius
+        preferredRendererType: Shape.CurveRenderer
+        // Anchored to the drawer's top corner; grows with the visible drawer height
+        ShapePath {
+            strokeWidth: 0
+            strokeColor: "transparent"
+            fillColor: Appearance.colors.colLayer0
+            startX: corner.width - corner.size; startY: 0
+            PathLine { x: corner.width; y: 0 }
+            PathLine { x: corner.width; y: corner.size }
+            PathArc {
+                x: corner.width - corner.size; y: 0
+                radiusX: corner.size; radiusY: corner.size
+                direction: PathArc.Counterclockwise
+            }
+        }
+        ShapePath {
+            strokeWidth: 1
+            strokeColor: Appearance.colors.colLayer0Border
+            fillColor: "transparent"
+            startX: corner.width; startY: corner.size
+            PathArc {
+                x: corner.width - corner.size; y: 0
+                radiusX: corner.size; radiusY: corner.size
+                direction: PathArc.Counterclockwise
+            }
+        }
+    }
+}
