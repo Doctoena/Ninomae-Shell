@@ -12,10 +12,13 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 
 /**
- * One player in the media drawer (G1b), in a well on the drawer's glass, lit by its cover (CoverTint): the picture
- * runs to the well's edges at the top and fades into it, the app, the title and the artist on the fade; then straight
- * on the well the seek bar with the times on its line, shuffle / previous / play-pause / next / repeat, and the app's
- * own volume (its PipeWire streams, matched by app name) with Open, which brings the app's window up.
+ * One player in the media drawer (E4c), a card filled with its cover's own colours (the cover decoded tiny and
+ * stretched, as the game page's frost: no blur shader), dimmed and fading down into the drawer. Centred on it: the
+ * cover, a 212 px rounded square with a soft shadow and a fine rim; the title, bold, and the artist in the cover's colour
+ * (CoverTint); the seek bar with the time gone and the time left under its ends; the controls in a lit capsule (the
+ * bar's), ranked: shuffle and repeat small and quiet, previous and next bigger, play / pause the big lit squircle; the
+ * app's own volume (its PipeWire streams, matched by app name); the app and Open, which brings its window up, along
+ * the foot.
  */
 Item {
     id: root
@@ -23,9 +26,10 @@ Item {
     property real radius: Appearance.rounding.large // The drawer's bottom corners
 
     readonly property real padding: 10
-    readonly property real outer: Math.max(Appearance.rounding.normal, radius - padding) // The well's corners
-    // What the well looks like over the drawer's glass, for the picture to fade into and the sliders' rings
-    readonly property color wellColor: ColorUtils.mix(Appearance.m3colors.m3background, Appearance.colors.colLayer0, 0.6)
+    readonly property real outer: Math.max(Appearance.rounding.normal, radius - padding) // The card's corners
+    readonly property real coverSize: 212
+    // The card's colour under the sliders' knobs (they sit on a ring of it)
+    readonly property color cardColor: ColorUtils.mix(Appearance.m3colors.m3background, Appearance.colors.colLayer0, 0.6)
 
     readonly property bool isPlaying: player?.isPlaying ?? false
     // Length and position, kept through the gaps where a browser drops them (TrackTiming.qml). With no
@@ -39,10 +43,11 @@ Item {
 
     // ── Cover art (fetched by services/CoverArt.qml, shared with the bar and the sidebar) and its colours ──
     readonly property string displayedArtFilePath: CoverArt.coverFor(player)
+    readonly property bool hasArt: cover.status === Image.Ready || oldCover.status === Image.Ready
     CoverTint { id: tint; cover: root.displayedArtFilePath }
     // The colours glide to the next cover's. Each through a hidden Rectangle's own colour: a Behavior on a custom
     // property at this delegate's root crashed quickshell (QQmlData::deferData) whenever the drawer opened
-    readonly property color pieceColor: pieceFade.color // Behind the picture while there's none
+    readonly property color pieceColor: pieceFade.color // The card while there's no picture
     readonly property color accent: accentFade.color
     readonly property color onAccent: onAccentFade.color
     readonly property color subtext: subtextFade.color
@@ -76,7 +81,7 @@ Item {
         GlobalStates.mediaControlsOpen = false;
     }
 
-    implicitHeight: column.implicitHeight + 4 + padding
+    implicitHeight: card.height + 4 + padding
 
     // ── Title and artist: on a new track the pair fades out sliding left, changes, and fades back in. As one
     // block: StyledText's own change animation slides each line back to where it was first made, which in a
@@ -106,144 +111,195 @@ Item {
         }
     }
 
-    GlassWell {
-        anchors { fill: column; margins: 0 }
+    // ── The card: the cover's own colours, dimmed, fading down into the drawer ──
+    ClippingRectangle {
+        id: card
+        anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: root.padding; rightMargin: root.padding; topMargin: 4 }
+        height: column.implicitHeight + 32
         radius: root.outer
+        color: root.pieceColor
+        Image { // The cover decoded tiny and stretched: its colours, softly blurred
+            anchors.fill: parent
+            source: root.displayedArtFilePath
+            sourceSize: Qt.size(16, 16)
+            fillMode: Image.Stretch
+            smooth: true
+            opacity: status === Image.Ready ? 0.85 : 0
+            Behavior on opacity { NumberAnimation { duration: 450 } }
+        }
+        Rectangle { // Dimmed, so white text reads on any cover
+            anchors.fill: parent
+            color: Qt.rgba(0.04, 0.03, 0.08, 0.45)
+        }
+        Rectangle { // Fading down into the drawer
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: parent.height - 160
+            gradient: Gradient {
+                GradientStop { position: 0; color: ColorUtils.transparentize(Appearance.colors.colLayer0, 1) }
+                GradientStop { position: 1; color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.4) }
+            }
+        }
     }
+    Rectangle { // The card's fine rim
+        anchors.fill: card
+        radius: card.radius
+        color: "transparent"
+        border { width: 1; color: Qt.rgba(1, 1, 1, 0.1) }
+    }
+
     ColumnLayout {
         id: column
-        anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: root.padding; rightMargin: root.padding; topMargin: 4 }
+        anchors { left: card.left; right: card.right; top: card.top; topMargin: 18 }
         spacing: 0
 
-        // ── The picture, to the well's edges at the top, fading into it; the app, title and artist on the fade ──
-        ClippingRectangle {
-            id: banner
-            Layout.fillWidth: true
-            Layout.margins: 1 // Inside the well's rim
-            implicitHeight: Math.round(width * 9 / 16) + 20
-            topLeftRadius: root.outer - 1; topRightRadius: root.outer - 1
-            color: root.pieceColor
-            MaterialSymbol { // No art (yet)
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: -30
-                visible: cover.status !== Image.Ready && oldCover.status !== Image.Ready
-                text: "music_note"; fill: 1; iconSize: 56
-                color: root.accent
+        // ── The cover: a rounded square, a soft shadow under it, a fine rim; dimmed while paused ──
+        Item {
+            Layout.alignment: Qt.AlignHCenter
+            implicitWidth: root.coverSize
+            implicitHeight: root.coverSize
+            Repeater { // The shadow
+                model: [[12, 0.05], [8, 0.08], [4, 0.12]]
+                Rectangle {
+                    required property var modelData
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 6 - modelData[0] / 2
+                    width: root.coverSize + modelData[0]
+                    height: root.coverSize + modelData[0]
+                    radius: 20 + modelData[0] / 2
+                    color: Qt.rgba(0, 0, 0, modelData[1])
+                }
             }
-            // Fills the banner, whatever its shape (a square album cover loses its top and bottom). Two covers
-            // crossfade on a new track: the new one fades in over the old, which then lets its picture go
-            Image {
-                id: oldCover
+            ClippingRectangle {
                 anchors.fill: parent
-                fillMode: Image.PreserveAspectCrop
-                sourceSize: cover.sourceSize
+                radius: 20
+                color: root.pieceColor
+                MaterialSymbol { // No art (yet)
+                    anchors.centerIn: parent
+                    visible: !root.hasArt
+                    text: "music_note"; fill: 1; iconSize: 56
+                    color: root.accent
+                }
+                // Two covers crossfade on a new track: the new one fades in over the old, which then lets its
+                // picture go
+                Image {
+                    id: oldCover
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    sourceSize: cover.sourceSize
+                }
+                StyledImage {
+                    id: cover
+                    anchors.fill: parent
+                    source: root.displayedArtFilePath
+                    fillMode: Image.PreserveAspectCrop
+                    retainWhileLoading: false // Empty until the new one's ready, so it can fade in over the old
+                    sourceSize: Qt.size(root.coverSize * 2, root.coverSize * 2) // Fixed: never re-decoded
+                    property string lastSource: ""
+                    onSourceChanged: {
+                        oldCover.source = lastSource;
+                        lastSource = source;
+                    }
+                    onStatusChanged: if (status === Image.Ready) oldCoverRelease.restart()
+                    Timer { id: oldCoverRelease; interval: 700; onTriggered: oldCover.source = "" }
+                }
+                Rectangle { // Paused: dimmed
+                    anchors.fill: parent
+                    color: "black"
+                    opacity: root.isPlaying ? 0 : 0.35
+                    Behavior on opacity { NumberAnimation { duration: 250 } }
+                }
             }
-            StyledImage {
-                id: cover
+            Rectangle { // The rim
                 anchors.fill: parent
-                source: root.displayedArtFilePath
-                fillMode: Image.PreserveAspectCrop
-                retainWhileLoading: false // Empty until the new one's ready, so it can fade in over the old
-                // Fixed: the banner's width only changes with the drawer's (a size bound to it would re-decode)
-                sourceSize: Qt.size(880, 880)
-                property string lastSource: ""
-                onSourceChanged: {
-                    oldCover.source = lastSource;
-                    lastSource = source;
-                }
-                onStatusChanged: if (status === Image.Ready) oldCoverRelease.restart()
-                Timer { id: oldCoverRelease; interval: 700; onTriggered: oldCover.source = "" }
-            }
-            Rectangle { // The fade into the well, the title on it
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: parent.height * 0.7
-                gradient: Gradient {
-                    GradientStop { position: 0; color: ColorUtils.transparentize(root.wellColor, 1) }
-                    GradientStop { position: 0.7; color: ColorUtils.transparentize(root.wellColor, 0.1) }
-                    GradientStop { position: 1; color: root.wellColor }
-                }
-            }
-            ColumnLayout {
-                id: titleBlock
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 15; rightMargin: 15; bottomMargin: 2 }
-                spacing: 0
-                transform: Translate { id: titleShift }
-                Row { // The app (and site), its squircle saying whether it's playing
-                    Layout.bottomMargin: 4
-                    spacing: 6
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 20; height: 20; radius: 6.5
-                        color: ColorUtils.transparentize("white", 0.88)
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: root.isPlaying ? "graphic_eq" : "pause"
-                            fill: 1; iconSize: 13; color: root.accent
-                            // A new symbol (play ↔ pause) springs in from half size. A handler, not a Behavior on
-                            // text: StyledText already has one of those
-                            onTextChanged: sourceSymbolPop.restart()
-                            NumberAnimation on scale { id: sourceSymbolPop; running: false; from: 0.5; to: 1; duration: 280; easing.type: Easing.OutBack }
-                        }
-                    }
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: [root.appName || Translation.tr("Player"), root.site].filter(s => s).join(" · ")
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.colors.colSubtextGlass
-                    }
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    font.family: Appearance.font.family.title
-                    font.pixelSize: 26
-                    font.weight: Font.Black
-                    color: Appearance.colors.colOnLayer0
-                    elide: Text.ElideRight
-                    text: root.shownTitle
-                }
-                StyledText {
-                    Layout.fillWidth: true
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: root.subtext
-                    elide: Text.ElideRight
-                    visible: text.length > 0
-                    text: root.shownArtist
-                }
+                radius: 20
+                color: "transparent"
+                border { width: 1; color: Qt.rgba(1, 1, 1, 0.14) }
             }
         }
 
-        // ── Straight on the well: the seek bar with the times on its line, the controls, the volume and Open ──
+        // ── The title, bold, and the artist in the cover's colour ──
+        ColumnLayout {
+            id: titleBlock
+            Layout.fillWidth: true
+            Layout.leftMargin: 22; Layout.rightMargin: 22; Layout.topMargin: 14
+            spacing: 1
+            transform: Translate { id: titleShift }
+            StyledText {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: 23
+                font.weight: Font.Bold
+                font.variableAxes: ({}) // Not the main font's weight axis: it won over font.weight
+                color: "white"
+                elide: Text.ElideRight
+                text: root.shownTitle
+            }
+            StyledText {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.Medium
+                font.variableAxes: ({})
+                color: root.accent
+                elide: Text.ElideRight
+                visible: text.length > 0
+                text: root.shownArtist
+            }
+        }
+
+        // ── The seek bar, the time gone and the time left under its ends ──
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 12; Layout.rightMargin: 12; Layout.topMargin: 6; Layout.bottomMargin: 10
-            spacing: 10
-            RowLayout {
+            Layout.leftMargin: 22; Layout.rightMargin: 22; Layout.topMargin: 8
+            spacing: -5
+            SlimSlider {
                 Layout.fillWidth: true
-                spacing: 10
-                TimeText { // Keeps its place with no length, so the bar doesn't move
-                    opacity: root.hasLength ? 1 : 0
-                    text: StringUtils.friendlyTimeForSeconds(timing.position)
-                }
-                SlimSlider {
-                    Layout.fillWidth: true
-                    ringColor: root.wellColor
-                    accentColor: root.accent
-                    enabled: root.canSeek
-                    wheelEnabled: false // A stray scroll shouldn't jump the track
-                    opacity: root.hasLength ? 1 : 0.4
-                    level: root.progress
-                    onMoved: if (root.canSeek) root.player.position = value * timing.length
-                }
-                TimeText {
-                    opacity: root.hasLength ? 1 : 0
-                    text: StringUtils.friendlyTimeForSeconds(timing.length)
+                ringColor: root.cardColor
+                accentColor: root.accent
+                enabled: root.canSeek
+                wheelEnabled: false // A stray scroll shouldn't jump the track
+                opacity: root.hasLength ? 1 : 0.4
+                level: root.progress
+                onMoved: if (root.canSeek) root.player.position = value * timing.length
+            }
+            RowLayout { // Keep their place with no length, so nothing moves
+                Layout.fillWidth: true
+                Layout.leftMargin: 4; Layout.rightMargin: 4
+                opacity: root.hasLength ? 1 : 0
+                TimeText { text: StringUtils.friendlyTimeForSeconds(timing.position) }
+                Item { Layout.fillWidth: true }
+                TimeText { text: "-" + StringUtils.friendlyTimeForSeconds(Math.max(0, timing.length - timing.position)) }
+            }
+        }
+
+        // ── The controls, ranked, in a lit capsule ──
+        Item {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 10
+            implicitWidth: controls.implicitWidth + 22
+            implicitHeight: controls.implicitHeight + 12
+            Rectangle { // The capsule: the cover's colour, strongest in its middle, a fine rim of it
+                anchors.fill: parent
+                radius: height / 2
+                color: "transparent"
+                border { width: 1; color: ColorUtils.transparentize(root.accent, 0.78) }
+                Rectangle {
+                    anchors { fill: parent; margins: 1 }
+                    radius: height / 2
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0; color: ColorUtils.transparentize(root.accent, 0.93) }
+                        GradientStop { position: 0.5; color: ColorUtils.transparentize(root.accent, 0.84) }
+                        GradientStop { position: 1; color: ColorUtils.transparentize(root.accent, 0.93) }
+                    }
                 }
             }
             RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: -2
-                spacing: 8
+                id: controls
+                anchors.centerIn: parent
+                spacing: 10
                 ControlButton { // Shuffle: always there, dimmed for players that can't (browsers)
+                    quiet: true
                     enabled: root.canShuffle
                     active: root.player?.shuffle ?? false
                     iconName: "shuffle"
@@ -254,31 +310,38 @@ Item {
                     enabled: root.player?.canGoPrevious ?? false
                     onClicked: root.player.previous()
                 }
-                Item { // Play / pause: the accent squircle with a soft glow, rounder while paused
-                    implicitWidth: 50
-                    implicitHeight: 50
-                    Rectangle { // The glow, following the squircle's shape
-                        anchors { fill: playButton; margins: -3 }
-                        radius: playButton.radius + 3
+                Item { // Play / pause: the lit squircle with a soft glow, rounder while paused
+                    implicitWidth: 52
+                    implicitHeight: 52
+                    Rectangle { // The glow, two steps out
+                        anchors { fill: playButton; margins: -7 }
+                        radius: playButton.radius + 5
+                        color: ColorUtils.transparentize(root.accent, 0.88)
+                    }
+                    Rectangle {
+                        anchors { fill: playButton; margins: -4 }
+                        radius: playButton.radius + 2
                         color: ColorUtils.transparentize(root.accent, 0.8)
                     }
                     Rectangle {
                         id: playButton
                         anchors.fill: parent
-                        radius: playMouse.pressed ? 12 : root.isPlaying ? 15 : 20
-                        color: playMouse.containsMouse ? Qt.lighter(root.accent, 1.06) : root.accent
+                        radius: playMouse.pressed ? 12 : root.isPlaying ? 17 : 22
                         Behavior on radius { NumberAnimation { duration: 260; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial } }
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        gradient: Gradient {
+                            GradientStop { position: 0; color: Qt.lighter(root.accent, playMouse.containsMouse ? 1.1 : 1.06) }
+                            GradientStop { position: 1; color: Qt.darker(root.accent, 1.08) }
+                        }
                         Rectangle { // A light along its top
-                            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.radius; rightMargin: parent.radius }
+                            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: parent.width * 0.26; rightMargin: parent.width * 0.26; topMargin: 1 }
                             height: 1
-                            color: ColorUtils.transparentize("white", 0.4)
+                            color: ColorUtils.transparentize("white", 0.3)
                         }
                         MaterialSymbol {
                             anchors.centerIn: parent
                             text: root.isPlaying ? "pause" : "play_arrow"
                             fill: 1
-                            iconSize: 26
+                            iconSize: 27
                             color: root.onAccent
                             // A new symbol (play ↔ pause) springs in from half size. A handler, not a Behavior on text:
                             // StyledText already has one of those
@@ -300,6 +363,7 @@ Item {
                     onClicked: root.player.next()
                 }
                 ControlButton { // Repeat: off → playlist → track. Always there, dimmed for players that can't
+                    quiet: true
                     enabled: root.canLoop
                     active: (root.player?.loopState ?? MprisLoopState.None) !== MprisLoopState.None
                     iconName: root.player?.loopState === MprisLoopState.Track ? "repeat_one" : "repeat"
@@ -310,68 +374,94 @@ Item {
                     }
                 }
             }
-            RowLayout { // The app's volume, and Open
+        }
+
+        // ── The app's volume (the speaker mutes it) ──
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 10
+            visible: root.hasVolume
+            spacing: 6
+            ControlButton {
+                quiet: true
+                size: 30
+                iconName: root.muted || root.volume === 0 ? "volume_off" : "volume_down"
+                onClicked: {
+                    const mute = !root.muted;
+                    root.streams.forEach(n => { if (n.audio) n.audio.muted = mute; });
+                }
+            }
+            SlimSlider {
+                Layout.preferredWidth: 220
+                ringColor: root.cardColor
+                accentColor: ColorUtils.transparentize("white", 0.2)
+                opacity: root.muted ? 0.5 : 1
+                level: root.volume
+                onMoved: root.streams.forEach(n => { if (n.audio) n.audio.volume = value; })
+            }
+            MaterialSymbol {
+                text: "volume_up"
+                iconSize: 16
+                color: root.subtext
+            }
+        }
+
+        // ── Along the foot, on a hairline: the app (its squircle saying whether it's playing) and Open ──
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: 8; Layout.rightMargin: 8; Layout.topMargin: 12
+            implicitHeight: 1
+            color: Qt.rgba(1, 1, 1, 0.07)
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.leftMargin: 10; Layout.rightMargin: 6; Layout.topMargin: 6
+            spacing: 7
+            Rectangle {
+                implicitWidth: 20; implicitHeight: 20; radius: 7
+                color: ColorUtils.transparentize(root.accent, 0.8)
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: root.isPlaying ? "graphic_eq" : "pause"
+                    fill: 1; iconSize: 13; color: root.accent
+                    // A new symbol (play ↔ pause) springs in from half size
+                    onTextChanged: sourceSymbolPop.restart()
+                    NumberAnimation on scale { id: sourceSymbolPop; running: false; from: 0.5; to: 1; duration: 280; easing.type: Easing.OutBack }
+                }
+            }
+            StyledText {
                 Layout.fillWidth: true
-                visible: root.hasVolume || root.canOpen
-                spacing: 8
-                ControlButton { // Mute
-                    visible: root.hasVolume
-                    size: 30
-                    iconName: root.muted || root.volume === 0 ? "volume_off" : root.volume < 0.5 ? "volume_down" : "volume_up"
-                    iconColor: Appearance.colors.colSubtextGlass
-                    onClicked: {
-                        const mute = !root.muted;
-                        root.streams.forEach(n => { if (n.audio) n.audio.muted = mute; });
+                text: [root.appName || Translation.tr("Player"), root.site].filter(s => s).join(" · ")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: root.subtext
+                elide: Text.ElideRight
+            }
+            Rectangle { // Open: the app's window. A glass chip, a shade more when pointed at
+                visible: root.canOpen
+                implicitWidth: openRow.implicitWidth + 18
+                implicitHeight: 30
+                radius: 15
+                color: Qt.rgba(1, 1, 1, openMouse.containsMouse ? 0.12 : 0.07)
+                border { width: 1; color: Qt.rgba(1, 1, 1, 0.1) }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Row {
+                    id: openRow
+                    anchors.centerIn: parent
+                    spacing: 6
+                    MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "open_in_new"; iconSize: 14; color: root.accent }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Translation.tr("Open")
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: "white"
                     }
                 }
-                SlimSlider {
-                    Layout.fillWidth: true
-                    visible: root.hasVolume
-                    ringColor: root.wellColor
-                    accentColor: root.accent
-                    opacity: root.muted ? 0.5 : 1
-                    level: root.volume
-                    onMoved: root.streams.forEach(n => { if (n.audio) n.audio.volume = value; })
-                }
-                TimeText {
-                    visible: root.hasVolume
-                    Layout.preferredWidth: 24
-                    horizontalAlignment: Text.AlignRight
-                    text: Math.round(root.volume * 100)
-                }
-                Item { Layout.fillWidth: true; visible: !root.hasVolume }
-                Rectangle { // A dot between the volume and Open, as the bar's parts
-                    visible: root.hasVolume && root.canOpen
-                    implicitWidth: 3; implicitHeight: 3; radius: 1.5
-                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.6)
-                }
-                Rectangle { // Open: the app's window. Quiet, a soft card when pointed at
-                    visible: root.canOpen
-                    implicitWidth: openRow.implicitWidth + 16
-                    implicitHeight: 30
-                    radius: 10
-                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer0, openMouse.containsMouse ? 0.92 : 1)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Row {
-                        id: openRow
-                        anchors.centerIn: parent
-                        spacing: 5
-                        MaterialSymbol { anchors.verticalCenter: parent.verticalCenter; text: "open_in_new"; iconSize: 15; color: root.accent }
-                        StyledText {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: Translation.tr("Open")
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            font.weight: Font.Medium
-                            color: Appearance.colors.colOnLayer0
-                        }
-                    }
-                    MouseArea {
-                        id: openMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.open()
-                    }
+                MouseArea {
+                    id: openMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.open()
                 }
             }
         }
@@ -390,21 +480,21 @@ Item {
         color: root.subtext
     }
 
-    // A squircle control straight on the well: a soft card when pointed at, `active` ones (shuffle, repeat on) in
-    // the accent
+    // A control in the capsule: previous / next big and white, `quiet` ones (shuffle, repeat, mute) small and dim
+    // until they're on (`active`, in the accent). A soft circle when pointed at
     component ControlButton: Rectangle {
         id: ctl
         property string iconName
-        property real size: 40
+        property bool quiet: false
+        property real size: quiet ? 30 : 38
         property bool active: false
-        property color iconColor: Appearance.colors.colOnLayer0
         signal clicked()
         implicitWidth: size
         implicitHeight: size
-        radius: size / 3 // Squircles, like the quick toggles' icons
-        opacity: enabled ? 1 : 0.4
+        radius: size / 2
+        opacity: enabled ? 1 : 0.35
         color: active ? ColorUtils.transparentize(root.accent, 0.8)
-            : ColorUtils.transparentize(Appearance.colors.colOnLayer0, ctlMouse.containsMouse ? 0.92 : 1)
+            : ColorUtils.transparentize("white", ctlMouse.containsMouse ? 0.9 : 1)
         Behavior on color { ColorAnimation { duration: 150 } }
         scale: ctlMouse.pressed ? 0.92 : 1
         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -412,8 +502,10 @@ Item {
             anchors.centerIn: parent
             text: ctl.iconName
             fill: 1
-            iconSize: Math.round(ctl.size * 0.5)
-            color: ctl.active ? root.accent : ctl.iconColor
+            iconSize: Math.round(ctl.size * (ctl.quiet ? 0.56 : 0.66))
+            color: ctl.active ? root.accent : "white"
+            opacity: ctl.active || !ctl.quiet || ctlMouse.containsMouse ? 1 : 0.55
+            Behavior on opacity { NumberAnimation { duration: 150 } }
         }
         MouseArea {
             id: ctlMouse
