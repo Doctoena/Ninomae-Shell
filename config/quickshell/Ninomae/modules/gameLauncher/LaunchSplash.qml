@@ -390,7 +390,7 @@ Scope {
         anchors.top: true // Horizontally centred
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
-        margins.top: barBottom // Directly below the bar, which skips its border here (BarJoin)
+        margins.top: barBottom // Directly below the bar
         implicitWidth: panelWidth + sideMargin * 2
         implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
         mask: Region { item: maskArea }
@@ -411,12 +411,6 @@ Scope {
             DrawerReadiness {
                 id: readiness
                 active: drawer.visible
-            }
-            BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                name: "launchSplash"
-                active: drawer.visible && drawer.visibleHeight > 0
-                joinX: ((drawer.screen?.width ?? 0) - drawer.implicitWidth) / 2 + drawer.sideMargin
-                joinWidth: drawer.panelWidth
             }
             DrawerBackground {
                 edgeLight: false // It isn't hanging from the bar

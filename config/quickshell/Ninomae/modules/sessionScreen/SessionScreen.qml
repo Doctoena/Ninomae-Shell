@@ -291,12 +291,6 @@ Scope {
                 transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
                 clip: true
                 DrawerReadiness { id: readiness } // The window is made for each opening: always active
-                BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                    name: "session"
-                    active: sessionRoot.visibleHeight > 0
-                    joinX: ((sessionRoot.screen?.width ?? 0) - sessionRoot.panelWidth) / 2
-                    joinWidth: sessionRoot.panelWidth
-                }
                 DrawerBackground { // Shared with the other drawers
                     followBar: true // A card while there's no bar (a fullscreen game)
                     id: background

@@ -116,7 +116,7 @@ PanelWindow {
     implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
     margins {
         bottom: GlobalStates.barAtBottom ? root.barBottom : 0 // Or right above it, along the bottom
-        top: GlobalStates.barAtBottom ? 0 : root.barBottom // Directly below the bar, which skips its border here (BarJoin)
+        top: GlobalStates.barAtBottom ? 0 : root.barBottom // Directly below the bar
         left: Math.max(0, Math.min(root.centerX - root.implicitWidth / 2, (root.screen?.width ?? 0) - root.implicitWidth))
     }
     mask: Region { item: maskArea }
@@ -139,13 +139,6 @@ PanelWindow {
             id: readiness
             active: root.visible
         }
-        BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-            name: "trayMenu"
-            active: root.visible && root.visibleHeight > 0
-            joinX: root.margins.left + root.sideMargin
-            joinWidth: root.panelWidth
-        }
-
         DrawerBackground { // Shared with the other drawers. Made with the window (it's created per right-click),
             followBar: true // A card while there's no bar (a fullscreen game)
             // so the blob is there for the first frame instead of the unjoined fallback

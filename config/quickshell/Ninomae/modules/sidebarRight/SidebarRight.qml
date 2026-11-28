@@ -48,8 +48,8 @@ Scope {
         exclusiveZone: 0
         implicitWidth: panelWidth + sideMargin * 2
         WlrLayershell.namespace: "quickshell:sidebarRight"
-        // Under the bar while it shows (it's on the overlay level), so the glass blur doesn't take the bar in; the bar
-        // skips its border where they join (BarJoin). Over a fullscreen game there's no bar: the overlay level
+        // Under the bar while it shows (it's on the overlay level), so the glass blur doesn't take the bar in. Over a
+        // fullscreen game there's no bar: the overlay level
         WlrLayershell.layer: GlobalStates.drawerLayer(screen)
         // Hyprland 0.49: Focus is always exclusive and setting this breaks mouse focus grab
         // WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
@@ -59,7 +59,7 @@ Scope {
             right: true
             bottom: true
         }
-        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line)
         margins.bottom: GlobalStates.barAtBottom ? barBottom : 0 // Or right above it, along the bottom
         mask: Region { item: maskArea }
         HyprlandFocusGrab {
@@ -89,13 +89,6 @@ Scope {
                 id: readiness
                 active: sidebarRoot.visible
             }
-            BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                name: "sidebarRight"
-                active: sidebarRoot.visible && sidebarRoot.visibleHeight > 0
-                joinX: (sidebarRoot.screen?.width ?? 0) - sidebarRoot.implicitWidth + sidebarRoot.sideMargin
-                joinWidth: sidebarRoot.panelWidth
-            }
-
             DrawerBackground { // Shared with the launcher and the other drawers
                 followBar: true // A card while there's no bar (a fullscreen game)
                 id: background

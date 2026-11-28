@@ -22,10 +22,6 @@ Item { // Bar content region
         }
         color: Config.options.bar.showBackground ? Appearance.colors.colLayer0 : "transparent"
         opacity: Appearance.colors.glassOn ? 0.8 : 0.92 // Glass: over Hyprland's blur (GlassBlur)
-        // Composite as one layer so the join fills below replace the border instead of
-        // blending over it (with per-item opacity the border still showed through them).
-        // Only while a join is drawn: the rest of the time it's just an offscreen texture per bar
-        layer.enabled: border.width > 0 && Object.keys(GlobalStates.barJoins).length > 0
         radius: Config.options.bar.cornerStyle === 1 ? Appearance.rounding.windowRounding : 0
         border.width: Config.options.bar.cornerStyle === 1 ? 1 : 0
         // Glass: no border; the edge light below instead (as the launcher's GlassEdge): none along the bottom, where the
@@ -54,23 +50,6 @@ Item { // Bar content region
                 GradientStop { position: 0; color: "transparent" }
                 GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.35) }
                 GradientStop { position: 1; color: "transparent" }
-            }
-        }
-        // Skip the border on the drawers' side (the bottom edge, or the top with the bar along the bottom) where a
-        // drawer (launcher, sidebar, popups…) is attached, painting the bar's own fill over it, so the join has no line through it.
-        Repeater {
-            model: Object.values(GlobalStates.barJoins)
-            delegate: Rectangle {
-                required property var modelData
-                readonly property real joinLeft: Math.max(barBackground.radius, modelData[0] - barBackground.x)
-                readonly property real joinRight: Math.min(barBackground.width - barBackground.radius, modelData[0] + modelData[1] - barBackground.x)
-                visible: barBackground.border.width > 0 && joinRight > joinLeft
-                x: joinLeft
-                // A pixel deeper than the border: the border's antialiased half-pixel otherwise shows as a faint line
-                y: GlobalStates.barAtBottom ? 0 : barBackground.height - barBackground.border.width - 2
-                width: joinRight - joinLeft
-                height: barBackground.border.width + 2
-                color: barBackground.color
             }
         }
     }

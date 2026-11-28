@@ -77,12 +77,6 @@ Scope {
                 clip: true
                 transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
 
-                BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                    name: "polkit"
-                    active: win.visible && win.visibleHeight > 0 && background.attached
-                    joinX: win.drawerX
-                    joinWidth: win.panelWidth
-                }
                 DrawerBackground { // Shared with the other drawers
                     id: background
                     anchors.fill: parent

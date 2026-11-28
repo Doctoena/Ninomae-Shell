@@ -13,8 +13,7 @@ import Quickshell
  * followBar: a drawer hanging from the bar, which becomes a free-standing card while there's no bar on its
  * screen (a fullscreen game, or the bar turned off), instead of a join to nothing.
  * edgeLight (glass): the bar's fine edge light carried on round the drawer, from the tip of one join curve to the
- * other's, as the game page's rail carries its own round its side menus. The bar leaves that stretch of its own edge
- * out (BarJoin's curveReach), so the two meet; it grows with the drawer as it opens.
+ * other's, as the game page's rail carries its own round its side menus. It grows with the drawer as it opens.
  */
 Item {
     id: root
@@ -77,7 +76,7 @@ Item {
     readonly property real _barRight: screenWidth > 0 ? screenWidth - _barGap - windowScreenX : 1e6
     Shape {
         id: edgeLight
-        readonly property real reach: 16 // BarJoin's curveReach: where the bar's own edge stops
+        readonly property real reach: 16 // How far the gooey curve flares out from the drawer along the bar
         readonly property real leftX: root.drawerX + 0.5
         readonly property real rightX: root.drawerX + root.drawerWidth - 0.5
         readonly property real bottomY: root.drawerY + root.drawerHeight - 0.5

@@ -90,7 +90,7 @@ Scope {
                 anchors {
                     horizontalCenter: parent.horizontalCenter
                     // Directly against the bar's visual edge (it floats inside its gaps when cornerStyle is 1): overlapping
-                    // its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+                    // its last row drew that row twice (a dark line)
                     top: GlobalStates.barAtBottom ? undefined : parent.top
                     bottom: GlobalStates.barAtBottom ? parent.bottom : undefined
                     topMargin: GlobalStates.drawerTopOn(root.screen)

@@ -136,7 +136,7 @@ Scope {
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
         margins.bottom: GlobalStates.barAtBottom ? barBottom : 0 // Or right above it, along the bottom
-        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar, which skips its border here (BarJoin)
+        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar
         implicitWidth: panelWidth + sideMargin * 2
         implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
         mask: Region { item: maskArea }
@@ -164,13 +164,6 @@ Scope {
                 id: readiness
                 active: osdRoot.visible
             }
-            BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                name: "onScreenDisplay"
-                active: osdRoot.visible && osdRoot.visibleHeight > 0
-                joinX: ((osdRoot.screen?.width ?? 0) - osdRoot.implicitWidth) / 2 + osdRoot.sideMargin
-                joinWidth: osdRoot.panelWidth
-            }
-
             DrawerBackground {
                 followBar: true // A card while there's no bar (a fullscreen game)
                 id: background

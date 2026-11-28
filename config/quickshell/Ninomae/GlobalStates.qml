@@ -58,22 +58,6 @@ Singleton {
     property bool screenUnlockFailed: false
     property bool sessionOpen: false
     property bool superReleaseMightTrigger: true
-    // Screen-x ranges [x, width] where a drawer is joined to the bar (see common/widgets/BarJoin.qml).
-    // The bar skips its bottom border there, otherwise it shows through the translucent drawer as a line.
-    property var barJoins: ({})
-    function setBarJoin(name, x, width) {
-        const current = barJoins[name];
-        if (current && current[0] === x && current[1] === width) return;
-        let joins = Object.assign({}, barJoins);
-        joins[name] = [x, width];
-        barJoins = joins;
-    }
-    function clearBarJoin(name) {
-        if (!(name in barJoins)) return;
-        let joins = Object.assign({}, barJoins);
-        delete joins[name];
-        barJoins = joins;
-    }
     onSidebarRightOpenChanged: {
         if (GlobalStates.sidebarRightOpen) {
             Notifications.timeoutAll();

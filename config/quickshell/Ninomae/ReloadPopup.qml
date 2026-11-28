@@ -165,7 +165,7 @@ Scope {
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
         margins.bottom: GlobalStates.barAtBottom ? barBottom : 0 // Or right above it, along the bottom
-        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar, which skips its border here (BarJoin)
+        margins.top: GlobalStates.barAtBottom ? 0 : barBottom // Directly below the bar
         implicitWidth: panelWidth + sideMargin * 2
         implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
         mask: Region { item: maskArea }
@@ -195,13 +195,6 @@ Scope {
                 id: readiness
                 active: drawer.visible
             }
-            BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                name: "reloadPopup"
-                active: drawer.visible && drawer.visibleHeight > 0
-                joinX: ((drawer.screen?.width ?? 0) - drawer.implicitWidth) / 2 + drawer.sideMargin
-                joinWidth: drawer.panelWidth
-            }
-
             DrawerBackground { // Shared with the other drawers
                 id: background
                 anchors.fill: parent

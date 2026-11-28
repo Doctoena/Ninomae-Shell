@@ -133,7 +133,7 @@ Scope {
             }
             margins {
                 bottom: GlobalStates.barAtBottom ? mediaControlsRoot.barBottom : 0 // Or right above it, along the bottom
-                top: GlobalStates.barAtBottom ? 0 : mediaControlsRoot.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+                top: GlobalStates.barAtBottom ? 0 : mediaControlsRoot.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line)
             }
             readonly property real windowScreenX: ((screen?.width ?? 0) - implicitWidth) / 2
             mask: Region {
@@ -161,12 +161,6 @@ Scope {
                 clip: true
                 transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
                 DrawerReadiness { id: readiness } // The window is made for each opening: always active
-                BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                    name: "mediaControls"
-                    active: mediaControlsRoot.visibleHeight > 0
-                    joinX: mediaControlsRoot.windowScreenX + mediaControlsRoot.sideMargin
-                    joinWidth: mediaControlsRoot.panelWidth
-                }
                 DrawerBackground { // Shared with the launcher and the other drawers
                     followBar: true // A card while there's no bar (a fullscreen game)
                     id: background

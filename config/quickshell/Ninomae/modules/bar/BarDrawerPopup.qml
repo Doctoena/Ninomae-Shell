@@ -90,7 +90,7 @@ LazyLoader {
         implicitHeight: Math.ceil(fullHeight * 1.12) // Headroom for the overshoot stretch
         margins {
             bottom: GlobalStates.barAtBottom ? win.barBottom : 0 // Or right above it, along the bottom
-            top: GlobalStates.barAtBottom ? 0 : win.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line); the bar skips its border here instead (BarJoin)
+            top: GlobalStates.barAtBottom ? 0 : win.barBottom // Directly below the bar: overlapping its last row drew that row twice (a dark line)
             left: {
                 const centre = root.QsWindow?.mapFromItem(root.hoverTarget, root.hoverTarget.width / 2, 0).x ?? 0;
                 const maxLeft = (win.screen?.width ?? 0) - win.implicitWidth;
@@ -114,12 +114,6 @@ LazyLoader {
             transform: BarSideFlip { size: stage.height } // Bar along the bottom: rises from it
 
             DrawerReadiness { id: readiness } // The window is made for each opening: always active
-            BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                active: win.visibleHeight > 0
-                joinX: win.margins.left + win.sideMargin
-                joinWidth: win.panelWidth
-            }
-
             DrawerBackground { // Shared with the launcher and the other drawers
                 followBar: true // A card while there's no bar (a fullscreen game)
                 id: background

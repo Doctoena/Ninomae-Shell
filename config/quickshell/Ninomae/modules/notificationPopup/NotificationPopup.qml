@@ -93,13 +93,6 @@ Scope {
                 id: readiness
                 active: root.visible
             }
-            BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-                name: "notificationPopup"
-                active: root.visible && root.drawerHeight > 0 && root.attached
-                joinX: (root.screen?.width ?? 0) - root.implicitWidth + root.sideMargin
-                joinWidth: root.panelWidth
-            }
-
             DrawerBackground { // A card, higher up, while there's no bar (topEdge)
                 anchors.fill: parent
                 active: root.visible

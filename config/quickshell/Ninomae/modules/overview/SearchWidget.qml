@@ -260,12 +260,6 @@ Item { // Wrapper
     readonly property real visibleHeight: Math.max(0, drawerY + drawerHeight)
 
     implicitWidth: panelWidth + sideMargin * 2
-    BarJoin { // Lets the bar skip its bottom border where the drawer joins it
-        name: "launcher"
-        active: root.visibleHeight > 0
-        joinX: active ? root.mapToItem(null, root.sideMargin, 0).x : 0
-        joinWidth: root.panelWidth
-    }
     implicitHeight: fullHeight
 
     Item { // Clips everything above the bar's bottom edge, so the drawer emerges from under it
