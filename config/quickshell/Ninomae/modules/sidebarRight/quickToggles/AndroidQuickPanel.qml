@@ -5,8 +5,8 @@ import QtQuick.Layouts
 import Quickshell
 import qs.modules.sidebarRight.quickToggles.androidStyle
 /**
- * The quick toggles, straight on the sidebar's controls well: the wide ones two to a row, a line each (name and
- * state, ›), then the small ones just their icons, as many to a row as fit (about 60 px apart), ending with ⋯ for the
+ * The quick toggles, straight on the sidebar's controls well, as capsules (S2b): the wide ones two to a row (a round
+ * icon, the name over the state, ›), then the small ones just their icons, as many to a row as fit (about 60 px apart), ending with ⋯ for the
  * control centre. Edit mode lists the unused toggles under a line, and tiles can be dragged: onto another tile to
  * move next to it (taking that tile's size), below the line to take it out, from below the line into the block to
  * add it. ⋯ isn't there while editing: it isn't a toggle, so it can't be moved or taken out.
@@ -19,9 +19,9 @@ AbstractQuickPanel {
     Behavior on implicitHeight {
         animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
     }
-    readonly property real spacing: 4
-    readonly property real wideHeight: 44
-    readonly property real smallHeight: 48
+    readonly property real spacing: 6
+    readonly property real wideHeight: 50
+    readonly property real smallHeight: 44 // A 38 px capsule in it
     readonly property int smallPerRow: Math.max(1, Math.floor(width / 60))
     readonly property list<string> availableToggleTypes: ["network", "bluetooth", "idleInhibitor", "nightLight", "gameMode", "screenSnip", "colorPicker", "mic", "audio", "notifications", "powerProfile", "antiFlashbang"]
     readonly property list<var> toggles: Config.ready ? Config.options.sidebar.quickToggles.android.toggles.filter(t => !!t) : []
@@ -146,7 +146,7 @@ AbstractQuickPanel {
         property var rows: []
         property bool unused: false
         anchors { left: parent?.left; right: parent?.right }
-        spacing: 2
+        spacing: root.spacing
         Repeater {
             model: ScriptModel {
                 values: Array(block.rows.length)

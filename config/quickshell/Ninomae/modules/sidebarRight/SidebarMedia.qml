@@ -44,7 +44,7 @@ Rectangle {
     border.width: 1.5
     border.color: ColorUtils.transparentize(tint, 0.6)
     radius: Appearance.rounding.normal
-    implicitHeight: 92 + (withSliders ? slidersLoader.implicitHeight + 1 : 0)
+    implicitHeight: 92 + (withSliders ? slidersLoader.implicitHeight + 21 : 0) // 10 px round the sliders
     clip: true
 
     Halo { // The halo behind the cover
@@ -189,11 +189,8 @@ Rectangle {
     Loader {
         id: slidersLoader
         active: root.withSliders
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 93 }
-        sourceComponent: QuickSliders {
-            color: "transparent"
-            ringColor: root.color
-        }
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 103; leftMargin: 10; rightMargin: 10 }
+        sourceComponent: QuickSliders {}
     }
 
     component TimeText: StyledText {

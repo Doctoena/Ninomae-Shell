@@ -8,9 +8,9 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
-// Your machine in a well: RAM, CPU and GPU, each a small ring (how full, its icon inside) with the figure and name
-// beside it and a detail under them (used of total, the temperature, Asleep). Clicking one selects it (the accent
-// card) and grows the well to hold its panel: a usage graph of the last couple of minutes with the figure and model on
+// Your machine in a well: RAM, CPU and GPU, each a capsule (S2b) with its icon and name on the left, the figure on the
+// right and a fine bar along its foot filled to the level (Asleep: a moon and a dash). Clicking one selects it (the
+// bar's lit capsule) and grows the well to hold its panel: a usage graph of the last couple of minutes with the figure and model on
 // it, a few stats and the temperature, and (CPU and RAM) the apps using the most of it, each with End. Clicking it
 // again (or the panel) closes it
 Item {
@@ -204,10 +204,10 @@ Item {
     Item {
         id: tileRow
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        implicitHeight: 72
+        implicitHeight: 56
         RowLayout {
-            anchors { fill: parent; margins: 6 }
-            spacing: 2
+            anchors { fill: parent; margins: 10 }
+            spacing: 6
             RingTile {
                 key: "ram"; label: "RAM"; icon: "memory"
                 usage: ResourceUsage.memoryUsedPercentage; warning: root.ramWarning
@@ -396,25 +396,33 @@ Item {
 
     // A component in the well: a small ring (how full, red at a warning) with its icon inside, the figure and name
     // beside it, a detail under them. A button: a soft card when pointed at, the accent card while its panel is open
-    component RingTile: Rectangle {
+    component RingTile: Item {
         id: tile
         required property string key
         required property string label
         required property string icon
         required property real usage
         required property bool warning
-        property string detail: ""
+        property string detail: "" // Used of total, the temperature: in the tooltip (the panel shows them too)
         property bool asleep: false // Powered-down GPU: no reading
         readonly property bool selected: root.selected === key
         readonly property color accent: warning ? Appearance.colors.colError : Appearance.colors.colPrimary
         Layout.fillWidth: true
         Layout.preferredWidth: 1
         Layout.fillHeight: true
-        radius: 12
-        color: selected ? Appearance.colors.colLayer3Accent
-            : tileMouse.containsMouse ? ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.93)
-            : ColorUtils.transparentize(Appearance.colors.colOnLayer3, 1)
-        Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+        LitCapsule { // Selected: lit
+            anchors.fill: parent
+            colour: tile.accent
+            opacity: tile.selected ? 1 : 0
+            Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        }
+        Rectangle { // Its rim (in the accent, as the bar's capsules), a shade when pointed at
+            anchors.fill: parent
+            radius: height / 2
+            color: tileMouse.containsMouse && !tile.selected ? Qt.rgba(1, 1, 1, 0.07) : tile.selected ? "transparent" : Qt.rgba(1, 1, 1, 0.04)
+            border { width: 1; color: ColorUtils.transparentize(tile.accent, 0.72) }
+            Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+        }
         MouseArea {
             id: tileMouse
             anchors.fill: parent
@@ -422,42 +430,48 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: root.selected = tile.selected ? "" : tile.key
         }
-        UsageRing {
-            id: ring
-            anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-            fraction: tile.asleep ? 0 : tile.usage
-            colour: tile.accent
-            icon: tile.asleep ? "bedtime" : tile.icon
-            iconColour: tile.asleep ? Appearance.colors.colSubtextGlass : tile.accent
+        StyledToolTip {
+            extraVisibleCondition: tile.detail !== "" && tileMouse.containsMouse
+            text: tile.detail
         }
-        Column {
-            anchors { left: ring.right; leftMargin: 9; right: parent.right; rightMargin: 4; verticalCenter: parent.verticalCenter }
-            spacing: 0
-            Row {
-                spacing: 4
-                StyledText {
-                    id: figure
-                    text: tile.asleep ? "—" : root.percent(tile.usage)
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    font.weight: Font.DemiBold
-                    font.family: Appearance.font.family.numbers
-                    font.variableAxes: ({}) // Not Roboto Flex's tuning
-                    color: tile.warning ? tile.accent : tile.selected ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
-                }
-                StyledText {
-                    anchors.baseline: figure.baseline
-                    text: tile.label
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtextGlass
+        Rectangle { // The level, along its foot
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: parent.height / 2; rightMargin: parent.height / 2; bottomMargin: 6 }
+            height: 3
+            radius: 1.5
+            color: Qt.rgba(1, 1, 1, 0.08)
+            Rectangle {
+                width: tile.asleep ? 0 : Math.max(3, parent.width * Math.min(1, tile.usage))
+                height: parent.height
+                radius: 1.5
+                Behavior on width { animation: Appearance.animation.elementMove.numberAnimation.createObject(this) }
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: ColorUtils.transparentize(tile.accent, 0.4) }
+                    GradientStop { position: 1; color: tile.accent }
                 }
             }
+        }
+        RowLayout {
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; verticalCenterOffset: -3; leftMargin: 12; rightMargin: 12 }
+            spacing: 5
+            MaterialSymbol {
+                text: tile.asleep ? "bedtime" : tile.icon
+                iconSize: 15
+                color: tile.asleep ? Appearance.colors.colSubtextGlass : tile.accent
+            }
             StyledText {
-                visible: text !== ""
-                width: parent.width
-                elide: Text.ElideRight
-                text: tile.detail
+                Layout.fillWidth: true
+                text: tile.label
                 font.pixelSize: Appearance.font.pixelSize.smallest
                 color: Appearance.colors.colSubtextGlass
+            }
+            StyledText {
+                text: tile.asleep ? "—" : root.percent(tile.usage)
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.DemiBold
+                font.family: Appearance.font.family.numbers
+                font.variableAxes: ({}) // Not Roboto Flex's tuning
+                color: tile.warning || tile.selected ? tile.accent : Appearance.colors.colOnLayer3
             }
         }
     }

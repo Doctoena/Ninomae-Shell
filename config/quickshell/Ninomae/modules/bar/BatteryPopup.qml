@@ -4,18 +4,17 @@ import qs.modules.common.functions
 import qs.services
 import QtQuick
 import QtQuick.Layouts
-// The bar battery's drawer (B3), in one well like the sidebar's machine: the charge as a big ring (its state's icon
-// inside, red when low) with the percentage, the state and the time left or to full beside it; the last 12 hours as a
-// graph in a box tinted the ring's colour, the watts on it; then what's known as stat pieces (plugged in or out for
-// how long, voltage, the chemistry, or the health once the firmware reports wear)
+// The bar battery's drawer (M2), in one well: the bar's little battery grown big, the charge filling it in a lit
+// gradient with a glow, the state's icon and the percentage on the fill (beside it when the fill is too short) and the
+// time left or to full in the empty part; the last 12 hours as a graph in a box tinted the battery's colour, the state in
+// the bar's lit capsule and the watts along its top; then what's known as one line with dots between (plugged in or out
+// for how long, voltage, the chemistry, or the health once the firmware reports wear)
 BarDrawerPopup {
     id: root
     // Unix seconds in whole minutes: with second precision (lock screen) the graph doesn't redraw each second
     readonly property real now: Math.floor(DateTime.clock.date.getTime() / 60000) * 60
     readonly property bool low: Battery.isLowAndUnplugged
-    readonly property color ringColor: low ? Appearance.colors.colError : Appearance.colors.colPrimary
-    readonly property color stateColor: low ? Appearance.colors.colError
-        : Battery.isPluggedIn ? Appearance.colors.colPrimary : Appearance.colors.colSubtextGlass
+    readonly property color accent: low ? Appearance.colors.colError : Appearance.colors.colPrimary
     readonly property string stateText: {
         if (Battery.isFullyCharged) return Translation.tr("Fully charged");
         if (Battery.isCharging) return Translation.tr("Charging");
@@ -34,25 +33,23 @@ BarDrawerPopup {
         if (tech.includes("lithium-polymer")) return "Li-Po";
         return Battery.technology;
     }
-    readonly property string timeText: {
-        if (Battery.isFullyCharged) return "";
-        const t = Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty;
-        if (!(t > 0)) return "";
-        return Battery.isCharging ? Translation.tr("%1 until full").arg(Battery.formatTime(t))
-                                  : Translation.tr("%1 left").arg(Battery.formatTime(t));
-    }
+    // The time left or to full, "1h 4m", and what it is ("until full", "left"); none when full or unknown
+    readonly property real timeSeconds: Battery.isFullyCharged ? 0 : Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty
+    readonly property string timeFigure: timeSeconds > 0 ? Battery.formatTime(timeSeconds) : ""
+    readonly property string timeCaption: Battery.isCharging ? Translation.tr("until full") : Translation.tr("left")
     readonly property string sinceText: {
         if (!(Battery.pluggedSince > 0)) return "";
         const elapsed = root.now - Battery.pluggedSince;
-        return elapsed < 60 ? Translation.tr("Just now") : Battery.formatTime(elapsed);
+        return elapsed < 60 ? Translation.tr("just now") : Battery.formatTime(elapsed);
     }
-    // The pieces: what's known of them
-    readonly property var pieces: [
-        { value: sinceText, label: Battery.isPluggedIn ? Translation.tr("Plugged in") : Translation.tr("Unplugged") },
-        { value: Battery.voltage > 0 ? Battery.voltage.toFixed(1) + " V" : "", label: Translation.tr("Voltage") },
-        Battery.healthPercent < 99.5 ? { value: Battery.healthPercent.toFixed(0) + "%", label: Translation.tr("Health") }
-            : { value: techShort, label: Translation.tr("Chemistry") }
-    ].filter(p => p.value !== "")
+    // The facts line: what's known of them
+    readonly property var facts: [
+        { icon: Battery.isPluggedIn ? "power" : "power_off",
+          text: sinceText === "" ? "" : (Battery.isPluggedIn ? Translation.tr("Plugged in %1") : Translation.tr("Unplugged %1")).arg(sinceText) },
+        { icon: "electric_meter", text: Battery.voltage > 0 ? Battery.voltage.toFixed(1) + " V" : "" },
+        Battery.healthPercent < 99.5 ? { icon: "monitor_heart", text: Translation.tr("%1% health").arg(Battery.healthPercent.toFixed(0)) }
+            : { icon: "science", text: techShort }
+    ].filter(f => f.text !== "")
 
     Item { // Fixed-width wrapper: the drawer sizes itself from this (a layout ignores a set implicitWidth)
         implicitWidth: 300
@@ -60,73 +57,168 @@ BarDrawerPopup {
         Item {
             id: well
             anchors { left: parent.left; right: parent.right; top: parent.top }
-            implicitHeight: wellCol.implicitHeight + 20
+            implicitHeight: wellCol.implicitHeight + 24
             GlassWell {
                 anchors.fill: parent
             }
             ColumnLayout {
                 id: wellCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                 spacing: 10
 
-                // ═══════ Now: the charge as a ring, the percentage, the state and the time beside it ═══════
-                RowLayout {
+                // ═══════ The battery: its rim, the charge filling it, the figure and the time ═══════
+                Item {
+                    id: battery
                     Layout.fillWidth: true
-                    spacing: 14
-                    UsageRing {
-                        size: 72
-                        stroke: 6
-                        fraction: Battery.percentage
-                        colour: root.ringColor
-                        icon: root.stateIcon
-                        iconSize: 28
-                        iconFill: 1
-                    }
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 0
+                    implicitHeight: 70
+                    readonly property real innerWidth: rim.width - 10
+                    readonly property real fillWidth: Math.max(rim.height * 0.6 - 10, innerWidth * Math.min(1, Battery.percentage))
+                    // The figure on the fill while it's long enough, else beside it in the battery's colour
+                    readonly property bool figureOnFill: fillWidth >= figure.implicitWidth + 28
+                    // The time in the empty part, when there's room for it beside the fill (and the figure)
+                    readonly property real emptyRoom: innerWidth - fillWidth - (figureOnFill ? 0 : figure.implicitWidth + 18)
+                    readonly property bool timeInside: root.timeFigure !== "" && emptyRoom >= time.implicitWidth + 24
+
+                    Rectangle {
+                        id: rim
+                        width: parent.width - 8
+                        height: parent.height
+                        radius: 20
+                        color: Qt.rgba(1, 1, 1, 0.04)
+                        border { width: 1.5; color: ColorUtils.transparentize(root.accent, 0.55) }
+                        EdgeLight {
+                            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 24; rightMargin: 24 }
+                            strength: 0.3
+                        }
+                        Rectangle { // The fill's glow
+                            x: 2
+                            y: 2
+                            width: fill.width + 6
+                            height: parent.height - 4
+                            radius: parent.radius - 2
+                            color: ColorUtils.transparentize(root.accent, 0.85)
+                        }
+                        Rectangle {
+                            id: fill
+                            x: 5
+                            y: 5
+                            width: battery.fillWidth
+                            height: parent.height - 10
+                            radius: parent.radius - 5
+                            Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0; color: ColorUtils.transparentize(root.accent, 0.35) }
+                                GradientStop { position: 1; color: root.accent }
+                            }
+                            Rectangle { // Its top light
+                                x: 10
+                                y: 1
+                                width: Math.max(0, parent.width - 20)
+                                height: 1
+                                color: Qt.rgba(1, 1, 1, 0.55)
+                            }
+                        }
                         RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
+                            id: figure
+                            anchors {
+                                left: parent.left
+                                leftMargin: battery.figureOnFill ? 16 : fill.width + 14
+                                verticalCenter: parent.verticalCenter
+                            }
+                            spacing: 4
+                            readonly property color colour: battery.figureOnFill ? Appearance.colors.colOnPrimary : root.accent
+                            MaterialSymbol {
+                                text: root.stateIcon
+                                fill: 1
+                                iconSize: 24
+                                color: figure.colour
+                            }
                             StyledText {
-                                id: figure
                                 text: Battery.percent + "%"
-                                font.pixelSize: 34
-                                font.weight: Font.DemiBold
+                                font.pixelSize: 29
+                                font.weight: Font.Bold
                                 font.family: Appearance.font.family.numbers
                                 font.variableAxes: ({}) // Not Roboto Flex's tuning
-                                color: root.low ? Appearance.colors.colError : Appearance.colors.colOnLayer0
+                                color: figure.colour
+                            }
+                        }
+                        ColumnLayout {
+                            id: time
+                            visible: battery.timeInside
+                            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                            spacing: -2
+                            StyledText {
+                                Layout.alignment: Qt.AlignRight
+                                text: root.timeFigure
+                                font.pixelSize: Appearance.font.pixelSize.normal
+                                font.weight: Font.DemiBold
+                                font.family: Appearance.font.family.numbers
+                                font.variableAxes: ({})
+                                color: Appearance.colors.colOnLayer0
                             }
                             StyledText {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignBaseline
-                                elide: Text.ElideRight
-                                text: root.stateText
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                font.weight: Font.Medium
-                                color: root.stateColor
+                                Layout.alignment: Qt.AlignRight
+                                text: root.timeCaption
+                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                color: Appearance.colors.colSubtextGlass
                             }
                         }
-                        StyledText {
-                            visible: text !== ""
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
-                            text: root.timeText
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: Appearance.colors.colSubtextGlass
-                        }
+                    }
+                    Rectangle { // The cap
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        width: 5
+                        height: 25
+                        radius: 2.5
+                        color: ColorUtils.transparentize(root.accent, 0.45)
                     }
                 }
 
-                // ═══════ The last 12 hours, in a box tinted the ring's colour, the watts on it ═══════
+                // ═══════ The last 12 hours, the state and the watts along the top of its box ═══════
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 112
                     radius: 12
-                    color: ColorUtils.transparentize(root.ringColor, 0.94)
+                    color: ColorUtils.transparentize(root.accent, 0.94)
+                    LitCapsule {
+                        id: stateCapsule
+                        x: 8
+                        y: 8
+                        width: stateLabel.implicitWidth + 22
+                        height: 24
+                        colour: root.accent
+                        StyledText {
+                            id: stateLabel
+                            anchors.centerIn: parent
+                            // The time joins the state when the battery has no room for it
+                            text: battery.timeInside || root.timeFigure === "" ? root.stateText
+                                : `${root.stateText} · ${root.timeFigure} ${root.timeCaption}`
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.DemiBold
+                            color: root.accent
+                        }
+                    }
+                    RowLayout {
+                        visible: Battery.energyRate > 0.01
+                        anchors { right: parent.right; top: parent.top; rightMargin: 12; topMargin: 12 }
+                        spacing: 4
+                        MaterialSymbol {
+                            text: Battery.isCharging ? "bolt" : "trending_down"
+                            iconSize: 15
+                            color: root.accent
+                        }
+                        StyledText {
+                            text: Battery.energyRate.toFixed(1) + " W"
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.DemiBold
+                            font.family: Appearance.font.family.numbers
+                            font.variableAxes: ({})
+                            color: Appearance.colors.colOnLayer0
+                        }
+                    }
                     LineGraph {
-                        // Inset: clear of the watts, the time axis and the box's round corners
-                        anchors { fill: parent; topMargin: 34; leftMargin: 10; rightMargin: 10; bottomMargin: 22 }
+                        // Inset: clear of the state, the time axis and the box's round corners
+                        anchors { fill: parent; topMargin: 42; leftMargin: 10; rightMargin: 10; bottomMargin: 22 }
                         guides: false
                         // The log plus a live point for now; the sample from before the span starts at the left edge
                         points: {
@@ -134,25 +226,8 @@ BarDrawerPopup {
                             return Battery.history.concat([{ t: root.now, v: Battery.percentage }])
                                 .map(s => Qt.point(Math.max(0, (s.t - from) / span), s.v));
                         }
-                        color: root.ringColor
+                        color: root.accent
                         emptyText: Translation.tr("No history yet")
-                    }
-                    StyledText {
-                        visible: Battery.energyRate > 0.01
-                        anchors { left: parent.left; top: parent.top; leftMargin: 12; topMargin: 8 }
-                        text: Battery.energyRate.toFixed(1) + " W"
-                        font.pixelSize: Appearance.font.pixelSize.large
-                        font.weight: Font.DemiBold
-                        font.family: Appearance.font.family.numbers
-                        font.variableAxes: ({})
-                        color: root.ringColor
-                    }
-                    StyledText {
-                        visible: Battery.energyRate > 0.01
-                        anchors { right: parent.right; top: parent.top; rightMargin: 12; topMargin: 12 }
-                        text: Battery.isCharging ? Translation.tr("Charge rate") : Translation.tr("Draw")
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                        color: Appearance.colors.colSubtextGlass
                     }
                     RowLayout { // Time axis
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 10; rightMargin: 10; bottomMargin: 5 }
@@ -170,17 +245,37 @@ BarDrawerPopup {
                     }
                 }
 
-                // ═══════ Plugged in or out for how long, voltage, chemistry or health, as pieces ═══════
+                // ═══════ Plugged in or out for how long, voltage, chemistry or health: one line, dots between ═══════
                 RowLayout {
-                    visible: root.pieces.length > 0
-                    Layout.fillWidth: true
-                    spacing: 6
+                    visible: root.facts.length > 0
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 8
                     Repeater {
-                        model: root.pieces
-                        StatPiece {
+                        model: root.facts
+                        RowLayout {
                             required property var modelData
-                            value: modelData.value
-                            label: modelData.label
+                            required property int index
+                            spacing: 8
+                            Rectangle { // The dot between facts
+                                visible: index > 0
+                                Layout.alignment: Qt.AlignVCenter
+                                implicitWidth: 3
+                                implicitHeight: 3
+                                radius: 1.5
+                                color: Appearance.colors.colOnLayer0
+                                opacity: 0.4
+                            }
+                            MaterialSymbol {
+                                text: modelData.icon
+                                iconSize: 15
+                                color: root.accent
+                            }
+                            StyledText {
+                                Layout.leftMargin: -4
+                                text: modelData.text
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.colors.colOnLayer0
+                            }
                         }
                     }
                 }

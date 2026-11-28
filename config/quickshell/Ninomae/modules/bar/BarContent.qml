@@ -53,36 +53,18 @@ Item { // Bar content region
             }
         }
     }
-    LitCapsule { // The workspaces' (K1): their first and last cells concentric with its ends
+    BarCapsule { // The workspaces' (K1): their first and last cells concentric with its ends
         x: barLeftSideMouseArea.x + workspacesWidget.x
         width: workspacesWidget.width
     }
-    // A lit capsule (W3, the player's first): 30 px, round ends, its colour strongest at the left end and fading out by
-    // its middle, a fine rim of it. The player's in its cover's colour; the workspaces', status' and clock's in the accent
-    component LitCapsule: Rectangle {
-        id: capsule
-        property color colour: Appearance.colors.colPrimary
-        // How much of the colour: the accent is more vivid than a cover's colour, so the accent ones are at 0.75, as soft
-        // as the player's glow at 1
-        property real strength: 0.75
+    // The bar's lit capsules (LitCapsule): 30 px, centred on the strip. The player's in its cover's colour; the
+    // workspaces', status' and clock's in the accent
+    component BarCapsule: LitCapsule {
         visible: Config.options.bar.showBackground && width > 0 && opacity > 0
         anchors.verticalCenter: barBackground.verticalCenter
         height: 30
-        radius: height / 2
-        color: "transparent"
-        border { width: 1; color: ColorUtils.transparentize(capsule.colour, 1 - 0.25 * capsule.strength) }
-        Rectangle {
-            anchors { fill: parent; margins: 1 }
-            radius: height / 2
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: ColorUtils.transparentize(capsule.colour, 1 - 0.28 * capsule.strength) }
-                GradientStop { position: 0.55; color: ColorUtils.transparentize(capsule.colour, 1 - 0.08 * capsule.strength) }
-                GradientStop { position: 1; color: ColorUtils.transparentize(capsule.colour, 1 - 0.05 * capsule.strength) }
-            }
-        }
     }
-    LitCapsule { // The player's, fading and growing in and out with it: its round left end is the cover's ring
+    BarCapsule { // The player's, fading and growing in and out with it: its round left end is the cover's ring
         anchors.horizontalCenter: middleSection.horizontalCenter
         width: middleSection.implicitWidth
         colour: mediaWidget.accentColour
@@ -92,12 +74,12 @@ Item { // Bar content region
     }
     // The right side (R3): the tray, the battery and the status button in one capsule, the clock in its own
     readonly property real rightX: barRightSideMouseArea.x + rightSectionRowLayout.x
-    LitCapsule {
+    BarCapsule {
         readonly property Item first: trayPill.visible ? trayPill : batteryWidget.visible ? batteryWidget : rightSidebarButton
         x: root.rightX + first.x
         width: rightSidebarButton.x + rightSidebarButton.width + 2 - first.x
     }
-    LitCapsule {
+    BarCapsule {
         x: root.rightX + rightClock.x
         width: rightClock.width
     }

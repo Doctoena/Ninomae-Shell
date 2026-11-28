@@ -17,9 +17,10 @@ Item {
     property bool editMode: false
     implicitHeight: mainColumn.implicitHeight + mainColumn.anchors.margins * 2
     implicitWidth: Appearance.sizes.sidebarWidth - Appearance.sizes.hyprlandGapsOut * 2
-    // The sidebar: you, straight on the glass; then three wells: your machine as rings (battery, RAM, CPU, GPU); the
-    // controls (the quick toggles, then the sound: what's playing as a glass piece with the sliders in it, or the
-    // sliders alone); the notifications last, so the one list that grows has the room under it
+    // The sidebar (S2b, lit capsules in wells): you, straight on the glass, your buttons in a capsule; then three wells:
+    // your machine as capsules filled to their level (RAM, CPU, GPU); the controls (the quick toggles as lit capsules,
+    // then the sound: what's playing as a glass piece with the sliders in it, or the sliders alone, each a thick lit
+    // capsule); the notifications last, so the one list that grows has the room under it
     ColumnLayout {
         id: mainColumn
         readonly property var sliderOptions: Config.options.sidebar.quickSliders
@@ -38,14 +39,14 @@ Item {
         }
         Item { // The controls, in their well: the quick toggles, then the sound
             Layout.fillWidth: true
-            implicitHeight: controlsColumn.implicitHeight + 12
+            implicitHeight: controlsColumn.implicitHeight + 20
             GlassWell {
                 anchors.fill: parent
             }
             ColumnLayout {
                 id: controlsColumn
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
-                spacing: 6
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                spacing: 8
                 LoaderedQuickPanelImplementation {
                     styleName: "classic"
                     sourceComponent: ClassicQuickPanel {}
@@ -70,9 +71,7 @@ Item {
                     Layout.fillWidth: true
                     visible: active
                     active: mainColumn.slidersShown && !mainColumn.mediaShown
-                    sourceComponent: QuickSliders {
-                        color: "transparent"
-                    }
+                    sourceComponent: QuickSliders {}
                 }
             }
         }
@@ -141,9 +140,8 @@ Item {
                     Layout.fillWidth: true
                     text: Translation.tr("%1, %2").arg(headerCard.greeting).arg(SystemInfo.username)
                     textFormat: Text.PlainText
-                    font.family: Appearance.font.family.title
-                    font.weight: Font.Black
-                    font.pixelSize: Appearance.font.pixelSize.large
+                    font.weight: Font.DemiBold
+                    font.pixelSize: Appearance.font.pixelSize.normal
                     color: Appearance.colors.colOnLayer3
                     elide: Text.ElideRight
                 }
@@ -175,42 +173,53 @@ Item {
                     }
                 }
             }
-            RowLayout { // The buttons, closer together than the name: a set
-                spacing: 4
-                SideButton {
-                    visible: Config.options.sidebar.quickToggles.style === "android"
-                    symbol: "edit"
-                    toggled: root.editMode
-                    tip: Translation.tr("Edit quick toggles") + (root.editMode ? Translation.tr("\nClick to turn on or off\nDrag to move, or below the line to take out\nRight-click to change the size") : "")
-                    onClicked: root.editMode = !root.editMode
-                }
-                SideButton {
-                    symbol: "restart_alt"
-                    tip: Translation.tr("Reload Hyprland and the shell")
-                    onClicked: {
-                        Quickshell.execDetached(["hyprctl", "reload"]); // The Lua API has no reload dispatcher
-                        Quickshell.reload(true);
+            Rectangle { // The buttons, a set in their own capsule
+                implicitWidth: buttonRow.implicitWidth + 8
+                implicitHeight: 36
+                radius: height / 2
+                color: Qt.rgba(1, 1, 1, 0.04)
+                border { width: 1; color: Qt.rgba(1, 1, 1, 0.1) }
+                RowLayout {
+                    id: buttonRow
+                    anchors.centerIn: parent
+                    spacing: 2
+                    SideButton {
+                        visible: Config.options.sidebar.quickToggles.style === "android"
+                        symbol: "edit"
+                        toggled: root.editMode
+                        tip: Translation.tr("Edit quick toggles") + (root.editMode ? Translation.tr("\nClick to turn on or off\nDrag to move, or below the line to take out\nRight-click to change the size") : "")
+                        onClicked: root.editMode = !root.editMode
                     }
-                }
-                SideButton {
-                    symbol: "settings"
-                    tip: Translation.tr("Settings")
-                    onClicked: {
-                        GlobalStates.sidebarRightOpen = false;
-                        Quickshell.execDetached([root.openSettingsScript]);
+                    SideButton {
+                        symbol: "restart_alt"
+                        tip: Translation.tr("Reload Hyprland and the shell")
+                        onClicked: {
+                            Quickshell.execDetached(["hyprctl", "reload"]); // The Lua API has no reload dispatcher
+                            Quickshell.reload(true);
+                        }
                     }
-                }
-                SideButton {
-                    symbol: "power_settings_new"
-                    tip: Translation.tr("Session")
-                    onClicked: GlobalStates.sessionOpen = true
+                    SideButton {
+                        symbol: "settings"
+                        tip: Translation.tr("Settings")
+                        onClicked: {
+                            GlobalStates.sidebarRightOpen = false;
+                            Quickshell.execDetached([root.openSettingsScript]);
+                        }
+                    }
+                    SideButton {
+                        symbol: "power_settings_new"
+                        tip: Translation.tr("Session")
+                        onClicked: GlobalStates.sessionOpen = true
+                        colSymbol: Appearance.colors.colPrimary // Leaving: the accent
+                    }
                 }
             }
         }
     }
-    // A system button by your name: a plain icon, a shade on hover
+    // A system button by your name, in the buttons' capsule: a plain icon, a round shade on hover
     component SideButton: IconButton {
-        size: 32
+        size: 30
+        round: true
         colBackground: "transparent"
         colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.86)
         colRipple: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.78)

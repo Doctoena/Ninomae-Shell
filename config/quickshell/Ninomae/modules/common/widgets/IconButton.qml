@@ -5,7 +5,7 @@ import QtQuick
 /**
  * A button with just an icon (the sidebar's system buttons, Do not disturb, Settings' Close): a squircle on the
  * cards' surface as the quick toggles, solid accent while `toggled`, `tip` on hover. `round: true` makes it a
- * circle (Settings' Close). `size` sets it, the icon scales with it.
+ * circle (Settings' Close). `size` sets it, the icon scales with it; `colSymbol` recolours the icon.
  */
 RippleButton {
     id: root
@@ -13,6 +13,7 @@ RippleButton {
     property string tip: ""
     property real size: 36
     property bool round: false
+    property color colSymbol: toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurfaceVariant
     implicitWidth: size
     implicitHeight: size
     buttonRadius: round ? size / 2 : size >= 36 ? Appearance.rounding.container : Appearance.rounding.segment
@@ -27,7 +28,7 @@ RippleButton {
             text: root.symbol
             iconSize: Math.round(root.size * 0.275) * 2 // Even, so it centres on whole pixels
             fill: root.toggled ? 1 : 0
-            color: root.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurfaceVariant
+            color: root.colSymbol
         }
     }
     StyledToolTip {

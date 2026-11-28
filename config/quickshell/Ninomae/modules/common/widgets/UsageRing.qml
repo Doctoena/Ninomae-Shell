@@ -3,8 +3,8 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Shapes
 
-// A ring showing how full something is, from the top, clockwise, over a faint track, an icon inside: the sidebar's
-// RAM / CPU / GPU tiles and the battery drawer's charge. The fill glides to new values
+// A ring showing how full something is, from the top, clockwise, over a faint track, an icon inside: the bar player's
+// progress round its cover and the volume / brightness pop-up. The fill glides to new values
 Item {
     id: ring
     property real fraction: 0 // 0–1

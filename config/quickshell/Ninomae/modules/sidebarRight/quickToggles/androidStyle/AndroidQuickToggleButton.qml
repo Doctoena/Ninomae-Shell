@@ -5,11 +5,12 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 /**
- * A quick toggle, straight on the sidebar's controls well (AndroidQuickPanel), a soft card when pointed at. Wide: the
- * icon on a squircle, the name and state on one line (the state left out when it wouldn't fit), and a › that opens
- * its page in the control centre. Small: the squircle alone. Being on shows in the accent: a solid squircle, the name
- * in accent; off, a light tint. Clicking toggles; a right click also opens the page (GroupButton's altAction), the ›
- * is the visible way. In edit mode: click turns it on or off, right-click changes its size, drag moves it.
+ * A quick toggle, a capsule on the sidebar's controls well (AndroidQuickPanel, S2b): on, the bar's lit capsule with a
+ * light along its top; off, a faint glass outline; a shade when pointed at. Wide: the icon on a round, solid accent
+ * with a soft glow when on, the name over the state (the state in the accent when on), and a › that opens its page in
+ * the control centre. Small: the icon alone, in the accent and filled when on. Clicking toggles; a right click also
+ * opens the page (GroupButton's altAction), the › is the visible way. In edit mode: click turns it on or off,
+ * right-click changes its size, drag moves it.
  */
 GroupButton {
     id: root
@@ -46,9 +47,9 @@ GroupButton {
     implicitWidth: baseWidth
     implicitHeight: baseHeight
     padding: 0
-    // Clear on the well, a soft card when pointed at (on or off: the icon says which)
+    // The capsule's own fill is drawn below; these are the shade over it when pointed at or pressed
     colBackground: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 1)
-    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.93)
+    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.94)
     colBackgroundActive: ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.88)
     colBackgroundToggled: colBackground
     colBackgroundToggledHover: colBackgroundHover
@@ -64,56 +65,93 @@ GroupButton {
     }
     onClicked: root.mainAction()
 
-    background: Rectangle {
-        radius: 12
-        color: root.color
-        Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+    background: Item {
+        // Small ones fill a fixed cell: the capsule sits 3 px in from each side, so neighbours are 6 px apart
+        anchors { fill: parent; leftMargin: root.expandedSize ? 0 : 3; rightMargin: root.expandedSize ? 0 : 3 }
+        anchors.topMargin: root.expandedSize ? 0 : (parent.height - 38) / 2
+        anchors.bottomMargin: anchors.topMargin
+        LitCapsule {
+            anchors.fill: parent
+            opacity: root.toggled ? 1 : 0
+            Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        }
+        Rectangle { // Off: a faint glass outline; on and off: the shade when pointed at
+            anchors.fill: parent
+            radius: height / 2
+            color: root.toggled ? root.color : Qt.tint(Qt.rgba(1, 1, 1, 0.03), root.color)
+            border { width: 1; color: root.toggled ? "transparent" : Qt.rgba(1, 1, 1, 0.1) }
+            Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+        }
+        EdgeLight {
+            visible: root.toggled && root.expandedSize
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 24; rightMargin: 24 }
+            strength: 0.35
+        }
     }
 
     contentItem: RowLayout {
         id: contentItem
-        spacing: 9
+        spacing: 10
         anchors {
             fill: parent
-            leftMargin: 9
-            rightMargin: root.hasMenu ? 2 : 9
+            leftMargin: root.expandedSize ? 6 : 9
+            rightMargin: root.hasMenu ? 4 : 9
         }
         Item { visible: !root.expandedSize; Layout.fillWidth: true } // A small one: the icon centred
-        // The icon on a squircle: solid accent when on, a light tint when off (the same on any wallpaper)
+        // Wide: the icon on a round, solid accent with a soft glow when on, a light tint when off
         Rectangle {
+            visible: root.expandedSize
             Layout.alignment: Qt.AlignVCenter
-            implicitWidth: root.expandedSize ? 30 : 34
-            implicitHeight: implicitWidth
-            radius: implicitWidth * 0.32
-            color: root.toggled ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.9)
+            implicitWidth: 38
+            implicitHeight: 38
+            radius: width / 2
+            color: root.toggled ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer3, 0.92)
             Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+            Rectangle { // The glow
+                z: -1
+                anchors.centerIn: parent
+                width: parent.width + 6
+                height: width
+                radius: width / 2
+                color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
+                opacity: root.toggled ? 1 : 0
+                Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+            }
             MaterialSymbol {
                 anchors.centerIn: parent
-                fill: root.toggled ? 1 : 0
-                iconSize: 18
-                color: root.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer4
+                fill: 1
+                iconSize: 19
+                color: root.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer3
                 text: root.buttonIcon
             }
         }
-        RowLayout { // A wide one: its name, and its state on the same line
+        // Small: the icon alone, in the accent and filled when on
+        MaterialSymbol {
+            visible: !root.expandedSize
+            Layout.alignment: Qt.AlignVCenter
+            fill: root.toggled ? 1 : 0
+            iconSize: 18
+            color: root.toggled ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer3
+            text: root.buttonIcon
+        }
+        ColumnLayout { // A wide one: its name over its state
             Layout.alignment: Qt.AlignVCenter
             Layout.fillWidth: true
             visible: root.expandedSize
-            spacing: 6
+            spacing: -2
             StyledText {
+                Layout.fillWidth: true
                 font.pixelSize: Appearance.font.pixelSize.small
                 font.weight: Font.DemiBold
-                color: root.colText
+                color: Appearance.colors.colOnLayer3
                 elide: Text.ElideRight
                 text: root.name
             }
             StyledText {
                 visible: root.statusText !== ""
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignBaseline
-                opacity: truncated ? 0 : 1 // Doesn't fit beside the name: left out, not cut off
                 font.pixelSize: Appearance.font.pixelSize.smallest
-                color: Appearance.colors.colSubtextGlass
+                color: root.toggled ? Appearance.colors.colPrimary : Appearance.colors.colSubtextGlass
                 elide: Text.ElideRight
                 text: root.statusText
             }
@@ -134,7 +172,7 @@ GroupButton {
                 Rectangle { // Hover highlight behind the ›
                     anchors.centerIn: parent
                     width: 24; height: 30
-                    radius: 8
+                    radius: 12
                     color: ColorUtils.transparentize(root.colText, menuArea.containsPress ? 0.85 : menuArea.containsMouse ? 0.92 : 1)
                     Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
                 }

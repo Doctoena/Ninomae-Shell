@@ -4,7 +4,7 @@ import QtQuick
 import QtQuick.Layouts
 
 // A figure over its name as a small soft piece on a well, laid out in a row of equal ones: the sidebar's resource
-// panel (average, peak, temperature) and the battery drawer (plugged in, voltage, health)
+// panel (average, peak, load, temperature)
 Rectangle {
     id: piece
     property string value

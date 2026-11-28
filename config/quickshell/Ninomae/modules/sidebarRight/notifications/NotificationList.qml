@@ -5,7 +5,8 @@ import qs.services
 import QtQuick
 import QtQuick.Layouts
 
-// The sidebar's notifications, in its well (SidebarRightContent): a header with "Notifications 3", Do not disturb and
+// The sidebar's notifications, in its well (SidebarRightContent): a header with "Notifications" and how many in a
+// small lit capsule, Do not disturb and
 // Clear all, then the groups as rows on the well (N1c, see NotificationGroup), or "All caught up" when there are none
 ColumnLayout {
     id: root
@@ -19,16 +20,22 @@ ColumnLayout {
             spacing: 6
             StyledText {
                 text: Translation.tr("Notifications")
-                font.family: Appearance.font.family.title
-                font.weight: Font.Black
-                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.DemiBold
+                font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colOnLayer3
             }
-            StyledText {
+            LitCapsule { // How many, in a small lit capsule
                 visible: Notifications.list.length > 0
-                text: Notifications.list.length
-                font.pixelSize: Appearance.font.pixelSize.smallie
-                color: Appearance.colors.colSubtextGlass
+                implicitWidth: Math.max(22, countText.implicitWidth + 12)
+                implicitHeight: 18
+                StyledText {
+                    id: countText
+                    anchors.centerIn: parent
+                    text: Notifications.list.length
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.weight: Font.DemiBold
+                    color: Appearance.colors.colPrimary
+                }
             }
             Item { Layout.fillWidth: true }
             HeaderButton {
